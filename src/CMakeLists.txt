@@ -4,6 +4,7 @@ add_executable(
     bootstrap/main.cpp
     common/error/BusinessException.cpp
     common/error/Throw.cpp
+    filters/LoginRequiredFilter.cpp
     modules/auth/controller/AuthController.cpp
     modules/auth/repository/AuthRepository.cpp
     modules/auth/service/AuthService.cpp

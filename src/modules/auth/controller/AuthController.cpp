@@ -69,4 +69,38 @@ namespace project_tracker::modules::auth::controller {
             co_return api::fromException(exception);
         }
     }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    AuthController::logout(drogon::HttpRequestPtr request) {
+        auto session = request->getSession();
+        session->clear();
+        session->changeSessionIdToClient();
+
+        co_return api::ok();
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    AuthController::me(drogon::HttpRequestPtr request) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        if (!userId || *userId <= 0) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        const auto user = co_await authRepository_.findUserById(*userId);
+        if (!user) {
+            session->clear();
+            session->changeSessionIdToClient();
+
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        co_return api::ok(buildUserJson(*user));
+    }
 } // namespace project_tracker::modules::auth::controller

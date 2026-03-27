@@ -6,12 +6,14 @@
 
 #include <drogon/utils/coroutine.h>
 
+#include "modules/user/dto/view/SysUserView.h"
 #include "modules/user/domain/UserEnums.h"
 
 namespace project_tracker::modules::auth::repository {
     namespace user_domain = modules::user::domain;
+    namespace user_view = modules::user::dto::view;
 
-    // 登录查询使用的用户记录
+    // 认证查询使用的用户记录
     // 说明：
     // 1. 包含 password_hash，供 AuthService 做密码校验
     // 2. 不直接作为接口返回对象使用
@@ -32,5 +34,8 @@ namespace project_tracker::modules::auth::repository {
     public:
         drogon::Task<std::optional<AuthUserRecord>>
         findUserByUsername(const std::string &username) const;
+
+        drogon::Task<std::optional<user_view::SysUserView>>
+        findUserById(std::int64_t userId) const;
     };
 } // namespace project_tracker::modules::auth::repository
