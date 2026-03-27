@@ -25,6 +25,7 @@ DartConfiguration.tcl
 
 # 本地配置
 config/local/
+config/config.dev.json
 .env
 .env.*
 

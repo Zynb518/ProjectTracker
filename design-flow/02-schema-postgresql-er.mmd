@@ -1,4 +1,4 @@
-%% 从 02-schema-postgresql.sql 提取的 Mermaid ER 图源码
+%% 从 db/migrations/001_init_schema.sql 提取的 Mermaid ER 图源码
 %% 用法：将本文件内容粘贴到 Mermaid Live Editor，或在支持 Mermaid 的 Markdown 中引用
 %% 说明：
 %% 1. 重点表达实体、主键、主要字段和外键关系
@@ -10,10 +10,10 @@ erDiagram
         varchar username UK
         varchar password_hash
         varchar real_name
-        smallint system_role
+        integer system_role
         varchar email
         varchar phone
-        smallint status
+        integer status
         timestamptz created_at
         timestamptz updated_at
     }
@@ -23,7 +23,7 @@ erDiagram
         varchar name
         text description
         bigint owner_user_id FK
-        smallint status
+        integer status
         date planned_start_date
         date planned_end_date
         timestamptz completed_at
@@ -46,7 +46,7 @@ erDiagram
         varchar name
         text description
         int sequence_no
-        smallint status
+        integer status
         date planned_start_date
         date planned_end_date
         timestamptz completed_at
@@ -61,9 +61,9 @@ erDiagram
         varchar name
         text description
         bigint responsible_user_id FK
-        smallint status
-        smallint progress_percent
-        smallint priority
+        integer status
+        integer progress_percent
+        integer priority
         date planned_start_date
         date planned_end_date
         timestamptz completed_at
@@ -77,8 +77,8 @@ erDiagram
         bigint sub_task_id FK
         bigint operator_user_id FK
         text progress_note
-        smallint progress_percent
-        smallint status
+        integer progress_percent
+        integer status
         timestamptz created_at
     }
 
@@ -86,7 +86,7 @@ erDiagram
         bigint id PK
         varchar name UK
         text description
-        smallint status
+        integer status
     }
 
     project_template_node {

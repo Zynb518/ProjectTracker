@@ -3,10 +3,9 @@
 #include <utility>
 
 namespace project_tracker::common::error {
-    BusinessException::BusinessException(
-        drogon::HttpStatusCode status,
-        ErrorCode code,
-        std::string message)
+    BusinessException::BusinessException(drogon::HttpStatusCode status,
+                                         ErrorCode code,
+                                         std::string message)
         : status_(status),
           code_(code),
           message_(std::move(message)) {

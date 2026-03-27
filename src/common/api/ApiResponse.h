@@ -11,11 +11,10 @@ namespace project_tracker::common::api {
     // 说明：
     // 1. HTTP 状态码和业务错误码分开维护
     // 2. Controller 层直接返回 HttpResponsePtr，减少重复拼装 JSON 的代码
-    inline drogon::HttpResponsePtr make(
-        drogon::HttpStatusCode status,
-        error::ErrorCode code,
-        const std::string &message,
-        const Json::Value &data) {
+    inline drogon::HttpResponsePtr make(drogon::HttpStatusCode status,
+                                        error::ErrorCode code,
+                                        const std::string &message,
+                                        const Json::Value &data) {
         Json::Value body(Json::objectValue);
         body["code"] = error::toInt(code);
         body["message"] = message;
@@ -30,14 +29,13 @@ namespace project_tracker::common::api {
     inline drogon::HttpResponsePtr ok(
         const Json::Value &data = Json::Value(Json::nullValue),
         const std::string &message = "ok") {
-        return make(drogon::k200OK, error::ErrorCode::kSuccess, message, data);
+        return make(drogon::k200OK, error::ErrorCode::Success, message, data);
     }
 
     // 失败返回
-    inline drogon::HttpResponsePtr fail(
-        drogon::HttpStatusCode status,
-        error::ErrorCode code,
-        const std::string &message) {
+    inline drogon::HttpResponsePtr fail(drogon::HttpStatusCode status,
+                                        error::ErrorCode code,
+                                        const std::string &message) {
         return make(status, code, message, Json::Value(Json::nullValue));
     }
 

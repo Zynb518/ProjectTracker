@@ -1,9 +1,25 @@
+#include <iostream>
+#include <string>
+
 #include <drogon/drogon.h>
 
-int main() {
-    drogon::app().setThreadNum(1);
-    drogon::app().addListener("0.0.0.0", 8080);
-    drogon::app().setLogLevel(trantor::Logger::kInfo);
-    drogon::app().run();
+int main(int argc, char **argv) {
+    std::string configPath = "config/config.dev.json";
+    if (argc > 1) {
+        configPath = argv[1];
+    }
+
+    try {
+        drogon::app().loadConfigFile(configPath);
+        drogon::app().enableSession(
+            24 * 60 * 60,
+            drogon::Cookie::SameSite::kLax,
+            "JSESSIONID");
+        drogon::app().run();
+    } catch (const std::exception &ex) {
+        std::cerr << "failed to start: " << ex.what() << "\n";
+        return 1;
+    }
+
     return 0;
 }

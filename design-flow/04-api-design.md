@@ -7,7 +7,7 @@
 本文档的设计基准如下：
 
 - 业务边界以 `01-requirements-boundary.md` 为准
-- 数据结构以 `02-schema-postgresql.sql` 为准
+- 数据结构以 `db/migrations/001_init_schema.sql` 为准
 - `03-api-design.md` 仅保留为旧版参考，不再作为现行设计依据
 
 本文档延续“按模块划分接口”的方式组织内容，但会严格遵守当前已经确定的数据库结构和业务规则，不再沿用旧版中已经失效的字段、角色模型和状态处理方式。

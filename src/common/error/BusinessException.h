@@ -14,10 +14,9 @@ namespace project_tracker::common::error {
     // 2. 后续统一异常处理可以把它转换成标准 JSON 返回
     class BusinessException : public std::exception {
     public:
-        BusinessException(
-            drogon::HttpStatusCode status,
-            ErrorCode code,
-            std::string message);
+        BusinessException(drogon::HttpStatusCode status,
+                          ErrorCode code,
+                          std::string message);
 
         [[nodiscard]] drogon::HttpStatusCode status() const noexcept;
 

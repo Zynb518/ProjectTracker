@@ -4,6 +4,9 @@ add_executable(
     bootstrap/main.cpp
     common/error/BusinessException.cpp
     common/error/Throw.cpp
+    modules/auth/controller/AuthController.cpp
+    modules/auth/repository/AuthRepository.cpp
+    modules/auth/service/AuthService.cpp
 )
 
 # 把当前 src 目录加入头文件搜索路径
