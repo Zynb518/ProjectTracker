@@ -1,0 +1,32 @@
+# CLion / IntelliJ
+.idea/
+
+# CMake 构建目录
+cmake-build-*/
+build/
+out/
+
+# 如果误在项目根目录执行过 CMake，这些文件也不需要提交
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
+build.ninja
+compile_commands.json
+Testing/
+DartConfiguration.tcl
+
+# 编译产物
+*.o
+*.obj
+*.a
+*.so
+*.exe
+
+# 本地配置
+config/local/
+.env
+.env.*
+
+# 日志
+*.log

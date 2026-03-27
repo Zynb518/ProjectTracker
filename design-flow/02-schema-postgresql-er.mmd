@@ -1,0 +1,116 @@
+%% 从 02-schema-postgresql.sql 提取的 Mermaid ER 图源码
+%% 用法：将本文件内容粘贴到 Mermaid Live Editor，或在支持 Mermaid 的 Markdown 中引用
+%% 说明：
+%% 1. 重点表达实体、主键、主要字段和外键关系
+%% 2. 复合唯一约束（如 project_id + user_id）不在字段标签中单独表达，仍以 SQL 为准
+
+erDiagram
+    sys_user {
+        bigint id PK
+        varchar username UK
+        varchar password_hash
+        varchar real_name
+        smallint system_role
+        varchar email
+        varchar phone
+        smallint status
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    project {
+        bigint id PK
+        varchar name
+        text description
+        bigint owner_user_id FK
+        smallint status
+        date planned_start_date
+        date planned_end_date
+        timestamptz completed_at
+        bigint created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    project_member {
+        bigint id PK
+        bigint project_id FK
+        bigint user_id FK
+        bigint added_by FK
+        timestamptz joined_at
+    }
+
+    project_node {
+        bigint id PK
+        bigint project_id FK
+        varchar name
+        text description
+        int sequence_no
+        smallint status
+        date planned_start_date
+        date planned_end_date
+        timestamptz completed_at
+        bigint created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    sub_task {
+        bigint id PK
+        bigint node_id FK
+        varchar name
+        text description
+        bigint responsible_user_id FK
+        smallint status
+        smallint progress_percent
+        smallint priority
+        date planned_start_date
+        date planned_end_date
+        timestamptz completed_at
+        bigint created_by FK
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    sub_task_progress {
+        bigint id PK
+        bigint sub_task_id FK
+        bigint operator_user_id FK
+        text progress_note
+        smallint progress_percent
+        smallint status
+        timestamptz created_at
+    }
+
+    project_template {
+        bigint id PK
+        varchar name UK
+        text description
+        smallint status
+    }
+
+    project_template_node {
+        bigint id PK
+        bigint template_id FK
+        varchar name
+        text description
+        int sequence_no
+    }
+
+    sys_user ||--o{ project : owns
+    sys_user ||--o{ project : creates
+    project ||--o{ project_member : has
+    sys_user ||--o{ project_member : joins
+    sys_user ||--o{ project_member : added_by
+
+    project ||--o{ project_node : contains
+    sys_user ||--o{ project_node : creates
+
+    project_node ||--o{ sub_task : contains
+    sys_user ||--o{ sub_task : responsible_for
+    sys_user ||--o{ sub_task : creates
+
+    sub_task ||--o{ sub_task_progress : records
+    sys_user ||--o{ sub_task_progress : operates
+
+    project_template ||--o{ project_template_node : contains

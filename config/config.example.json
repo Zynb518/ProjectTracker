@@ -1,0 +1,15 @@
+{
+  "app": {
+    "name": "project_tracker",
+    "listen_host": "0.0.0.0",
+    "listen_port": 8080,
+    "timezone": "Asia/Shanghai"
+  },
+  "database": {
+    "host": "127.0.0.1",
+    "port": 5432,
+    "dbname": "project_tracker",
+    "user": "project_tracker",
+    "password": "change_me"
+  }
+}
