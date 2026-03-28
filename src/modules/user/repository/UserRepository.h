@@ -31,6 +31,10 @@ namespace project_tracker::modules::user::repository {
 
     class UserRepository {
     public:
+        // 查询单个用户详情
+        drogon::Task<std::optional<user_view::SysUserView>>
+        findUserById(std::int64_t userId) const;
+
         // 查询用户分页列表
         drogon::Task<UserListPage>
         listUsers(const UserListQuery &query) const;

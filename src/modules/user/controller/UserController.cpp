@@ -2,10 +2,12 @@
 
 #include "common/api/ApiResponse.h"
 #include "common/error/BusinessException.h"
+#include "common/error/ErrorCode.h"
 #include "common/util/QueryParamUtil.h"
 
 namespace project_tracker::modules::user::controller {
     namespace api = project_tracker::common::api;
+    namespace error = project_tracker::common::error;
     namespace util = project_tracker::common::util;
 
     namespace {
@@ -92,7 +94,34 @@ namespace project_tracker::modules::user::controller {
             data["page_size"] = pageResult.pageSize;
 
             co_return api::ok(data);
-        } catch (const common::error::BusinessException &exception) {
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    UserController::getUserDetail(drogon::HttpRequestPtr request,
+                                  std::int64_t userId) {
+        (void)request;
+
+        if (userId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "user_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto user = co_await userRepository_.findUserById(userId);
+            if (!user) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::UserNotFound,
+                    "用户不存在");
+            }
+
+            co_return api::ok(buildUserJson(*user));
+        } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }
     }
