@@ -34,10 +34,10 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 
 - 回答代码时优先用这个顺序：
 - `Target:` 指明文件和落点
-- `Code:` 只给当前这一段
 - `Why:` 只解释当前段为什么这样写
 - `Next:` 明确下一步是什么，但不要提前把下一段代码也写出来
-- 如果用户明确说“后续不用再展示 Code”，则去掉 `Code:`，只说明本轮修改了哪些文件，并保留必要的 `Why:` 和 `Next:`。
+- 当前协作默认不展示 `Code:`，只保留 `Target / Why / Next`。
+- 只有用户明确要求查看当前代码片段时，才额外补 `Code:`。
 - 用户说“继续”时，给下一个最小可推进片段，不重复之前整段内容。
 - 用户说“审查”时，先给发现，再给是否继续改。
 
@@ -48,9 +48,10 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 构建目录固定为 `cmake-build-debug`。
 - CMake 保持简单，优先根 `CMakeLists.txt` 加 `src/CMakeLists.txt`，不要引入不必要的复杂模块化写法。
 - 当前 `Project_Tracker` 可执行目标定义在 `src/CMakeLists.txt`，所以默认产物路径是 `cmake-build-debug/src/Project_Tracker`。
-- 中文注释可以保留，注释要简短直接。
+- 中文注释可以保留；新增注释要简短直接，只解释职责或当前这小段逻辑。
 - SQL 脚本放在 `db/migrations/` 和 `db/seeds/`，不要继续堆在 `design-flow/`。
 - 头文件引用按 `src` 根来写，例如 `#include "common/error/ErrorCode.h"`。
+- 组装 JSON 时优先直接赋值，不为了整数类型额外包 `Json::Int64(...)`。
 
 ## Naming And Structure
 
@@ -70,6 +71,18 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 对中国区固定业务时间，可以明确按 `Asia/Shanghai` 处理。
 - 若返回时间字符串，优先生成接口最终需要的格式，不要保留中间态再二次加工。
 - 即便正常链路里“理论上一定存在”，repository 仍可用 `std::optional` 显式表达“数据库可能查不到”这一事实，例如 session 残留或用户记录已不存在的情况。
+- 分页相关的 `page`、`page_size`、`total` 优先使用 `std::int64_t`，和 PostgreSQL 的 `COUNT(*)`、`LIMIT`、`OFFSET` 保持一致。
+
+## Error Handling Rules
+
+- `BusinessException` 只用于表达明确的 HTTP 业务失败，例如 `400 / 401 / 403 / 404 / 409`。
+- `Controller` 是 HTTP 边界；只要调用链中可能抛 `BusinessException`，`try/catch` 就必须覆盖整段请求处理流程，而不是只包某个 `co_await`。
+- `Service` 可以抛 `BusinessException`，用于业务规则不满足、权限失败、状态冲突等场景。
+- `Repository` 不用异常表达“正常查不到”；这类情况优先返回 `std::optional`。
+- `Repository` 只在数据库异常、底层调用失败等系统错误场景，把异常转成 `InternalError`。
+- `common/util` 默认不直接抛 `BusinessException`，优先返回值、`std::optional` 或显式失败态，让 `Controller / Service` 决定如何返回 HTTP 错误。
+- `filters` 优先直接返回 `api::fail(...)`，不要依赖抛异常完成拦截。
+- 对 query 参数这类基础输入，优先只做格式校验；如果数据库已有 `CHECK` 约束，不重复在 controller 里做同层枚举兜底。
 
 ## Current Auth Snapshot
 
@@ -90,8 +103,16 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 登录态过滤器放在 `src/filters/`，当前已有 `LoginRequiredFilter`。
 - 新增受保护接口时，优先先挂 filter，再补业务实现，避免 controller 里先散落未登录判断。
 - 手工联调用例放在 `tests/http/`。
+- `.http` 文件按接口粒度拆分，不按整模块长期混放；例如 `listUsers.http` 这种命名优于宽泛的 `users.http`。
 - JetBrains / CLion 的 `.http` 文件优先保持最简单形式，默认信任 IDE 自动保存和回放 Cookie，不手写 `Set-Cookie` 解析脚本，除非确实需要。
 - `.http` 用例的顺序优先写成“正常路径在前，异常路径在后”，便于人工顺序点击验证。
+
+## Debugging Workflow
+
+- 出现联调或运行时 bug 时，一次只定位并修复一个问题，不并行修改多个未确认根因。
+- 修复 bug 时优先做最小改动，先让当前问题收平，再决定是否继续做下一处清理。
+- 每次小改后优先做本地编译验证：`cmake -S . -B cmake-build-debug` 和 `cmake --build cmake-build-debug`。
+- 如果是 `.http` 联调问题，代码层编译通过后先停给用户重测，不顺手扩展到下一个功能点。
 
 ## Review Discipline
 

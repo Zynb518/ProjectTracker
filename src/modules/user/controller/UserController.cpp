@@ -36,31 +36,47 @@ namespace project_tracker::modules::user::controller {
             }
 
             // query 参数只做基础格式校验。
-            if (const auto systemRole = util::readQueryInt(
-                    request,
-                    "system_role",
-                    "system_role 必须是整数")) {
+            std::optional<int> systemRole;
+            if (!util::readQueryInt(request, "system_role", systemRole)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    common::error::ErrorCode::InvalidParameter,
+                    "system_role 必须是整数");
+            }
+            if (systemRole) {
                 query.systemRole = *systemRole;
             }
 
-            if (const auto status = util::readQueryInt(
-                    request,
-                    "status",
-                    "status 必须是整数")) {
+            std::optional<int> status;
+            if (!util::readQueryInt(request, "status", status)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    common::error::ErrorCode::InvalidParameter,
+                    "status 必须是整数");
+            }
+            if (status) {
                 query.status = *status;
             }
 
-            if (const auto page = util::readPositiveQueryInt64(
-                    request,
-                    "page",
-                    "page 必须是大于 0 的整数")) {
+            std::optional<std::int64_t> page;
+            if (!util::readPositiveQueryInt64(request, "page", page)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    common::error::ErrorCode::InvalidParameter,
+                    "page 必须是大于 0 的整数");
+            }
+            if (page) {
                 query.page = *page;
             }
 
-            if (const auto pageSize = util::readPositiveQueryInt64(
-                    request,
-                    "page_size",
-                    "page_size 必须是大于 0 的整数")) {
+            std::optional<std::int64_t> pageSize;
+            if (!util::readPositiveQueryInt64(request, "page_size", pageSize)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    common::error::ErrorCode::InvalidParameter,
+                    "page_size 必须是大于 0 的整数");
+            }
+            if (pageSize) {
                 query.pageSize = *pageSize;
             }
 

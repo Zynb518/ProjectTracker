@@ -6,14 +6,10 @@
 
 #include <drogon/HttpRequest.h>
 
-#include "common/error/ErrorCode.h"
-#include "common/error/Throw.h"
-
 namespace project_tracker::common::util {
     // 读取可选 query 字符串参数。
-    inline std::optional<std::string> readQueryString(
-        const drogon::HttpRequestPtr &request,
-        const std::string &key) {
+    inline std::optional<std::string> readQueryString(const drogon::HttpRequestPtr &request,
+                                                      const std::string &key) {
         const auto &parameters = request->getParameters();
         const auto it = parameters.find(key);
         if (it == parameters.end()) {
@@ -24,55 +20,51 @@ namespace project_tracker::common::util {
     }
 
     // 读取可选 query 整数参数。
-    inline std::optional<int> readQueryInt(
-        const drogon::HttpRequestPtr &request,
-        const std::string &key,
-        const std::string &invalidMessage) {
+    inline bool readQueryInt(const drogon::HttpRequestPtr &request,
+                             const std::string &key,
+                             std::optional<int> &value) {
         if (request->getParameters().find(key) == request->getParameters().end()) {
-            return std::nullopt;
+            value = std::nullopt;
+            return true;
         }
 
-        const auto value = request->getOptionalParameter<int>(key);
-        if (!value) {
-            error::throwBadRequest(
-                error::ErrorCode::InvalidParameter,
-                invalidMessage);
+        const auto parsedValue = request->getOptionalParameter<int>(key);
+        if (!parsedValue) {
+            value = std::nullopt;
+            return false;
         }
 
-        return value;
+        value = *parsedValue;
+        return true;
     }
 
     // 读取可选正整数 query 参数。
-    inline std::optional<int> readPositiveQueryInt(
-        const drogon::HttpRequestPtr &request,
-        const std::string &key,
-        const std::string &invalidMessage) {
-        const auto value = readQueryInt(request, key, invalidMessage);
-        if (value && *value <= 0) {
-            error::throwBadRequest(
-                error::ErrorCode::InvalidParameter,
-                invalidMessage);
+    inline bool readPositiveQueryInt(const drogon::HttpRequestPtr &request,
+                                     const std::string &key,
+                                     std::optional<int> &value) {
+        if (!readQueryInt(request, key, value)) {
+            return false;
         }
 
-        return value;
+        return !value || *value > 0;
     }
 
     // 读取可选正整数 query 长整数参数。
-    inline std::optional<std::int64_t> readPositiveQueryInt64(
-        const drogon::HttpRequestPtr &request,
-        const std::string &key,
-        const std::string &invalidMessage) {
+    inline bool readPositiveQueryInt64(const drogon::HttpRequestPtr &request,
+                                       const std::string &key,
+                                       std::optional<std::int64_t> &value) {
         if (request->getParameters().find(key) == request->getParameters().end()) {
-            return std::nullopt;
+            value = std::nullopt;
+            return true;
         }
 
-        const auto value = request->getOptionalParameter<std::int64_t>(key);
-        if (!value || *value <= 0) {
-            error::throwBadRequest(
-                error::ErrorCode::InvalidParameter,
-                invalidMessage);
+        const auto parsedValue = request->getOptionalParameter<std::int64_t>(key);
+        if (!parsedValue) {
+            value = std::nullopt;
+            return false;
         }
 
-        return value;
+        value = *parsedValue;
+        return *value > 0;
     }
 } // namespace project_tracker::common::util
