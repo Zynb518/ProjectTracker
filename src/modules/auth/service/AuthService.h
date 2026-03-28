@@ -8,7 +8,6 @@
 #include "modules/user/dto/view/SysUserView.h"
 
 namespace project_tracker::modules::auth::service {
-    namespace repository = auth::repository;
     namespace user_view = modules::user::dto::view;
 
     class AuthService {

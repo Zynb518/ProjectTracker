@@ -1,0 +1,70 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：获取用户列表
+GET {{baseUrl}}/api/users
+
+### 正常路径：按角色和分页查询用户列表
+GET {{baseUrl}}/api/users?system_role=2&page=1&page_size=2
+
+### 正常路径：按关键字和状态筛选用户列表
+GET {{baseUrl}}/api/users?keyword=li&status=1
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取用户列表，预期 401
+GET {{baseUrl}}/api/users
+
+### 异常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工获取用户列表，预期 403
+GET {{baseUrl}}/api/users
+
+### 异常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：system_role 不是整数，预期 400
+GET {{baseUrl}}/api/users?system_role=abc
+
+### 异常路径：status 不是整数，预期 400
+GET {{baseUrl}}/api/users?status=enabled
+
+### 异常路径：page 小于等于 0，预期 400
+GET {{baseUrl}}/api/users?page=0
+
+### 异常路径：page_size 小于等于 0，预期 400
+GET {{baseUrl}}/api/users?page_size=0

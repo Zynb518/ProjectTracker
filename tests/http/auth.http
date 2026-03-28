@@ -1,0 +1,53 @@
+@baseUrl = http://127.0.0.1:8080
+@username = admin
+@password = 123456
+@wrongPassword = wrong_password
+
+### 正常路径：登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：获取当前登录用户
+GET {{baseUrl}}/api/auth/me
+
+### 正常路径：登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：登出后再次获取当前登录用户，预期 401
+GET {{baseUrl}}/api/auth/me
+
+### 异常路径：错误密码登录，预期 401
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{wrongPassword}}"
+}
+
+### 异常路径：缺少 password 字段，预期 400
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}"
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+[
+  {
+    "username": "{{username}}",
+    "password": "{{password}}"
+  }
+]

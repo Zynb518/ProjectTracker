@@ -8,7 +8,6 @@
 #include "modules/auth/service/AuthService.h"
 
 namespace project_tracker::modules::auth::controller {
-    namespace repository = auth::repository;
 
     class AuthController : public drogon::HttpController<AuthController> {
     public:

@@ -10,8 +10,7 @@ namespace project_tracker::modules::auth::service {
     namespace user_domain = modules::user::domain;
 
     namespace {
-        user_view::SysUserView buildUserView(
-            const repository::AuthUserRecord &record) {
+        user_view::SysUserView buildUserView(const repository::AuthUserRecord &record) {
             return {
                 .id = record.id,
                 .username = record.username,
