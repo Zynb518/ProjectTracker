@@ -83,12 +83,6 @@ namespace project_tracker::modules::auth::controller {
     AuthController::me(drogon::HttpRequestPtr request) {
         const auto &session = request->getSession();
         const auto userId = session->getOptional<std::int64_t>("user_id");
-        if (!userId || *userId <= 0) {
-            co_return api::fail(
-                drogon::k401Unauthorized,
-                error::ErrorCode::Unauthorized,
-                "未登录或登录态失效");
-        }
 
         const auto user = co_await authRepository_.findUserById(*userId);
         if (!user) {

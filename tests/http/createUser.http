@@ -1,0 +1,126 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@newUsername = create_user_case_001
+
+### 提示：正常创建会写入数据库；如需重复验证正常路径，请先修改 @newUsername 或重置种子数据
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：创建用户
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "{{newUsername}}",
+  "password": "{{password}}",
+  "real_name": "创建测试用户",
+  "system_role": 2,
+  "email": "create_user@example.com",
+  "phone": "13800009999"
+}
+
+### 异常路径：重复用户名创建用户，预期 409
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "{{newUsername}}",
+  "password": "{{password}}",
+  "real_name": "创建测试用户",
+  "system_role": 2,
+  "email": "create_user@example.com",
+  "phone": "13800009999"
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录创建用户，预期 401
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "unauthorized_case",
+  "password": "{{password}}",
+  "real_name": "未登录测试",
+  "system_role": 3
+}
+
+### 异常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工创建用户，预期 403
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "forbidden_case",
+  "password": "{{password}}",
+  "real_name": "普通员工测试",
+  "system_role": 3
+}
+
+### 异常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：缺少 username，预期 400
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "password": "{{password}}",
+  "real_name": "缺少用户名测试"
+}
+
+### 异常路径：system_role 不是整数，预期 400
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "invalid_role_case",
+  "password": "{{password}}",
+  "real_name": "角色类型错误测试",
+  "system_role": "manager"
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+[
+  {
+    "username": "invalid_body_case",
+    "password": "{{password}}",
+    "real_name": "请求体错误测试"
+  }
+]

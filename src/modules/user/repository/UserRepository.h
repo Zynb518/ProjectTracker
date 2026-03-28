@@ -12,6 +12,16 @@
 namespace project_tracker::modules::user::repository {
     namespace user_view = modules::user::dto::view;
 
+    // 创建用户写入参数
+    struct CreateUserRecord {
+        std::string username;
+        std::string passwordHash;
+        std::string realName;
+        int systemRole;
+        std::string email;
+        std::string phone;
+    };
+
     // 用户列表查询条件
     struct UserListQuery {
         std::string keyword;
@@ -31,6 +41,10 @@ namespace project_tracker::modules::user::repository {
 
     class UserRepository {
     public:
+        // 创建用户
+        drogon::Task<user_view::SysUserView>
+        createUser(const CreateUserRecord &record) const;
+
         // 查询单个用户详情
         drogon::Task<std::optional<user_view::SysUserView>>
         findUserById(std::int64_t userId) const;

@@ -3,6 +3,7 @@
 #include "common/api/ApiResponse.h"
 #include "common/error/BusinessException.h"
 #include "common/error/ErrorCode.h"
+#include "common/util/JsonUtil.h"
 #include "common/util/QueryParamUtil.h"
 
 namespace project_tracker::modules::user::controller {
@@ -121,6 +122,67 @@ namespace project_tracker::modules::user::controller {
             }
 
             co_return api::ok(buildUserJson(*user));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    UserController::createUser(drogon::HttpRequestPtr request) {
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        service::CreateUserCommand command;
+        if (!util::readRequiredString(*json, "username", command.username)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "username 必须是非空字符串");
+        }
+
+        if (!util::readRequiredString(*json, "password", command.password)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "password 必须是非空字符串");
+        }
+
+        if (!util::readRequiredString(*json, "real_name", command.realName)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "real_name 必须是非空字符串");
+        }
+
+        if (!util::readOptionalInt(*json, "system_role", command.systemRole)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "system_role 必须是整数");
+        }
+
+        if (!util::readOptionalString(*json, "email", command.email)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "email 必须是字符串");
+        }
+
+        if (!util::readOptionalString(*json, "phone", command.phone)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "phone 必须是字符串");
+        }
+
+        try {
+            const auto user = co_await userService_.createUser(command);
+            co_return api::ok(buildUserJson(user));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

@@ -29,10 +29,23 @@ namespace project_tracker::modules::auth::service {
     AuthService::login(const std::string &username,
                        const std::string &password) const {
         const auto user = co_await authRepository_.findUserByUsername(username);
-        if (!user || !util::verifyPassword(password, user->passwordHash)) {
+        if (!user) {
             error::throwUnauthorized(
                 error::ErrorCode::LoginFailed,
                 "用户名或密码错误");
+        }
+
+        const auto verifyResult = util::verifyPassword(password, user->passwordHash);
+        if (verifyResult == util::PasswordVerifyResult::Mismatched) {
+            error::throwUnauthorized(
+                error::ErrorCode::LoginFailed,
+                "用户名或密码错误");
+        }
+
+        if (verifyResult == util::PasswordVerifyResult::Failed) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "密码哈希校验失败");
         }
 
         if (user->status == user_domain::UserStatus::Disabled) {
