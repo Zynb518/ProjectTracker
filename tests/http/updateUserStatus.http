@@ -1,0 +1,118 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@targetUserId = 2
+@missingUserId = 999999
+@invalidUserId = 0
+
+### 提示：正常修改会写入数据库；如需对照初始种子数据，请先重置 db/seeds/001_demo_data.sql
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：修改用户状态为禁用
+PATCH {{baseUrl}}/api/users/{{targetUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 2
+}
+
+### 正常路径：修改用户状态为启用
+PATCH {{baseUrl}}/api/users/{{targetUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 1
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录修改用户状态，预期 401
+PATCH {{baseUrl}}/api/users/{{targetUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 2
+}
+
+### 异常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工修改用户状态，预期 403
+PATCH {{baseUrl}}/api/users/{{targetUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 2
+}
+
+### 异常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：user_id 小于等于 0，预期 400
+PATCH {{baseUrl}}/api/users/{{invalidUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 2
+}
+
+### 异常路径：缺少 status，预期 400
+PATCH {{baseUrl}}/api/users/{{targetUserId}}/status
+Content-Type: application/json
+
+{}
+
+### 异常路径：status 不是整数，预期 400
+PATCH {{baseUrl}}/api/users/{{targetUserId}}/status
+Content-Type: application/json
+
+{
+  "status": "disabled"
+}
+
+### 异常路径：status 不在枚举范围内，预期 400
+PATCH {{baseUrl}}/api/users/{{targetUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 3
+}
+
+### 异常路径：用户不存在，预期 404
+PATCH {{baseUrl}}/api/users/{{missingUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 2
+}

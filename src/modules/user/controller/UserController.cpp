@@ -179,6 +179,52 @@ namespace project_tracker::modules::user::controller {
     }
 
     drogon::Task<drogon::HttpResponsePtr>
+    UserController::updateUserStatus(drogon::HttpRequestPtr request,
+                                     std::int64_t userId) {
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        int status = 0;
+        if (!util::readRequiredInt(*json, "status", status)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "status 必须是整数");
+        }
+
+        if (status != domain::toInt(domain::UserStatus::Enabled) &&
+            status != domain::toInt(domain::UserStatus::Disabled)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "status 只能是 1 或 2");
+        }
+
+        dto::command::UpdateUserStatusInput input{
+            .userId = userId,
+            .status = static_cast<domain::UserStatus>(status)
+        };
+
+        try {
+            const auto user = co_await userService_.updateUserStatus(input);
+
+            Json::Value data(Json::objectValue);
+            data["id"] = user.id;
+            data["status"] = domain::toInt(user.status);
+            data["updated_at"] = user.updatedAt;
+
+            co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
     UserController::createUser(drogon::HttpRequestPtr request) {
         const auto &json = request->getJsonObject();
         if (!json || !json->isObject()) {

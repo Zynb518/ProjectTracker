@@ -31,8 +31,7 @@ namespace project_tracker::modules::user::service {
     }
 
     drogon::Task<dto::view::SysUserView>
-    UserService::updateUserBasicInfo(
-        const dto::command::UpdateUserBasicInfoInput &input) const {
+    UserService::updateUserBasicInfo(const dto::command::UpdateUserBasicInfoInput &input) const {
         if (input.userId <= 0) {
             error::throwBadRequest(
                 error::ErrorCode::InvalidParameter,
@@ -46,6 +45,24 @@ namespace project_tracker::modules::user::service {
         }
 
         const auto user = co_await userRepository_.updateUserBasicInfo(input);
+        if (!user) {
+            error::throwNotFound(
+                error::ErrorCode::UserNotFound,
+                "用户不存在");
+        }
+
+        co_return *user;
+    }
+
+    drogon::Task<dto::view::SysUserView>
+    UserService::updateUserStatus(const dto::command::UpdateUserStatusInput &input) const {
+        if (input.userId <= 0) {
+            error::throwBadRequest(
+                error::ErrorCode::InvalidParameter,
+                "user_id 必须是大于 0 的整数");
+        }
+
+        const auto user = co_await userRepository_.updateUserStatus(input);
         if (!user) {
             error::throwNotFound(
                 error::ErrorCode::UserNotFound,

@@ -12,7 +12,7 @@ namespace project_tracker::modules::auth::repository {
 
     drogon::Task<std::optional<AuthUserRecord>>
     AuthRepository::findUserByUsername(const std::string &username) const {
-        constexpr std::string_view selectUserSql = R"SQL(
+        static const std::string selectUserSql = R"SQL(
             SELECT
                 id,
                 username,
@@ -32,7 +32,7 @@ namespace project_tracker::modules::auth::repository {
         try {
             const auto dbClient = drogon::app().getDbClient();
             const auto result = co_await dbClient->execSqlCoro(
-                std::string(selectUserSql),
+                selectUserSql,
                 username);
 
             if (result.empty()) {
@@ -62,7 +62,7 @@ namespace project_tracker::modules::auth::repository {
 
     drogon::Task<std::optional<user_view::SysUserView>>
     AuthRepository::findUserById(std::int64_t userId) const {
-        constexpr std::string_view selectUserSql = R"SQL(
+        static const std::string selectUserSql = R"SQL(
             SELECT
                 id,
                 username,
@@ -81,7 +81,7 @@ namespace project_tracker::modules::auth::repository {
         try {
             const auto dbClient = drogon::app().getDbClient();
             const auto result = co_await dbClient->execSqlCoro(
-                std::string(selectUserSql),
+                selectUserSql,
                 userId);
 
             if (result.empty()) {

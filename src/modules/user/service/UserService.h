@@ -7,6 +7,7 @@
 #include <drogon/utils/coroutine.h>
 
 #include "modules/user/dto/command/UpdateUserBasicInfoInput.h"
+#include "modules/user/dto/command/UpdateUserStatusInput.h"
 #include "modules/user/dto/view/SysUserView.h"
 #include "modules/user/repository/UserRepository.h"
 
@@ -29,8 +30,11 @@ namespace project_tracker::modules::user::service {
 
         // 修改用户基础信息
         drogon::Task<dto::view::SysUserView>
-        updateUserBasicInfo(
-            const dto::command::UpdateUserBasicInfoInput &input) const;
+        updateUserBasicInfo(const dto::command::UpdateUserBasicInfoInput &input) const;
+
+        // 修改用户状态
+        drogon::Task<dto::view::SysUserView>
+        updateUserStatus(const dto::command::UpdateUserStatusInput &input) const;
 
     private:
         repository::UserRepository userRepository_;

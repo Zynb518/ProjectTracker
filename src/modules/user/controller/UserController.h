@@ -23,6 +23,10 @@ namespace project_tracker::modules::user::controller {
                           "/api/users/{user_id}",
                           drogon::Patch,
                           filters::AdminRequiredFilter::classTypeName());
+            ADD_METHOD_TO(UserController::updateUserStatus,
+                          "/api/users/{user_id}/status",
+                          drogon::Patch,
+                          filters::AdminRequiredFilter::classTypeName());
             ADD_METHOD_TO(UserController::createUser,
                           "/api/users",
                           drogon::Post,
@@ -37,6 +41,9 @@ namespace project_tracker::modules::user::controller {
 
         drogon::Task<drogon::HttpResponsePtr>
         updateUserBasicInfo(drogon::HttpRequestPtr request, std::int64_t userId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        updateUserStatus(drogon::HttpRequestPtr request, std::int64_t userId);
 
         drogon::Task<drogon::HttpResponsePtr>
         createUser(drogon::HttpRequestPtr request);

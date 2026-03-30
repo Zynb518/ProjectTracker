@@ -1,7 +1,6 @@
 #include "modules/user/repository/UserRepository.h"
 
 #include <algorithm>
-#include <string_view>
 
 #include <drogon/drogon.h>
 #include <drogon/orm/Exception.h>
@@ -14,7 +13,7 @@ namespace project_tracker::modules::user::repository {
 
     drogon::Task<user_view::SysUserView>
     UserRepository::createUser(const CreateUserRecord &record) const {
-        constexpr std::string_view insertUserSql = R"SQL(
+        static const std::string insertUserSql = R"SQL(
             INSERT INTO sys_user (
                 username,
                 password_hash,
@@ -46,7 +45,7 @@ namespace project_tracker::modules::user::repository {
         try {
             const auto dbClient = drogon::app().getDbClient();
             const auto result = co_await dbClient->execSqlCoro(
-                std::string(insertUserSql),
+                insertUserSql,
                 record.username,
                 record.passwordHash,
                 record.realName,
@@ -81,7 +80,7 @@ namespace project_tracker::modules::user::repository {
 
     drogon::Task<std::optional<user_view::SysUserView>>
     UserRepository::findUserById(std::int64_t userId) const {
-        constexpr std::string_view selectUserSql = R"SQL(
+        static const std::string selectUserSql = R"SQL(
             SELECT
                 id,
                 username,
@@ -100,7 +99,7 @@ namespace project_tracker::modules::user::repository {
         try {
             const auto dbClient = drogon::app().getDbClient();
             const auto result = co_await dbClient->execSqlCoro(
-                std::string(selectUserSql),
+                selectUserSql,
                 userId);
 
             if (result.empty()) {
@@ -127,9 +126,8 @@ namespace project_tracker::modules::user::repository {
     }
 
     drogon::Task<std::optional<user_view::SysUserView>>
-    UserRepository::updateUserBasicInfo(
-        const dto::command::UpdateUserBasicInfoInput &input) const {
-        constexpr std::string_view updateUserSql = R"SQL(
+    UserRepository::updateUserBasicInfo(const dto::command::UpdateUserBasicInfoInput &input) const {
+        static const std::string updateUserSql = R"SQL(
             UPDATE sys_user
             SET
                 real_name = COALESCE($2, real_name),
@@ -153,7 +151,7 @@ namespace project_tracker::modules::user::repository {
         try {
             const auto dbClient = drogon::app().getDbClient();
             const auto result = co_await dbClient->execSqlCoro(
-                std::string(updateUserSql),
+                updateUserSql,
                 input.userId,
                 input.realName,
                 input.systemRole,
@@ -183,9 +181,59 @@ namespace project_tracker::modules::user::repository {
         }
     }
 
+    drogon::Task<std::optional<user_view::SysUserView>>
+    UserRepository::updateUserStatus(const dto::command::UpdateUserStatusInput &input) const {
+        static const std::string updateUserStatusSql = R"SQL(
+            UPDATE sys_user
+            SET
+                status = $2,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING
+                id,
+                username,
+                real_name,
+                system_role,
+                email,
+                phone,
+                status,
+                to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS created_at,
+                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await dbClient->execSqlCoro(
+                updateUserStatusSql,
+                input.userId,
+                domain::toInt(input.status));
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return user_view::SysUserView{
+                .id = row["id"].as<std::int64_t>(),
+                .username = row["username"].as<std::string>(),
+                .realName = row["real_name"].as<std::string>(),
+                .systemRole = static_cast<domain::SystemRole>(row["system_role"].as<int>()),
+                .email = row["email"].as<std::string>(),
+                .phone = row["phone"].as<std::string>(),
+                .status = static_cast<domain::UserStatus>(row["status"].as<int>()),
+                .createdAt = row["created_at"].as<std::string>(),
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<UserListPage>
     UserRepository::listUsers(const UserListQuery &query) const {
-        constexpr std::string_view countUsersSql = R"SQL(
+        static const std::string countUsersSql = R"SQL(
             SELECT COUNT(*) AS total
             FROM sys_user
             WHERE ($1 = '' OR username ILIKE $1 OR real_name ILIKE $1)
@@ -193,7 +241,7 @@ namespace project_tracker::modules::user::repository {
               AND ($3 = 0 OR status = $3)
         )SQL";
 
-        constexpr std::string_view selectUsersSql = R"SQL(
+        static const std::string selectUsersSql = R"SQL(
             SELECT
                 id,
                 username,
@@ -225,13 +273,13 @@ namespace project_tracker::modules::user::repository {
 
             // 先查总数，再查当前页数据。
             const auto totalResult = co_await dbClient->execSqlCoro(
-                std::string(countUsersSql),
+                countUsersSql,
                 keyword,
                 systemRole,
                 status);
 
             const auto listResult = co_await dbClient->execSqlCoro(
-                std::string(selectUsersSql),
+                selectUsersSql,
                 keyword,
                 systemRole,
                 status,
