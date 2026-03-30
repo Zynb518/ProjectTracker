@@ -7,7 +7,10 @@
 
 #include <drogon/utils/coroutine.h>
 
+#include "modules/project/dto/command/CreateProjectInput.h"
+#include "modules/project/dto/view/CreatedProjectView.h"
 #include "modules/project/domain/ProjectEnums.h"
+#include "modules/project/dto/view/ProjectDetailView.h"
 #include "modules/project/dto/view/ProjectListItemView.h"
 #include "modules/user/domain/UserEnums.h"
 
@@ -33,8 +36,18 @@ namespace project_tracker::modules::project::repository {
 
     class ProjectRepository {
     public:
+        // 创建项目
+        drogon::Task<dto::view::CreatedProjectView>
+        createProject(const dto::command::CreateProjectInput &input) const;
+
         // 查询项目分页列表
         drogon::Task<ProjectListPage>
         listProjects(const ProjectListQuery &query) const;
+
+        // 查询项目详情
+        drogon::Task<std::optional<dto::view::ProjectDetailView>>
+        findProjectDetail(std::int64_t projectId,
+                          std::int64_t currentUserId,
+                          user::domain::SystemRole currentUserRole) const;
     };
 } // namespace project_tracker::modules::project::repository

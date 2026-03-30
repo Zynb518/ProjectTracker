@@ -1,8 +1,11 @@
 #include "modules/project/controller/ProjectController.h"
 
+#include <regex>
+
 #include "common/api/ApiResponse.h"
 #include "common/error/BusinessException.h"
 #include "common/error/ErrorCode.h"
+#include "common/util/JsonUtil.h"
 #include "common/util/QueryParamUtil.h"
 
 namespace project_tracker::modules::project::controller {
@@ -37,13 +40,154 @@ namespace project_tracker::modules::project::controller {
             return json;
         }
 
+        Json::Value buildProjectDetailJson(const dto::view::ProjectDetailView &project) {
+            Json::Value json(Json::objectValue);
+            json["id"] = project.id;
+            json["name"] = project.name;
+            json["description"] = project.description;
+            json["owner_user_id"] = project.ownerUserId;
+            json["owner_real_name"] = project.ownerRealName;
+            json["status"] = domain::toInt(project.status);
+            json["planned_start_date"] = project.plannedStartDate;
+            json["planned_end_date"] = project.plannedEndDate;
+            if (project.completedAt) {
+                json["completed_at"] = *project.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+            json["created_by"] = project.createdBy;
+            json["created_by_real_name"] = project.createdByRealName;
+            json["created_at"] = project.createdAt;
+            json["updated_at"] = project.updatedAt;
+            json["member_count"] = project.memberCount;
+            json["node_count"] = project.nodeCount;
+            json["completed_node_count"] = project.completedNodeCount;
+            json["sub_task_count"] = project.subTaskCount;
+            json["completed_sub_task_count"] = project.completedSubTaskCount;
+
+            Json::Value permissions(Json::objectValue);
+            permissions["can_edit_basic"] = project.permissions.canEditBasic;
+            permissions["can_manage_members"] = project.permissions.canManageMembers;
+            permissions["can_manage_nodes"] = project.permissions.canManageNodes;
+            permissions["can_transfer_owner"] = project.permissions.canTransferOwner;
+            permissions["can_delete"] = project.permissions.canDelete;
+            json["permissions"] = permissions;
+
+            return json;
+        }
+
+        Json::Value buildCreatedProjectJson(const dto::view::CreatedProjectView &project) {
+            Json::Value json(Json::objectValue);
+            json["id"] = project.id;
+            json["name"] = project.name;
+            json["description"] = project.description;
+            json["owner_user_id"] = project.ownerUserId;
+            json["status"] = domain::toInt(project.status);
+            json["planned_start_date"] = project.plannedStartDate;
+            json["planned_end_date"] = project.plannedEndDate;
+            if (project.completedAt) {
+                json["completed_at"] = *project.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+            json["created_by"] = project.createdBy;
+            json["created_at"] = project.createdAt;
+            json["updated_at"] = project.updatedAt;
+
+            return json;
+        }
+
         bool isValidProjectStatus(int status) {
             return status == domain::toInt(domain::ProjectStatus::NotStarted) ||
                    status == domain::toInt(domain::ProjectStatus::InProgress) ||
                    status == domain::toInt(domain::ProjectStatus::Completed) ||
                    status == domain::toInt(domain::ProjectStatus::Delayed);
         }
+
+        bool isValidDateString(const std::string &value) {
+            static const std::regex dateRegex(R"(^\d{4}-\d{2}-\d{2}$)");
+            return std::regex_match(value, dateRegex);
+        }
     } // namespace
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectController::createProject(drogon::HttpRequestPtr request) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+
+        if (!userId || *userId <= 0) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        dto::command::CreateProjectInput input{
+            .creatorUserId = *userId
+        };
+
+        if (!util::readRequiredString(*json, "name", input.name)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "name 必须是非空字符串");
+        }
+
+        if (!util::readOptionalString(*json, "description", input.description)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "description 必须是字符串");
+        }
+
+        if (!util::readRequiredString(*json, "planned_start_date", input.plannedStartDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_start_date 必须是非空字符串");
+        }
+        if (!isValidDateString(input.plannedStartDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_start_date 必须是 YYYY-MM-DD 格式");
+        }
+
+        if (!util::readRequiredString(*json, "planned_end_date", input.plannedEndDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_end_date 必须是非空字符串");
+        }
+        if (!isValidDateString(input.plannedEndDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_end_date 必须是 YYYY-MM-DD 格式");
+        }
+
+        if (input.plannedStartDate > input.plannedEndDate) {
+            co_return api::fail(
+                drogon::k409Conflict,
+                error::ErrorCode::InvalidDateRange,
+                "planned_start_date 不能晚于 planned_end_date");
+        }
+
+        try {
+            const auto project = co_await projectRepository_.createProject(input);
+            co_return api::ok(buildCreatedProjectJson(project));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
 
     drogon::Task<drogon::HttpResponsePtr>
     ProjectController::listProjects(drogon::HttpRequestPtr request) {
@@ -132,6 +276,46 @@ namespace project_tracker::modules::project::controller {
             data["page_size"] = pageResult.pageSize;
 
             co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectController::getProjectDetail(drogon::HttpRequestPtr request,
+                                        std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto project = co_await projectRepository_.findProjectDetail(
+                projectId,
+                *userId,
+                *systemRole);
+
+            if (!project) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            co_return api::ok(buildProjectDetailJson(*project));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

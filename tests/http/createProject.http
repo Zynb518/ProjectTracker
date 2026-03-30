@@ -1,0 +1,134 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@projectName = 创建项目测试用例001
+
+### 提示：正常创建会写入数据库；如需重复验证正常路径，请先修改 @projectName 或重置种子数据
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：创建项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{projectName}}",
+  "description": "用于验证创建项目接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录创建项目，预期 401
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "unauthorized_project_case",
+  "description": "未登录创建项目测试。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工创建项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "employee_create_project_case",
+  "description": "普通员工创建项目测试。",
+  "planned_start_date": "2026-04-05",
+  "planned_end_date": "2026-04-20"
+}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：缺少 name，预期 400
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "description": "缺少名称测试。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+### 异常路径：planned_start_date 格式错误，预期 400
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "invalid_start_date_case",
+  "description": "开始日期格式错误测试。",
+  "planned_start_date": "2026/04/01",
+  "planned_end_date": "2026-04-30"
+}
+
+### 异常路径：planned_end_date 格式错误，预期 400
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "invalid_end_date_case",
+  "description": "结束日期格式错误测试。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026/04/30"
+}
+
+### 异常路径：开始日期晚于结束日期，预期 409
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "invalid_date_range_case",
+  "description": "日期区间错误测试。",
+  "planned_start_date": "2026-05-01",
+  "planned_end_date": "2026-04-30"
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+[
+  {
+    "name": "invalid_body_case",
+    "planned_start_date": "2026-04-01",
+    "planned_end_date": "2026-04-30"
+  }
+]
