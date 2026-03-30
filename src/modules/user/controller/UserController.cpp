@@ -128,6 +128,57 @@ namespace project_tracker::modules::user::controller {
     }
 
     drogon::Task<drogon::HttpResponsePtr>
+    UserController::updateUserBasicInfo(drogon::HttpRequestPtr request,
+                                        std::int64_t userId) {
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        dto::command::UpdateUserBasicInfoInput input{
+            .userId = userId
+        };
+
+        if (!util::readOptionalString(*json, "real_name", input.realName)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "real_name 必须是字符串");
+        }
+
+        if (!util::readOptionalInt(*json, "system_role", input.systemRole)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "system_role 必须是整数");
+        }
+
+        if (!util::readOptionalString(*json, "email", input.email)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "email 必须是字符串");
+        }
+
+        if (!util::readOptionalString(*json, "phone", input.phone)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "phone 必须是字符串");
+        }
+
+        try {
+            const auto user = co_await userService_.updateUserBasicInfo(input);
+            co_return api::ok(buildUserJson(user));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
     UserController::createUser(drogon::HttpRequestPtr request) {
         const auto &json = request->getJsonObject();
         if (!json || !json->isObject()) {

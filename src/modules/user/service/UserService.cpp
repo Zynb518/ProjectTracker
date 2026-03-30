@@ -29,4 +29,29 @@ namespace project_tracker::modules::user::service {
 
         co_return co_await userRepository_.createUser(record);
     }
+
+    drogon::Task<dto::view::SysUserView>
+    UserService::updateUserBasicInfo(
+        const dto::command::UpdateUserBasicInfoInput &input) const {
+        if (input.userId <= 0) {
+            error::throwBadRequest(
+                error::ErrorCode::InvalidParameter,
+                "user_id 必须是大于 0 的整数");
+        }
+
+        if (!input.realName && !input.systemRole && !input.email && !input.phone) {
+            error::throwBadRequest(
+                error::ErrorCode::InvalidParameter,
+                "至少需要提供一个可修改字段");
+        }
+
+        const auto user = co_await userRepository_.updateUserBasicInfo(input);
+        if (!user) {
+            error::throwNotFound(
+                error::ErrorCode::UserNotFound,
+                "用户不存在");
+        }
+
+        co_return *user;
+    }
 } // namespace project_tracker::modules::user::service

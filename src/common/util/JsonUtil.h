@@ -41,7 +41,7 @@ namespace project_tracker::common::util {
         return true;
     }
 
-    // 读取可选字符串字段
+    // 读取可选字符串字段，如果没有就用value的默认值（一般为""）
     inline bool readOptionalString(const Json::Value &json,
                                    const std::string &key,
                                    std::string &value) {
@@ -58,22 +58,43 @@ namespace project_tracker::common::util {
         return true;
     }
 
-    // 读取可选整数字段
-    inline bool readOptionalInt(const Json::Value &json,
-                                const std::string &key,
-                                std::optional<int> &value) {
+    // 读取可选字符串字段
+    inline bool readOptionalString(const Json::Value &json,
+                                   const std::string &key,
+                                   std::optional<std::string> &value) {
         if (!json.isObject() || !json.isMember(key)) {
             value = std::nullopt;
             return true;
         }
 
         const Json::Value &field = json[key];
-        if (!field.isInt()) {
+        if (!field.isString()) {
             value = std::nullopt;
             return false;
         }
 
-        value = field.asInt();
+        value = field.asString();
         return true;
     }
+
+
+// 读取可选整数字段
+inline bool readOptionalInt(const Json::Value &json,
+                            const std::string &key,
+                            std::optional<int> &value) {
+    if (!json.isObject() || !json.isMember(key)) {
+        value = std::nullopt;
+        return true;
+    }
+
+    const Json::Value &field = json[key];
+    if (!field.isInt()) {
+        value = std::nullopt;
+        return false;
+    }
+
+    value = field.asInt();
+    return true;
+}
+
 } // namespace project_tracker::common::util

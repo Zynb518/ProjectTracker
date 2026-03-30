@@ -1,0 +1,105 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@targetUserId = 2
+@missingUserId = 999999
+@invalidUserId = 0
+
+### 提示：正常修改会写入数据库；如需对照初始种子数据，请先重置 db/seeds/001_demo_data.sql
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：修改用户基础信息
+PATCH {{baseUrl}}/api/users/{{targetUserId}}
+Content-Type: application/json
+
+{
+  "real_name": "李明-联调修改",
+  "system_role": 2,
+  "email": "li_ming_update@example.com",
+  "phone": "13800008888"
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录修改用户基础信息，预期 401
+PATCH {{baseUrl}}/api/users/{{targetUserId}}
+Content-Type: application/json
+
+{
+  "real_name": "未登录修改"
+}
+
+### 异常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工修改用户基础信息，预期 403
+PATCH {{baseUrl}}/api/users/{{targetUserId}}
+Content-Type: application/json
+
+{
+  "real_name": "无权限修改"
+}
+
+### 异常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：user_id 小于等于 0，预期 400
+PATCH {{baseUrl}}/api/users/{{invalidUserId}}
+Content-Type: application/json
+
+{
+  "real_name": "非法用户ID"
+}
+
+### 异常路径：请求体没有可修改字段，预期 400
+PATCH {{baseUrl}}/api/users/{{targetUserId}}
+Content-Type: application/json
+
+{}
+
+### 异常路径：email 不是字符串，预期 400
+PATCH {{baseUrl}}/api/users/{{targetUserId}}
+Content-Type: application/json
+
+{
+  "email": 123
+}
+
+### 异常路径：用户不存在，预期 404
+PATCH {{baseUrl}}/api/users/{{missingUserId}}
+Content-Type: application/json
+
+{
+  "real_name": "不存在用户"
+}

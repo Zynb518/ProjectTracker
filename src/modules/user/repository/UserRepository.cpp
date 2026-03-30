@@ -126,6 +126,63 @@ namespace project_tracker::modules::user::repository {
         }
     }
 
+    drogon::Task<std::optional<user_view::SysUserView>>
+    UserRepository::updateUserBasicInfo(
+        const dto::command::UpdateUserBasicInfoInput &input) const {
+        constexpr std::string_view updateUserSql = R"SQL(
+            UPDATE sys_user
+            SET
+                real_name = COALESCE($2, real_name),
+                system_role = COALESCE($3, system_role),
+                email = COALESCE($4, email),
+                phone = COALESCE($5, phone),
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING
+                id,
+                username,
+                real_name,
+                system_role,
+                email,
+                phone,
+                status,
+                to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS created_at,
+                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await dbClient->execSqlCoro(
+                std::string(updateUserSql),
+                input.userId,
+                input.realName,
+                input.systemRole,
+                input.email,
+                input.phone);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return user_view::SysUserView{
+                .id = row["id"].as<std::int64_t>(),
+                .username = row["username"].as<std::string>(),
+                .realName = row["real_name"].as<std::string>(),
+                .systemRole = static_cast<domain::SystemRole>(row["system_role"].as<int>()),
+                .email = row["email"].as<std::string>(),
+                .phone = row["phone"].as<std::string>(),
+                .status = static_cast<domain::UserStatus>(row["status"].as<int>()),
+                .createdAt = row["created_at"].as<std::string>(),
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<UserListPage>
     UserRepository::listUsers(const UserListQuery &query) const {
         constexpr std::string_view countUsersSql = R"SQL(

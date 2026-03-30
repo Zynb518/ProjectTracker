@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
 #include <drogon/utils/coroutine.h>
 
+#include "modules/user/dto/command/UpdateUserBasicInfoInput.h"
 #include "modules/user/dto/view/SysUserView.h"
 #include "modules/user/repository/UserRepository.h"
 
@@ -24,6 +26,11 @@ namespace project_tracker::modules::user::service {
         // 创建用户
         drogon::Task<dto::view::SysUserView>
         createUser(const CreateUserCommand &command) const;
+
+        // 修改用户基础信息
+        drogon::Task<dto::view::SysUserView>
+        updateUserBasicInfo(
+            const dto::command::UpdateUserBasicInfoInput &input) const;
 
     private:
         repository::UserRepository userRepository_;

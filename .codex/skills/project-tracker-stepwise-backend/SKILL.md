@@ -79,6 +79,8 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - `Controller` 是 HTTP 边界；只要调用链中可能抛 `BusinessException`，`try/catch` 就必须覆盖整段请求处理流程，而不是只包某个 `co_await`。
 - `Service` 可以抛 `BusinessException`，用于业务规则不满足、权限失败、状态冲突等场景。
 - `Repository` 不用异常表达“正常查不到”；这类情况优先返回 `std::optional`。
+- 对单条写 SQL 可直接表达的唯一冲突，优先使用 PostgreSQL 原子冲突处理，例如 `ON CONFLICT ... DO NOTHING RETURNING`，再由空结果映射 `409`，不要优先依赖 Drogon 细分数据库异常类型的捕获。
+- 事务用于保障多条 SQL 的原子性，不要只为了识别单条唯一约束冲突就引入事务。
 - `Repository` 只在数据库异常、底层调用失败等系统错误场景，把异常转成 `InternalError`。
 - `common/util` 默认不直接抛 `BusinessException`，优先返回值、`std::optional` 或显式失败态，让 `Controller / Service` 决定如何返回 HTTP 错误。
 - `filters` 优先直接返回 `api::fail(...)`，不要依赖抛异常完成拦截。
