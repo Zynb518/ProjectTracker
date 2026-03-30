@@ -1,0 +1,61 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@existingTemplateId = 1
+@invalidTemplateId = 0
+@missingTemplateId = 999999
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：获取项目模板详情
+GET {{baseUrl}}/api/project-templates/{{existingTemplateId}}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取项目模板详情，预期 401
+GET {{baseUrl}}/api/project-templates/{{existingTemplateId}}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工获取项目模板详情
+GET {{baseUrl}}/api/project-templates/{{existingTemplateId}}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：template_id 小于等于 0，预期 400
+GET {{baseUrl}}/api/project-templates/{{invalidTemplateId}}
+
+### 异常路径：项目模板不存在，预期 404
+GET {{baseUrl}}/api/project-templates/{{missingTemplateId}}

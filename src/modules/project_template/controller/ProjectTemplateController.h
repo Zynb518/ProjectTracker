@@ -14,10 +14,17 @@ namespace project_tracker::modules::project_template::controller {
                           "/api/project-templates",
                           drogon::Get,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectTemplateController::getTemplateDetail,
+                          "/api/project-templates/{template_id}",
+                          drogon::Get,
+                          filters::LoginRequiredFilter::classTypeName());
         METHOD_LIST_END
 
         drogon::Task<drogon::HttpResponsePtr>
         listTemplates(drogon::HttpRequestPtr request);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        getTemplateDetail(drogon::HttpRequestPtr request, std::int64_t templateId);
 
     private:
         repository::ProjectTemplateRepository projectTemplateRepository_;

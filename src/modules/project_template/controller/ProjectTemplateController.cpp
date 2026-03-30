@@ -61,4 +61,47 @@ namespace project_tracker::modules::project_template::controller {
             co_return api::fromException(exception);
         }
     }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectTemplateController::getTemplateDetail(drogon::HttpRequestPtr request,
+                                                 std::int64_t templateId) {
+        (void)request;
+
+        if (templateId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "template_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto detail = co_await projectTemplateRepository_.findTemplateDetail(templateId);
+            if (!detail) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::ProjectTemplateNotFound,
+                    "项目模板不存在");
+            }
+
+            Json::Value data(Json::objectValue);
+            data["id"] = detail->id;
+            data["name"] = detail->name;
+            data["description"] = detail->description;
+            data["status"] = domain::toInt(detail->status);
+            data["nodes"] = Json::Value(Json::arrayValue);
+
+            for (const auto &node : detail->nodes) {
+                Json::Value nodeJson(Json::objectValue);
+                nodeJson["id"] = node.id;
+                nodeJson["name"] = node.name;
+                nodeJson["description"] = node.description;
+                nodeJson["sequence_no"] = node.sequenceNo;
+                data["nodes"].append(nodeJson);
+            }
+
+            co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
 } // namespace project_tracker::modules::project_template::controller

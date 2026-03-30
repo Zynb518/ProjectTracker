@@ -60,4 +60,63 @@ namespace project_tracker::modules::project_template::repository {
                 "数据库操作失败");
         }
     }
+
+    drogon::Task<std::optional<dto::view::ProjectTemplateDetailView>>
+    ProjectTemplateRepository::findTemplateDetail(std::int64_t templateId) const {
+        static const std::string findTemplateDetailSql = R"SQL(
+            SELECT
+                pt.id,
+                pt.name,
+                pt.description,
+                pt.status,
+                ptn.id AS node_id,
+                ptn.name AS node_name,
+                ptn.description AS node_description,
+                ptn.sequence_no
+            FROM project_template pt
+            LEFT JOIN project_template_node ptn ON ptn.template_id = pt.id
+            WHERE pt.id = $1
+            ORDER BY ptn.sequence_no ASC, ptn.id ASC
+        )SQL";
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await dbClient->execSqlCoro(
+                findTemplateDetailSql,
+                templateId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &firstRow = result.front();
+            dto::view::ProjectTemplateDetailView detail{
+                .id = firstRow["id"].as<std::int64_t>(),
+                .name = firstRow["name"].as<std::string>(),
+                .description = firstRow["description"].as<std::string>(),
+                .status = static_cast<domain::ProjectTemplateStatus>(firstRow["status"].as<int>()),
+                .nodes = {}
+            };
+            detail.nodes.reserve(result.size());
+
+            for (const auto &row : result) {
+                if (row["node_id"].isNull()) {
+                    continue;
+                }
+
+                detail.nodes.push_back(dto::view::ProjectTemplateDetailNodeView{
+                    .id = row["node_id"].as<std::int64_t>(),
+                    .name = row["node_name"].as<std::string>(),
+                    .description = row["node_description"].as<std::string>(),
+                    .sequenceNo = row["sequence_no"].as<int>()
+                });
+            }
+
+            co_return detail;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
 } // namespace project_tracker::modules::project_template::repository
