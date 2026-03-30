@@ -1,0 +1,77 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@ownerUserId = 2
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员获取项目列表
+GET {{baseUrl}}/api/projects
+
+### 正常路径：管理员按负责人和状态筛选项目列表
+GET {{baseUrl}}/api/projects?owner_user_id={{ownerUserId}}&status=2&page=1&page_size=2
+
+### 正常路径：管理员按关键字查询项目列表
+GET {{baseUrl}}/api/projects?keyword=官网
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取项目列表，预期 401
+GET {{baseUrl}}/api/projects
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工获取自己可见的项目列表
+GET {{baseUrl}}/api/projects
+
+### 异常路径：普通员工使用 owner_user_id 筛选，预期 403
+GET {{baseUrl}}/api/projects?owner_user_id={{ownerUserId}}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：status 不是整数，预期 400
+GET {{baseUrl}}/api/projects?status=enabled
+
+### 异常路径：status 不在枚举范围内，预期 400
+GET {{baseUrl}}/api/projects?status=5
+
+### 异常路径：owner_user_id 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects?owner_user_id=0
+
+### 异常路径：page 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects?page=0
+
+### 异常路径：page_size 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects?page_size=0

@@ -76,6 +76,8 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 若返回时间字符串，优先生成接口最终需要的格式，不要保留中间态再二次加工。
 - 即便正常链路里“理论上一定存在”，repository 仍可用 `std::optional` 显式表达“数据库可能查不到”这一事实，例如 session 残留或用户记录已不存在的情况。
 - 分页相关的 `page`、`page_size`、`total` 优先使用 `std::int64_t`，和 PostgreSQL 的 `COUNT(*)`、`LIMIT`、`OFFSET` 保持一致。
+- 如果 SQL 参数一边和 `BIGINT` 列比较，一边又和 `0` 这类整数字面量比较，要显式写成 `0::bigint` 或 `$n::bigint`，避免 PostgreSQL 把参数先推断成 `integer`，再和 Drogon 传入的 `std::int64_t` 二进制绑定格式冲突。
+- 类似 `($3 = 0 OR p.owner_user_id = $3)` 这种写法在 `owner_user_id` 为 `BIGINT` 时有踩坑风险；优先写成 `($3 = 0::bigint OR p.owner_user_id = $3)`。
 - 对本地模块内跨层复用的简单输入模型，优先放在 `dto/command/`，避免同一条简单输入在 service / repository 重复定义。
 
 ## Error Handling Rules
