@@ -52,10 +52,13 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - SQL 脚本放在 `db/migrations/` 和 `db/seeds/`，不要继续堆在 `design-flow/`。
 - 头文件引用按 `src` 根来写，例如 `#include "common/error/ErrorCode.h"`。
 - 组装 JSON 时优先直接赋值，不为了整数类型额外包 `Json::Int64(...)`。
+- Repository 内部的 SQL 常量优先写成 `static const std::string`，不要继续写 `constexpr std::string_view` 再在调用点临时构造 `std::string(...)`。
 
 ## Naming And Structure
 
 - 当前模块本地命名空间不额外起别名，优先直接写 `repository::`、`service::`、`dto::view::` 这类当前作用域下可直接访问的名字。
+- 本地模块内部同样优先直接写 `dto::view::`、`dto::command::`，不要为了缩短名字额外起 `template_view` 这类本地别名。
+- 如果目标字段本身就是 `std::optional`，优先直接把解析结果写入目标字段，例如直接写 `query.systemRole`；不要额外创建一个临时 `std::optional` 再二次赋值，除非这样做明显更清晰。
 - 只有跨模块且全路径明显影响可读性时，才考虑保留一个必要别名。
 - `common` 这类全局公共命名空间可以继续写成：
 - `namespace error = project_tracker::common::error;`
@@ -68,10 +71,12 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 ## Data And Enum Rules
 
 - 如果数据库已有 `CHECK` 约束，应用层不重复做同一层枚举合法性兜底，优先直接映射。
+- 但如果请求体里的整数会先在 controller 转成 enum 再向下传递，controller 需要先做枚举范围校验，避免非法底层值一路落到数据库并被映射成 `500`。
 - 对中国区固定业务时间，可以明确按 `Asia/Shanghai` 处理。
 - 若返回时间字符串，优先生成接口最终需要的格式，不要保留中间态再二次加工。
 - 即便正常链路里“理论上一定存在”，repository 仍可用 `std::optional` 显式表达“数据库可能查不到”这一事实，例如 session 残留或用户记录已不存在的情况。
 - 分页相关的 `page`、`page_size`、`total` 优先使用 `std::int64_t`，和 PostgreSQL 的 `COUNT(*)`、`LIMIT`、`OFFSET` 保持一致。
+- 对本地模块内跨层复用的简单输入模型，优先放在 `dto/command/`，避免同一条简单输入在 service / repository 重复定义。
 
 ## Error Handling Rules
 

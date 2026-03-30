@@ -9,6 +9,8 @@ add_executable(
     modules/auth/controller/AuthController.cpp
     modules/auth/repository/AuthRepository.cpp
     modules/auth/service/AuthService.cpp
+    modules/project_template/controller/ProjectTemplateController.cpp
+    modules/project_template/repository/ProjectTemplateRepository.cpp
     modules/user/controller/UserController.cpp
     modules/user/repository/UserRepository.cpp
     modules/user/service/UserService.cpp

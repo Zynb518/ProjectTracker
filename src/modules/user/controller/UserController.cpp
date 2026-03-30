@@ -27,6 +27,17 @@ namespace project_tracker::modules::user::controller {
 
             return json;
         }
+
+        bool isValidSystemRole(int systemRole) {
+            return systemRole == domain::toInt(domain::SystemRole::Admin) ||
+                   systemRole == domain::toInt(domain::SystemRole::ProjectManager) ||
+                   systemRole == domain::toInt(domain::SystemRole::Employee);
+        }
+
+        bool isValidUserStatus(int status) {
+            return status == domain::toInt(domain::UserStatus::Enabled) ||
+                   status == domain::toInt(domain::UserStatus::Disabled);
+        }
     } // namespace
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -39,49 +50,53 @@ namespace project_tracker::modules::user::controller {
             }
 
             // query 参数只做基础格式校验。
-            std::optional<int> systemRole;
-            if (!util::readQueryInt(request, "system_role", systemRole)) {
+            if (!util::readQueryInt(request, "system_role", query.systemRole)) {
                 co_return api::fail(
                     drogon::k400BadRequest,
-                    common::error::ErrorCode::InvalidParameter,
+                    error::ErrorCode::InvalidParameter,
                     "system_role 必须是整数");
             }
-            if (systemRole) {
-                query.systemRole = *systemRole;
-            }
-
-            std::optional<int> status;
-            if (!util::readQueryInt(request, "status", status)) {
+            if (query.systemRole && !isValidSystemRole(*query.systemRole)) {
                 co_return api::fail(
                     drogon::k400BadRequest,
-                    common::error::ErrorCode::InvalidParameter,
+                    error::ErrorCode::InvalidParameter,
+                    "system_role 只能是 1、2 或 3");
+            }
+
+            if (!util::readQueryInt(request, "status", query.status)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
                     "status 必须是整数");
             }
-            if (status) {
-                query.status = *status;
+            if (query.status && !isValidUserStatus(*query.status)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "status 只能是 1 或 2");
             }
+
 
             std::optional<std::int64_t> page;
             if (!util::readPositiveQueryInt64(request, "page", page)) {
                 co_return api::fail(
                     drogon::k400BadRequest,
-                    common::error::ErrorCode::InvalidParameter,
+                    error::ErrorCode::InvalidParameter,
                     "page 必须是大于 0 的整数");
             }
-            if (page) {
+            if (page)
                 query.page = *page;
-            }
+
 
             std::optional<std::int64_t> pageSize;
             if (!util::readPositiveQueryInt64(request, "page_size", pageSize)) {
                 co_return api::fail(
                     drogon::k400BadRequest,
-                    common::error::ErrorCode::InvalidParameter,
+                    error::ErrorCode::InvalidParameter,
                     "page_size 必须是大于 0 的整数");
             }
-            if (pageSize) {
+            if (pageSize)
                 query.pageSize = *pageSize;
-            }
 
             const auto pageResult = co_await userRepository_.listUsers(query);
 
@@ -95,7 +110,8 @@ namespace project_tracker::modules::user::controller {
             data["page_size"] = pageResult.pageSize;
 
             co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
+
+        } catch (const error::BusinessException & exception) {
             co_return api::fromException(exception);
         }
     }
@@ -154,6 +170,12 @@ namespace project_tracker::modules::user::controller {
                 drogon::k400BadRequest,
                 error::ErrorCode::InvalidParameter,
                 "system_role 必须是整数");
+        }
+        if (input.systemRole && !isValidSystemRole(*input.systemRole)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "system_role 只能是 1、2 或 3");
         }
 
         if (!util::readOptionalString(*json, "email", input.email)) {
@@ -261,6 +283,12 @@ namespace project_tracker::modules::user::controller {
                 drogon::k400BadRequest,
                 error::ErrorCode::InvalidParameter,
                 "system_role 必须是整数");
+        }
+        if (command.systemRole && !isValidSystemRole(*command.systemRole)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "system_role 只能是 1、2 或 3");
         }
 
         if (!util::readOptionalString(*json, "email", command.email)) {
