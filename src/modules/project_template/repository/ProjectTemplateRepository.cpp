@@ -2,7 +2,6 @@
 
 #include <string>
 
-#include <drogon/drogon.h>
 #include <drogon/orm/Exception.h>
 
 #include "common/error/ErrorCode.h"
@@ -12,8 +11,8 @@ namespace project_tracker::modules::project_template::repository {
     namespace error = project_tracker::common::error;
 
     drogon::Task<std::vector<dto::view::ProjectTemplateListItemView>>
-    ProjectTemplateRepository::listTemplates(
-        std::optional<domain::ProjectTemplateStatus> status) const {
+    ProjectTemplateRepository::listTemplates(const common::db::SqlExecutorPtr &executor,
+                                             std::optional<domain::ProjectTemplateStatus> status) const {
         static const std::string listTemplatesSql = R"SQL(
             SELECT
                 pt.id,
@@ -35,8 +34,7 @@ namespace project_tracker::modules::project_template::repository {
         const auto statusForQuery = status.value_or(domain::ProjectTemplateStatus::Enabled);
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 listTemplatesSql,
                 domain::toInt(statusForQuery));
 
@@ -62,7 +60,8 @@ namespace project_tracker::modules::project_template::repository {
     }
 
     drogon::Task<std::optional<dto::view::ProjectTemplateDetailView>>
-    ProjectTemplateRepository::findTemplateDetail(std::int64_t templateId) const {
+    ProjectTemplateRepository::findTemplateDetail(const common::db::SqlExecutorPtr &executor,
+                                                  std::int64_t templateId) const {
         static const std::string findTemplateDetailSql = R"SQL(
             SELECT
                 pt.id,
@@ -80,8 +79,7 @@ namespace project_tracker::modules::project_template::repository {
         )SQL";
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 findTemplateDetailSql,
                 templateId);
 

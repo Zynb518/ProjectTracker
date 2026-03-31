@@ -1,5 +1,7 @@
 #include "modules/auth/service/AuthService.h"
 
+#include <drogon/drogon.h>
+
 #include "common/error/ErrorCode.h"
 #include "common/error/Throw.h"
 #include "common/util/PasswordUtil.h"
@@ -28,7 +30,8 @@ namespace project_tracker::modules::auth::service {
     drogon::Task<user_view::SysUserView>
     AuthService::login(const std::string &username,
                        const std::string &password) const {
-        const auto user = co_await authRepository_.findUserByUsername(username);
+        const auto dbClient = drogon::app().getDbClient();
+        const auto user = co_await authRepository_.findUserByUsername(dbClient, username);
         if (!user) {
             error::throwUnauthorized(
                 error::ErrorCode::LoginFailed,

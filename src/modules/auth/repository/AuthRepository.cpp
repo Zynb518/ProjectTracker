@@ -1,6 +1,5 @@
 #include "modules/auth/repository/AuthRepository.h"
 
-#include <drogon/drogon.h>
 #include <drogon/orm/Exception.h>
 #include <drogon/orm/Row.h>
 
@@ -11,7 +10,8 @@ namespace project_tracker::modules::auth::repository {
     namespace error = project_tracker::common::error;
 
     drogon::Task<std::optional<AuthUserRecord>>
-    AuthRepository::findUserByUsername(const std::string &username) const {
+    AuthRepository::findUserByUsername(const common::db::SqlExecutorPtr &executor,
+                                       const std::string &username) const {
         static const std::string selectUserSql = R"SQL(
             SELECT
                 id,
@@ -30,8 +30,7 @@ namespace project_tracker::modules::auth::repository {
         )SQL";
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 selectUserSql,
                 username);
 
@@ -61,7 +60,8 @@ namespace project_tracker::modules::auth::repository {
     }
 
     drogon::Task<std::optional<user_view::SysUserView>>
-    AuthRepository::findUserById(std::int64_t userId) const {
+    AuthRepository::findUserById(const common::db::SqlExecutorPtr &executor,
+                                 std::int64_t userId) const {
         static const std::string selectUserSql = R"SQL(
             SELECT
                 id,
@@ -79,8 +79,7 @@ namespace project_tracker::modules::auth::repository {
         )SQL";
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 selectUserSql,
                 userId);
 

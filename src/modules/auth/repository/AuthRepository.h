@@ -6,6 +6,7 @@
 
 #include <drogon/utils/coroutine.h>
 
+#include "common/db/SqlExecutor.h"
 #include "modules/user/dto/view/SysUserView.h"
 #include "modules/user/domain/UserEnums.h"
 
@@ -33,9 +34,11 @@ namespace project_tracker::modules::auth::repository {
     class AuthRepository {
     public:
         drogon::Task<std::optional<AuthUserRecord>>
-        findUserByUsername(const std::string &username) const;
+        findUserByUsername(const common::db::SqlExecutorPtr &executor,
+                           const std::string &username) const;
 
         drogon::Task<std::optional<user_view::SysUserView>>
-        findUserById(std::int64_t userId) const;
+        findUserById(const common::db::SqlExecutorPtr &executor,
+                     std::int64_t userId) const;
     };
 } // namespace project_tracker::modules::auth::repository

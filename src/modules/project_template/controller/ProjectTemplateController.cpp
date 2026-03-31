@@ -1,5 +1,7 @@
 #include "modules/project_template/controller/ProjectTemplateController.h"
 
+#include <drogon/drogon.h>
+
 #include "common/api/ApiResponse.h"
 #include "common/error/BusinessException.h"
 #include "common/error/ErrorCode.h"
@@ -48,7 +50,8 @@ namespace project_tracker::modules::project_template::controller {
                 status = static_cast<domain::ProjectTemplateStatus>(*statusValue);
             }
 
-            const auto list = co_await projectTemplateRepository_.listTemplates(status);
+            const auto dbClient = drogon::app().getDbClient();
+            const auto list = co_await projectTemplateRepository_.listTemplates(dbClient, status);
 
             Json::Value data(Json::objectValue);
             data["list"] = Json::Value(Json::arrayValue);
@@ -75,7 +78,10 @@ namespace project_tracker::modules::project_template::controller {
         }
 
         try {
-            const auto detail = co_await projectTemplateRepository_.findTemplateDetail(templateId);
+            const auto dbClient = drogon::app().getDbClient();
+            const auto detail = co_await projectTemplateRepository_.findTemplateDetail(
+                dbClient,
+                templateId);
             if (!detail) {
                 co_return api::fail(
                     drogon::k404NotFound,

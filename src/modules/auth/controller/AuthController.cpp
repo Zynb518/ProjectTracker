@@ -1,5 +1,7 @@
 #include "modules/auth/controller/AuthController.h"
 
+#include <drogon/drogon.h>
+
 #include "common/api/ApiResponse.h"
 #include "common/error/BusinessException.h"
 #include "common/error/ErrorCode.h"
@@ -84,7 +86,8 @@ namespace project_tracker::modules::auth::controller {
         const auto &session = request->getSession();
         const auto userId = session->getOptional<std::int64_t>("user_id");
 
-        const auto user = co_await authRepository_.findUserById(*userId);
+        const auto dbClient = drogon::app().getDbClient();
+        const auto user = co_await authRepository_.findUserById(dbClient, *userId);
         if (!user) {
             session->clear();
             session->changeSessionIdToClient();
