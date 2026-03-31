@@ -1,0 +1,181 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableProjectName = start_project_case_{{$timestamp}}
+@repeatableDelayedProjectName = start_project_delayed_case_{{$timestamp}}
+@repeatableEmployeeProjectName = employee_personal_project_case_{{$timestamp}}
+@projectWithNodesId = 1
+@completedProjectId = 3
+@missingProjectId = 999999
+@invalidProjectId = 0
+
+### 提示：正常路径和部分异常路径会先创建临时项目，因此可以重复回放
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建可手动开始的临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableProjectName}}",
+  "description": "用于验证手动开始项目接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableStartProjectId", response.body.data.id); %}
+
+### 正常路径：管理员手动开始刚创建的临时项目，预期 status=2
+POST {{baseUrl}}/api/projects/{{repeatableStartProjectId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员创建一个计划结束日已过的临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableDelayedProjectName}}",
+  "description": "用于验证手动开始后返回已延期状态。",
+  "planned_start_date": "2026-01-01",
+  "planned_end_date": "2026-01-31"
+}
+
+> {% client.global.set("repeatableDelayedStartProjectId", response.body.data.id); %}
+
+### 正常路径：管理员手动开始逾期临时项目，预期 status=4
+POST {{baseUrl}}/api/projects/{{repeatableDelayedStartProjectId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录手动开始项目，预期 401
+POST {{baseUrl}}/api/projects/{{projectWithNodesId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工创建个人自用临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableEmployeeProjectName}}",
+  "description": "用于验证管理员不能代开始普通员工个人项目。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableEmployeeProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员不能手动开始普通员工创建的个人自用项目，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeProjectId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工手动开始非本人负责项目，预期 403
+POST {{baseUrl}}/api/projects/{{projectWithNodesId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：项目下存在阶段节点，不允许手动开始，预期 409
+POST {{baseUrl}}/api/projects/{{projectWithNodesId}}/start
+Content-Type: application/json
+
+{}
+
+### 异常路径：已完成项目不能直接再次开始，预期 409
+POST {{baseUrl}}/api/projects/{{completedProjectId}}/start
+Content-Type: application/json
+
+{}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{invalidProjectId}}/start
+Content-Type: application/json
+
+{}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{projectWithNodesId}}/start
+Content-Type: application/json
+
+[]
+
+### 异常路径：项目不存在，预期 404
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/start
+Content-Type: application/json
+
+{}

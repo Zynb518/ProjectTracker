@@ -115,7 +115,7 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
-    drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView>>
+    drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView> >
     ProjectRepository::updateProjectBasicInfo(
         const common::db::SqlExecutorPtr &executor,
         const dto::command::UpdateProjectBasicInfoInput &input) const {
@@ -172,10 +172,281 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
+    drogon::Task<std::optional<std::int64_t> >
+    ProjectRepository::findProjectDeleteCheckResult(const common::db::SqlExecutorPtr &executor,
+                                                    std::int64_t projectId) const {
+        static const std::string findProjectDeleteCheckResultSql = R"SQL(
+            SELECT owner_user_id
+            FROM project
+            WHERE id = $1
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectDeleteCheckResultSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            co_return result.front()["owner_user_id"].as<std::int64_t>();
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<ProjectStartCheckResult> >
+    ProjectRepository::findProjectStartCheckResult(const common::db::SqlExecutorPtr &executor,
+                                                   std::int64_t projectId) const {
+        static const std::string findProjectStartCheckResultSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status,
+                EXISTS (
+                    SELECT 1
+                    FROM project_node pn
+                    WHERE pn.project_id = p.id
+                ) AS has_nodes
+            FROM project p
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectStartCheckResultSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectStartCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
+                .hasNodes = row["has_nodes"].as<bool>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::UpdatedProjectStatusView> >
+    ProjectRepository::updateProjectStatusForStart(const common::db::SqlExecutorPtr &executor,
+                                                   const dto::command::StartProjectInput &input) const {
+        // -- 按北京时间取“今天”，再和 DATE 类型的 planned_end_date 比较是否已延期。
+        static const std::string updateProjectStatusForStartSql = R"SQL(
+            UPDATE project
+            SET
+                status = CASE
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > planned_end_date THEN 4
+                    ELSE 2
+                END,
+                completed_at = NULL,
+                updated_at = NOW()
+            WHERE id = $1 AND
+                status = 1 AND
+                NOT EXISTS (
+                    SELECT 1
+                    FROM project_node pn
+                    WHERE pn.project_id = project.id
+                ) AND
+                ($2 = TRUE OR owner_user_id = $3)
+            RETURNING
+                id,
+                status,
+                to_char(completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateProjectStatusForStartSql,
+                input.projectId,
+                isAdmin,
+                input.operatorUserId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::UpdatedProjectStatusView{
+                .id = row["id"].as<std::int64_t>(),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
+                .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<ProjectCompleteCheckResult> >
+    ProjectRepository::findProjectCompleteCheckResult(const common::db::SqlExecutorPtr &executor,
+                                                      std::int64_t projectId) const {
+        static const std::string findProjectCompleteCheckResultSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status,
+                (
+                    SELECT COUNT(*)
+                    FROM project_node pn
+                    WHERE pn.project_id = p.id
+                ) AS node_count,
+                (
+                    SELECT COUNT(*)
+                    FROM project_node pn
+                    WHERE pn.project_id = p.id AND
+                        pn.status = 3
+                ) AS completed_node_count
+            FROM project p
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectCompleteCheckResultSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectCompleteCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(row["creator_user_role"].as<int>()),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
+                .nodeCount = row["node_count"].as<std::int64_t>(),
+                .completedNodeCount = row["completed_node_count"].as<std::int64_t>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::UpdatedProjectStatusView> >
+    ProjectRepository::updateProjectStatusForComplete(const common::db::SqlExecutorPtr &executor,
+                                                      const dto::command::CompleteProjectInput &input) const {
+        static const std::string updateProjectStatusForCompleteSql = R"SQL(
+            UPDATE project
+            SET
+                status = 3,
+                completed_at = NOW(),
+                updated_at = NOW()
+            WHERE id = $1 AND
+                status <> 3 AND
+                (
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM project_node pn
+                        WHERE pn.project_id = project.id
+                    ) OR
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM project_node pn
+                        WHERE pn.project_id = project.id AND
+                            pn.status <> 3
+                    )
+                ) AND
+                ($2 = TRUE OR owner_user_id = $3)
+            RETURNING
+                id,
+                status,
+                to_char(completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateProjectStatusForCompleteSql,
+                input.projectId,
+                isAdmin,
+                input.operatorUserId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::UpdatedProjectStatusView{
+                .id = row["id"].as<std::int64_t>(),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
+                .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<bool>
+    ProjectRepository::deleteProject(const common::db::SqlExecutorPtr &executor,
+                                     const dto::command::DeleteProjectInput &input) const {
+        static const std::string deleteProjectSql = R"SQL(
+            DELETE FROM project
+            WHERE id = $1 AND
+                ($2 = TRUE OR owner_user_id = $3)
+            RETURNING id
+        )SQL";
+
+        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                deleteProjectSql,
+                input.projectId,
+                isAdmin,
+                input.operatorUserId);
+
+            co_return !result.empty();
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<ProjectListPage>
     ProjectRepository::listProjects(const common::db::SqlExecutorPtr &executor,
                                     const ProjectListQuery &query) const {
-
         // 1.先进行筛选（项目名，状态，拥有者）
         //   再根据是否是管理员，拥有者，项目成员
         // 2.再根据filter中间结果，求 total, paged
@@ -303,7 +574,7 @@ namespace project_tracker::modules::project::repository {
 
             result.list.reserve(listResult.size());
 
-            for (const auto &row : listResult) {
+            for (const auto &row: listResult) {
                 if (row["id"].isNull()) {
                     continue;
                 }
@@ -340,7 +611,7 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
-    drogon::Task<std::optional<dto::view::ProjectDetailView>>
+    drogon::Task<std::optional<dto::view::ProjectDetailView> >
     ProjectRepository::findProjectDetail(const common::db::SqlExecutorPtr &executor,
                                          std::int64_t projectId,
                                          std::int64_t currentUserId,

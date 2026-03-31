@@ -1,0 +1,77 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableProjectName = delete_project_case_{{$timestamp}}
+@forbiddenProjectId = 1
+@missingProjectId = 999999
+@invalidProjectId = 0
+
+### 提示：正常路径会先创建一个临时项目，再删除它，因此可以重复回放
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableProjectName}}",
+  "description": "用于验证删除项目接口的可重复联调用例。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableDeleteProjectId", response.body.data.id); %}
+
+### 正常路径：管理员删除刚创建的临时项目
+DELETE {{baseUrl}}/api/projects/{{repeatableDeleteProjectId}}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录删除项目，预期 401
+DELETE {{baseUrl}}/api/projects/{{forbiddenProjectId}}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工删除非本人负责项目，预期 403
+DELETE {{baseUrl}}/api/projects/{{forbiddenProjectId}}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+DELETE {{baseUrl}}/api/projects/{{invalidProjectId}}
+
+### 异常路径：项目不存在，预期 404
+DELETE {{baseUrl}}/api/projects/{{missingProjectId}}

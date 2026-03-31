@@ -8,13 +8,8 @@
 #include <drogon/utils/coroutine.h>
 
 #include "common/db/SqlExecutor.h"
-#include "modules/project/dto/command/CreateProjectInput.h"
-#include "modules/project/dto/command/UpdateProjectBasicInfoInput.h"
-#include "modules/project/dto/view/CreatedProjectView.h"
+#include "modules/project/dto/ProjectDto.h"
 #include "modules/project/domain/ProjectEnums.h"
-#include "modules/project/dto/view/ProjectDetailView.h"
-#include "modules/project/dto/view/ProjectListItemView.h"
-#include "modules/project/dto/view/UpdatedProjectBasicInfoView.h"
 #include "modules/user/domain/UserEnums.h"
 
 namespace project_tracker::modules::project::repository {
@@ -37,6 +32,23 @@ namespace project_tracker::modules::project::repository {
         std::int64_t pageSize;
     };
 
+    // 手动开始项目前的校验信息
+    struct ProjectStartCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        domain::ProjectStatus status;
+        bool hasNodes;
+    };
+
+    // 手动完成项目前的校验信息
+    struct ProjectCompleteCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        domain::ProjectStatus status;
+        std::int64_t nodeCount;
+        std::int64_t completedNodeCount;
+    };
+
     class ProjectRepository {
     public:
         drogon::Task<dto::view::CreatedProjectView>
@@ -53,6 +65,36 @@ namespace project_tracker::modules::project::repository {
         drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView>>
         updateProjectBasicInfo(const common::db::SqlExecutorPtr &executor,
                                const dto::command::UpdateProjectBasicInfoInput &input) const;
+
+        // 删除项目
+        drogon::Task<bool>
+        deleteProject(const common::db::SqlExecutorPtr &executor,
+                      const dto::command::DeleteProjectInput &input) const;
+
+        // 查询删除项目时的负责人用户 ID
+        drogon::Task<std::optional<std::int64_t>>
+        findProjectDeleteCheckResult(const common::db::SqlExecutorPtr &executor,
+                                     std::int64_t projectId) const;
+
+        // 查询手动开始项目前的校验信息
+        drogon::Task<std::optional<ProjectStartCheckResult>>
+        findProjectStartCheckResult(const common::db::SqlExecutorPtr &executor,
+                                    std::int64_t projectId) const;
+
+        // 按手动开始动作更新项目状态
+        drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
+        updateProjectStatusForStart(const common::db::SqlExecutorPtr &executor,
+                                    const dto::command::StartProjectInput &input) const;
+
+        // 查询手动完成项目前的校验信息
+        drogon::Task<std::optional<ProjectCompleteCheckResult>>
+        findProjectCompleteCheckResult(const common::db::SqlExecutorPtr &executor,
+                                       std::int64_t projectId) const;
+
+        // 按手动完成动作更新项目状态
+        drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
+        updateProjectStatusForComplete(const common::db::SqlExecutorPtr &executor,
+                                       const dto::command::CompleteProjectInput &input) const;
 
         // 查询项目分页列表
         drogon::Task<ProjectListPage>

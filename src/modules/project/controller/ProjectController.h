@@ -27,6 +27,18 @@ namespace project_tracker::modules::project::controller {
                           "/api/projects/{project_id}",
                           drogon::Patch,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::deleteProject,
+                          "/api/projects/{project_id}",
+                          drogon::Delete,
+                          filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::startProject,
+                          "/api/projects/{project_id}/start",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::completeProject,
+                          "/api/projects/{project_id}/complete",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
         METHOD_LIST_END
 
         drogon::Task<drogon::HttpResponsePtr>
@@ -40,6 +52,15 @@ namespace project_tracker::modules::project::controller {
 
         drogon::Task<drogon::HttpResponsePtr>
         updateProjectBasicInfo(drogon::HttpRequestPtr request, std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        deleteProject(drogon::HttpRequestPtr request, std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        startProject(drogon::HttpRequestPtr request, std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        completeProject(drogon::HttpRequestPtr request, std::int64_t projectId);
 
     private:
         // 简单读接口直接访问 repository。
