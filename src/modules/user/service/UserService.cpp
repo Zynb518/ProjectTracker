@@ -1,5 +1,8 @@
 #include "modules/user/service/UserService.h"
 
+#include <drogon/drogon.h>
+#include <drogon/orm/Exception.h>
+
 #include "common/error/ErrorCode.h"
 #include "common/error/Throw.h"
 #include "common/util/PasswordUtil.h"
@@ -27,7 +30,15 @@ namespace project_tracker::modules::user::service {
             .phone = command.phone
         };
 
-        co_return co_await userRepository_.createUser(record);
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+            co_return co_await userRepository_.insertUser(transaction, record);
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
     }
 
     drogon::Task<dto::view::SysUserView>
@@ -44,14 +55,22 @@ namespace project_tracker::modules::user::service {
                 "至少需要提供一个可修改字段");
         }
 
-        const auto user = co_await userRepository_.updateUserBasicInfo(input);
-        if (!user) {
-            error::throwNotFound(
-                error::ErrorCode::UserNotFound,
-                "用户不存在");
-        }
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+            const auto user = co_await userRepository_.updateUserBasicInfo(transaction, input);
+            if (!user) {
+                error::throwNotFound(
+                    error::ErrorCode::UserNotFound,
+                    "用户不存在");
+            }
 
-        co_return *user;
+            co_return *user;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
     }
 
     drogon::Task<dto::view::SysUserView>
@@ -62,13 +81,21 @@ namespace project_tracker::modules::user::service {
                 "user_id 必须是大于 0 的整数");
         }
 
-        const auto user = co_await userRepository_.updateUserStatus(input);
-        if (!user) {
-            error::throwNotFound(
-                error::ErrorCode::UserNotFound,
-                "用户不存在");
-        }
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+            const auto user = co_await userRepository_.updateUserStatus(transaction, input);
+            if (!user) {
+                error::throwNotFound(
+                    error::ErrorCode::UserNotFound,
+                    "用户不存在");
+            }
 
-        co_return *user;
+            co_return *user;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
     }
 } // namespace project_tracker::modules::user::service

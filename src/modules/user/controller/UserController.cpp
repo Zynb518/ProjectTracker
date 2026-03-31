@@ -1,5 +1,7 @@
 #include "modules/user/controller/UserController.h"
 
+#include <drogon/drogon.h>
+
 #include "common/api/ApiResponse.h"
 #include "common/error/BusinessException.h"
 #include "common/error/ErrorCode.h"
@@ -98,7 +100,8 @@ namespace project_tracker::modules::user::controller {
             if (pageSize)
                 query.pageSize = *pageSize;
 
-            const auto pageResult = co_await userRepository_.listUsers(query);
+            const auto dbClient = drogon::app().getDbClient();
+            const auto pageResult = co_await userRepository_.listUsers(dbClient, query);
 
             Json::Value data(Json::objectValue);
             data["list"] = Json::Value(Json::arrayValue);
@@ -129,7 +132,8 @@ namespace project_tracker::modules::user::controller {
         }
 
         try {
-            const auto user = co_await userRepository_.findUserById(userId);
+            const auto dbClient = drogon::app().getDbClient();
+            const auto user = co_await userRepository_.findUserById(dbClient, userId);
             if (!user) {
                 co_return api::fail(
                     drogon::k404NotFound,

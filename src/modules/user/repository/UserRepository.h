@@ -7,6 +7,7 @@
 
 #include <drogon/utils/coroutine.h>
 
+#include "common/db/SqlExecutor.h"
 #include "modules/user/dto/command/UpdateUserBasicInfoInput.h"
 #include "modules/user/dto/command/UpdateUserStatusInput.h"
 #include "modules/user/dto/view/SysUserView.h"
@@ -45,22 +46,27 @@ namespace project_tracker::modules::user::repository {
     public:
         // 创建用户
         drogon::Task<user_view::SysUserView>
-        createUser(const CreateUserRecord &record) const;
+        insertUser(const common::db::SqlExecutorPtr &executor,
+                   const CreateUserRecord &record) const;
 
         // 查询单个用户详情
         drogon::Task<std::optional<user_view::SysUserView>>
-        findUserById(std::int64_t userId) const;
+        findUserById(const common::db::SqlExecutorPtr &executor,
+                     std::int64_t userId) const;
 
         // 修改用户基础信息
         drogon::Task<std::optional<user_view::SysUserView>>
-        updateUserBasicInfo(const dto::command::UpdateUserBasicInfoInput &input) const;
+        updateUserBasicInfo(const common::db::SqlExecutorPtr &executor,
+                            const dto::command::UpdateUserBasicInfoInput &input) const;
 
         // 修改用户状态
         drogon::Task<std::optional<user_view::SysUserView>>
-        updateUserStatus(const dto::command::UpdateUserStatusInput &input) const;
+        updateUserStatus(const common::db::SqlExecutorPtr &executor,
+                         const dto::command::UpdateUserStatusInput &input) const;
 
         // 查询用户分页列表
         drogon::Task<UserListPage>
-        listUsers(const UserListQuery &query) const;
+        listUsers(const common::db::SqlExecutorPtr &executor,
+                  const UserListQuery &query) const;
     };
 } // namespace project_tracker::modules::user::repository

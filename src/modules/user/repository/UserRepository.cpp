@@ -2,7 +2,6 @@
 
 #include <algorithm>
 
-#include <drogon/drogon.h>
 #include <drogon/orm/Exception.h>
 
 #include "common/error/ErrorCode.h"
@@ -12,7 +11,8 @@ namespace project_tracker::modules::user::repository {
     namespace error = project_tracker::common::error;
 
     drogon::Task<user_view::SysUserView>
-    UserRepository::createUser(const CreateUserRecord &record) const {
+    UserRepository::insertUser(const common::db::SqlExecutorPtr &executor,
+                               const CreateUserRecord &record) const {
         static const std::string insertUserSql = R"SQL(
             INSERT INTO sys_user (
                 username,
@@ -43,8 +43,7 @@ namespace project_tracker::modules::user::repository {
         )SQL";
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 insertUserSql,
                 record.username,
                 record.passwordHash,
@@ -79,7 +78,8 @@ namespace project_tracker::modules::user::repository {
     }
 
     drogon::Task<std::optional<user_view::SysUserView>>
-    UserRepository::findUserById(std::int64_t userId) const {
+    UserRepository::findUserById(const common::db::SqlExecutorPtr &executor,
+                                 std::int64_t userId) const {
         static const std::string selectUserSql = R"SQL(
             SELECT
                 id,
@@ -97,8 +97,7 @@ namespace project_tracker::modules::user::repository {
         )SQL";
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 selectUserSql,
                 userId);
 
@@ -126,7 +125,8 @@ namespace project_tracker::modules::user::repository {
     }
 
     drogon::Task<std::optional<user_view::SysUserView>>
-    UserRepository::updateUserBasicInfo(const dto::command::UpdateUserBasicInfoInput &input) const {
+    UserRepository::updateUserBasicInfo(const common::db::SqlExecutorPtr &executor,
+                                        const dto::command::UpdateUserBasicInfoInput &input) const {
         static const std::string updateUserSql = R"SQL(
             UPDATE sys_user
             SET
@@ -149,8 +149,7 @@ namespace project_tracker::modules::user::repository {
         )SQL";
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 updateUserSql,
                 input.userId,
                 input.realName,
@@ -182,7 +181,8 @@ namespace project_tracker::modules::user::repository {
     }
 
     drogon::Task<std::optional<user_view::SysUserView>>
-    UserRepository::updateUserStatus(const dto::command::UpdateUserStatusInput &input) const {
+    UserRepository::updateUserStatus(const common::db::SqlExecutorPtr &executor,
+                                     const dto::command::UpdateUserStatusInput &input) const {
         static const std::string updateUserStatusSql = R"SQL(
             UPDATE sys_user
             SET
@@ -202,8 +202,7 @@ namespace project_tracker::modules::user::repository {
         )SQL";
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 updateUserStatusSql,
                 input.userId,
                 domain::toInt(input.status));
@@ -232,32 +231,60 @@ namespace project_tracker::modules::user::repository {
     }
 
     drogon::Task<UserListPage>
-    UserRepository::listUsers(const UserListQuery &query) const {
-        static const std::string countUsersSql = R"SQL(
-            SELECT COUNT(*) AS total
-            FROM sys_user
-            WHERE ($1 = '' OR username ILIKE $1 OR real_name ILIKE $1)
-              AND ($2 = 0 OR system_role = $2)
-              AND ($3 = 0 OR status = $3)
-        )SQL";
+    UserRepository::listUsers(const common::db::SqlExecutorPtr &executor,
+                              const UserListQuery &query) const {
 
-        static const std::string selectUsersSql = R"SQL(
+        // 合并成一条查询
+        // 并且 filter 只做筛选，供 total 和 paged 使用
+        static const std::string listUsersSql = R"SQL(
+            WITH filtered AS (
+                SELECT
+                    id,
+                    username,
+                    real_name,
+                    system_role,
+                    email,
+                    phone,
+                    status,
+                    created_at,
+                    updated_at
+                FROM sys_user
+                WHERE ($1 = '' OR username ILIKE $1 OR real_name ILIKE $1)
+                  AND ($2 = 0 OR system_role = $2)
+                  AND ($3 = 0 OR status = $3)
+            ),
+            total AS (
+                SELECT COUNT(*) AS total
+                FROM filtered
+            ),
+            paged AS (
+                SELECT
+                    id,
+                    username,
+                    real_name,
+                    system_role,
+                    email,
+                    phone,
+                    status,
+                    to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS created_at,
+                    to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+                FROM filtered
+                ORDER BY id DESC
+                LIMIT $4 OFFSET $5
+            )
             SELECT
-                id,
-                username,
-                real_name,
-                system_role,
-                email,
-                phone,
-                status,
-                to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS created_at,
-                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
-            FROM sys_user
-            WHERE ($1 = '' OR username ILIKE $1 OR real_name ILIKE $1)
-              AND ($2 = 0 OR system_role = $2)
-              AND ($3 = 0 OR status = $3)
-            ORDER BY id DESC
-            LIMIT $4 OFFSET $5
+                t.total,
+                p.id,
+                p.username,
+                p.real_name,
+                p.system_role,
+                p.email,
+                p.phone,
+                p.status,
+                p.created_at,
+                p.updated_at
+            FROM total t
+            LEFT JOIN paged p ON TRUE
         )SQL";
 
         // 先把分页和筛选条件整理成 SQL 可直接使用的参数。
@@ -269,17 +296,8 @@ namespace project_tracker::modules::user::repository {
         const int status = query.status.value_or(0);
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-
-            // 先查总数，再查当前页数据。
-            const auto totalResult = co_await dbClient->execSqlCoro(
-                countUsersSql,
-                keyword,
-                systemRole,
-                status);
-
-            const auto listResult = co_await dbClient->execSqlCoro(
-                selectUsersSql,
+            const auto listResult = co_await executor->execSqlCoro(
+                listUsersSql,
                 keyword,
                 systemRole,
                 status,
@@ -288,7 +306,7 @@ namespace project_tracker::modules::user::repository {
 
             UserListPage result{
                 .list = {},
-                .total = totalResult.front()["total"].as<std::int64_t>(),
+                .total = listResult.front()["total"].as<std::int64_t>(),
                 .page = page,
                 .pageSize = pageSizeForSql
             };
@@ -296,6 +314,10 @@ namespace project_tracker::modules::user::repository {
             result.list.reserve(listResult.size());
 
             for (const auto &row : listResult) {
+                if (row["id"].isNull()) {
+                    continue;
+                }
+
                 result.list.push_back(user_view::SysUserView{
                     .id = row["id"].as<std::int64_t>(),
                     .username = row["username"].as<std::string>(),
