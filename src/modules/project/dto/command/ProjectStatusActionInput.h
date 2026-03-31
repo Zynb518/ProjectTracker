@@ -5,8 +5,8 @@
 #include "modules/user/domain/UserEnums.h"
 
 namespace project_tracker::modules::project::dto::command {
-    // 手动开始项目输入
-    struct StartProjectInput {
+    // 项目状态动作输入
+    struct ProjectStatusActionInput {
         std::int64_t projectId;
         std::int64_t operatorUserId;
         user::domain::SystemRole operatorUserRole;

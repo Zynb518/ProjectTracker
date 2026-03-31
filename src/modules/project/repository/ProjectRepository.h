@@ -49,6 +49,13 @@ namespace project_tracker::modules::project::repository {
         std::int64_t completedNodeCount;
     };
 
+    // 撤销项目完成前的校验信息
+    struct ProjectReopenCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        domain::ProjectStatus status;
+    };
+
     class ProjectRepository {
     public:
         drogon::Task<dto::view::CreatedProjectView>
@@ -84,7 +91,7 @@ namespace project_tracker::modules::project::repository {
         // 按手动开始动作更新项目状态
         drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
         updateProjectStatusForStart(const common::db::SqlExecutorPtr &executor,
-                                    const dto::command::StartProjectInput &input) const;
+                                    const dto::command::ProjectStatusActionInput &input) const;
 
         // 查询手动完成项目前的校验信息
         drogon::Task<std::optional<ProjectCompleteCheckResult>>
@@ -94,7 +101,17 @@ namespace project_tracker::modules::project::repository {
         // 按手动完成动作更新项目状态
         drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
         updateProjectStatusForComplete(const common::db::SqlExecutorPtr &executor,
-                                       const dto::command::CompleteProjectInput &input) const;
+                                       const dto::command::ProjectStatusActionInput &input) const;
+
+        // 查询撤销项目完成前的校验信息
+        drogon::Task<std::optional<ProjectReopenCheckResult>>
+        findProjectReopenCheckResult(const common::db::SqlExecutorPtr &executor,
+                                     std::int64_t projectId) const;
+
+        // 按撤销完成动作更新项目状态
+        drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
+        updateProjectStatusForReopen(const common::db::SqlExecutorPtr &executor,
+                                     const dto::command::ProjectStatusActionInput &input) const;
 
         // 查询项目分页列表
         drogon::Task<ProjectListPage>

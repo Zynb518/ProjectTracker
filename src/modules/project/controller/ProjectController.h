@@ -39,6 +39,10 @@ namespace project_tracker::modules::project::controller {
                           "/api/projects/{project_id}/complete",
                           drogon::Post,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::reopenProject,
+                          "/api/projects/{project_id}/reopen",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
         METHOD_LIST_END
 
         drogon::Task<drogon::HttpResponsePtr>
@@ -61,6 +65,9 @@ namespace project_tracker::modules::project::controller {
 
         drogon::Task<drogon::HttpResponsePtr>
         completeProject(drogon::HttpRequestPtr request, std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        reopenProject(drogon::HttpRequestPtr request, std::int64_t projectId);
 
     private:
         // 简单读接口直接访问 repository。

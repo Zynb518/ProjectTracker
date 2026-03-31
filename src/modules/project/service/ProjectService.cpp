@@ -113,7 +113,7 @@ namespace project_tracker::modules::project::service {
     }
 
     drogon::Task<dto::view::UpdatedProjectStatusView>
-    ProjectService::startProject(const dto::command::StartProjectInput &input) const {
+    ProjectService::startProject(const dto::command::ProjectStatusActionInput &input) const {
         try {
             const auto dbClient = drogon::app().getDbClient();
             auto transaction = co_await dbClient->newTransactionCoro();
@@ -170,7 +170,7 @@ namespace project_tracker::modules::project::service {
     }
 
     drogon::Task<dto::view::UpdatedProjectStatusView>
-    ProjectService::completeProject(const dto::command::CompleteProjectInput &input) const {
+    ProjectService::completeProject(const dto::command::ProjectStatusActionInput &input) const {
         try {
             const auto dbClient = drogon::app().getDbClient();
             auto transaction = co_await dbClient->newTransactionCoro();
@@ -215,6 +215,56 @@ namespace project_tracker::modules::project::service {
                 error::throwConflict(
                     error::ErrorCode::ProjectCompleteConditionNotMet,
                     "项目当前不满足手动完成条件");
+            }
+
+            co_return *updatedProject;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
+    }
+
+    drogon::Task<dto::view::UpdatedProjectStatusView>
+    ProjectService::reopenProject(const dto::command::ProjectStatusActionInput &input) const {
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+            const auto project = co_await projectRepository_.findProjectReopenCheckResult(
+                transaction,
+                input.projectId);
+            if (!project) {
+                error::throwNotFound(
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (project->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员执行撤销完成操作");
+            }
+
+            if (!isAdmin && project->ownerUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目负责人");
+            }
+
+            if (project->status != domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ReopenFailed,
+                    "项目当前不是已完成状态，不能撤销完成");
+            }
+
+            const auto updatedProject = co_await projectRepository_.updateProjectStatusForReopen(
+                transaction,
+                input);
+            if (!updatedProject) {
+                error::throwConflict(
+                    error::ErrorCode::ReopenFailed,
+                    "撤销项目完成失败");
             }
 
             co_return *updatedProject;

@@ -23,11 +23,15 @@ namespace project_tracker::modules::project::service {
 
         // 手动开始项目
         drogon::Task<dto::view::UpdatedProjectStatusView>
-        startProject(const dto::command::StartProjectInput &input) const;
+        startProject(const dto::command::ProjectStatusActionInput &input) const;
 
         // 手动完成项目
         drogon::Task<dto::view::UpdatedProjectStatusView>
-        completeProject(const dto::command::CompleteProjectInput &input) const;
+        completeProject(const dto::command::ProjectStatusActionInput &input) const;
+
+        // 撤销项目完成
+        drogon::Task<dto::view::UpdatedProjectStatusView>
+        reopenProject(const dto::command::ProjectStatusActionInput &input) const;
 
     private:
         repository::ProjectRepository projectRepository_;

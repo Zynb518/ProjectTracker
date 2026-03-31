@@ -244,7 +244,7 @@ namespace project_tracker::modules::project::repository {
 
     drogon::Task<std::optional<dto::view::UpdatedProjectStatusView> >
     ProjectRepository::updateProjectStatusForStart(const common::db::SqlExecutorPtr &executor,
-                                                   const dto::command::StartProjectInput &input) const {
+                                                   const dto::command::ProjectStatusActionInput &input) const {
         // -- 按北京时间取“今天”，再和 DATE 类型的 planned_end_date 比较是否已延期。
         static const std::string updateProjectStatusForStartSql = R"SQL(
             UPDATE project
@@ -354,7 +354,7 @@ namespace project_tracker::modules::project::repository {
 
     drogon::Task<std::optional<dto::view::UpdatedProjectStatusView> >
     ProjectRepository::updateProjectStatusForComplete(const common::db::SqlExecutorPtr &executor,
-                                                      const dto::command::CompleteProjectInput &input) const {
+                                                      const dto::command::ProjectStatusActionInput &input) const {
         static const std::string updateProjectStatusForCompleteSql = R"SQL(
             UPDATE project
             SET
@@ -389,6 +389,102 @@ namespace project_tracker::modules::project::repository {
         try {
             const auto result = co_await executor->execSqlCoro(
                 updateProjectStatusForCompleteSql,
+                input.projectId,
+                isAdmin,
+                input.operatorUserId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::UpdatedProjectStatusView{
+                .id = row["id"].as<std::int64_t>(),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
+                .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<ProjectReopenCheckResult>>
+    ProjectRepository::findProjectReopenCheckResult(const common::db::SqlExecutorPtr &executor,
+                                                    std::int64_t projectId) const {
+        static const std::string findProjectReopenCheckResultSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status
+            FROM project p
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectReopenCheckResultSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectReopenCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
+    ProjectRepository::updateProjectStatusForReopen(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::ProjectStatusActionInput &input) const {
+
+        // 按北京时间先判断是否已延期；当前 schema 没有项目级开始信号历史，
+        // 这里对已完成项目按“已存在开始信号”回退到进行中/已延期。
+        static const std::string updateProjectStatusForReopenSql = R"SQL(
+            UPDATE project
+            SET
+                status = CASE
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > planned_end_date THEN 4
+                    ELSE 2
+                END,
+                completed_at = NULL,
+                updated_at = NOW()
+            WHERE id = $1 AND
+                status = 3 AND
+                ($2 = TRUE OR owner_user_id = $3)
+            RETURNING
+                id,
+                status,
+                to_char(completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateProjectStatusForReopenSql,
                 input.projectId,
                 isAdmin,
                 input.operatorUserId);

@@ -501,7 +501,7 @@ namespace project_tracker::modules::project::controller {
 
         try {
             const auto project = co_await projectService_.startProject(
-                dto::command::StartProjectInput{
+                dto::command::ProjectStatusActionInput{
                     .projectId = projectId,
                     .operatorUserId = *userId,
                     .operatorUserRole = *systemRole
@@ -554,7 +554,60 @@ namespace project_tracker::modules::project::controller {
 
         try {
             const auto project = co_await projectService_.completeProject(
-                dto::command::CompleteProjectInput{
+                dto::command::ProjectStatusActionInput{
+                    .projectId = projectId,
+                    .operatorUserId = *userId,
+                    .operatorUserRole = *systemRole
+                });
+
+            Json::Value data(Json::objectValue);
+            data["id"] = project.id;
+            data["status"] = domain::toInt(project.status);
+            if (project.completedAt) {
+                data["completed_at"] = *project.completedAt;
+            } else {
+                data["completed_at"] = Json::Value(Json::nullValue);
+            }
+            data["updated_at"] = project.updatedAt;
+
+            co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectController::reopenProject(drogon::HttpRequestPtr request,
+                                     std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        try {
+            const auto project = co_await projectService_.reopenProject(
+                dto::command::ProjectStatusActionInput{
                     .projectId = projectId,
                     .operatorUserId = *userId,
                     .operatorUserRole = *systemRole
