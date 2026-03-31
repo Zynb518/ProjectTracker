@@ -1,0 +1,157 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@targetProjectId = 1
+@completedProjectId = 3
+@missingProjectId = 999999
+@invalidProjectId = 0
+
+### 提示：正常修改会写入数据库；如需对照初始种子数据，请先重置 db/seeds/001_demo_data.sql
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：修改项目基础信息
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "name": "官网重构-联调修改",
+  "description": "用于验证项目基础信息修改接口。",
+  "planned_start_date": "2026-03-01",
+  "planned_end_date": "2026-05-10"
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录修改项目基础信息，预期 401
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "name": "未登录修改"
+}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工修改非本人负责项目，当前实现预期 404
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "description": "普通员工尝试修改非本人负责项目。"
+}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+PATCH {{baseUrl}}/api/projects/{{invalidProjectId}}
+Content-Type: application/json
+
+{
+  "name": "非法项目ID"
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+[
+  {
+    "name": "invalid_body_case"
+  }
+]
+
+### 异常路径：请求体没有可修改字段，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{}
+
+### 异常路径：name 不是字符串，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "name": 123
+}
+
+### 异常路径：name 为空字符串，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+### 异常路径：planned_start_date 格式错误，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026/03/01"
+}
+
+### 异常路径：planned_end_date 格式错误，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "planned_end_date": "2026/05/10"
+}
+
+### 异常路径：同时修改开始和结束日期且区间非法，预期 409
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-05-11",
+  "planned_end_date": "2026-05-10"
+}
+
+### 异常路径：已完成项目修改基础信息，当前实现预期 404
+PATCH {{baseUrl}}/api/projects/{{completedProjectId}}
+Content-Type: application/json
+
+{
+  "description": "尝试修改已完成项目。"
+}
+
+### 异常路径：项目不存在，预期 404
+PATCH {{baseUrl}}/api/projects/{{missingProjectId}}
+Content-Type: application/json
+
+{
+  "description": "不存在项目。"
+}

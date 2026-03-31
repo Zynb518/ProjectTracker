@@ -105,6 +105,63 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
+    drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView>>
+    ProjectRepository::updateProjectBasicInfo(
+        const dto::command::UpdateProjectBasicInfoInput &input) const {
+        static const std::string updateProjectBasicInfoSql = R"SQL(
+            UPDATE project
+            SET
+                name = COALESCE($2, name),
+                description = COALESCE($3, description),
+                planned_start_date = COALESCE($4, planned_start_date),
+                planned_end_date = COALESCE($5, planned_end_date),
+                updated_at = NOW()
+            WHERE id = $1 AND
+                status <> 3 AND
+                ($6 = TRUE OR owner_user_id = $7)
+            RETURNING
+                id,
+                name,
+                description,
+                to_char(planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                to_char(planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
+                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await dbClient->execSqlCoro(
+                updateProjectBasicInfoSql,
+                input.projectId,
+                input.name,
+                input.description,
+                input.plannedStartDate,
+                input.plannedEndDate,
+                isAdmin,
+                input.operatorUserId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return dto::view::UpdatedProjectBasicInfoView{
+                .id = row["id"].as<std::int64_t>(),
+                .name = row["name"].as<std::string>(),
+                .description = row["description"].as<std::string>(),
+                .plannedStartDate = row["planned_start_date"].as<std::string>(),
+                .plannedEndDate = row["planned_end_date"].as<std::string>(),
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<ProjectListPage>
     ProjectRepository::listProjects(const ProjectListQuery &query) const {
 

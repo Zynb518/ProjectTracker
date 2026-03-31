@@ -5,6 +5,7 @@
 
 #include "filters/LoginRequiredFilter.h"
 #include "modules/project/repository/ProjectRepository.h"
+#include "modules/project/service/ProjectService.h"
 
 namespace project_tracker::modules::project::controller {
     class ProjectController : public drogon::HttpController<ProjectController> {
@@ -22,6 +23,10 @@ namespace project_tracker::modules::project::controller {
                           "/api/projects/{project_id}",
                           drogon::Get,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::updateProjectBasicInfo,
+                          "/api/projects/{project_id}",
+                          drogon::Patch,
+                          filters::LoginRequiredFilter::classTypeName());
         METHOD_LIST_END
 
         drogon::Task<drogon::HttpResponsePtr>
@@ -33,8 +38,12 @@ namespace project_tracker::modules::project::controller {
         drogon::Task<drogon::HttpResponsePtr>
         getProjectDetail(drogon::HttpRequestPtr request, std::int64_t projectId);
 
+        drogon::Task<drogon::HttpResponsePtr>
+        updateProjectBasicInfo(drogon::HttpRequestPtr request, std::int64_t projectId);
+
     private:
         // 简单读接口直接访问 repository。
         repository::ProjectRepository projectRepository_;
+        service::ProjectService projectService_;
     };
 } // namespace project_tracker::modules::project::controller

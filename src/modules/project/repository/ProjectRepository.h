@@ -8,10 +8,12 @@
 #include <drogon/utils/coroutine.h>
 
 #include "modules/project/dto/command/CreateProjectInput.h"
+#include "modules/project/dto/command/UpdateProjectBasicInfoInput.h"
 #include "modules/project/dto/view/CreatedProjectView.h"
 #include "modules/project/domain/ProjectEnums.h"
 #include "modules/project/dto/view/ProjectDetailView.h"
 #include "modules/project/dto/view/ProjectListItemView.h"
+#include "modules/project/dto/view/UpdatedProjectBasicInfoView.h"
 #include "modules/user/domain/UserEnums.h"
 
 namespace project_tracker::modules::project::repository {
@@ -39,6 +41,10 @@ namespace project_tracker::modules::project::repository {
         // 创建项目
         drogon::Task<dto::view::CreatedProjectView>
         createProject(const dto::command::CreateProjectInput &input) const;
+
+        // 修改项目基础信息
+        drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView>>
+        updateProjectBasicInfo(const dto::command::UpdateProjectBasicInfoInput &input) const;
 
         // 查询项目分页列表
         drogon::Task<ProjectListPage>

@@ -97,6 +97,19 @@ namespace project_tracker::modules::project::controller {
             return json;
         }
 
+        Json::Value buildUpdatedProjectBasicInfoJson(
+            const dto::view::UpdatedProjectBasicInfoView &project) {
+            Json::Value json(Json::objectValue);
+            json["id"] = project.id;
+            json["name"] = project.name;
+            json["description"] = project.description;
+            json["planned_start_date"] = project.plannedStartDate;
+            json["planned_end_date"] = project.plannedEndDate;
+            json["updated_at"] = project.updatedAt;
+
+            return json;
+        }
+
         bool isValidProjectStatus(int status) {
             return status == domain::toInt(domain::ProjectStatus::NotStarted) ||
                    status == domain::toInt(domain::ProjectStatus::InProgress) ||
@@ -174,15 +187,8 @@ namespace project_tracker::modules::project::controller {
                 "planned_end_date 必须是 YYYY-MM-DD 格式");
         }
 
-        if (input.plannedStartDate > input.plannedEndDate) {
-            co_return api::fail(
-                drogon::k409Conflict,
-                error::ErrorCode::InvalidDateRange,
-                "planned_start_date 不能晚于 planned_end_date");
-        }
-
         try {
-            const auto project = co_await projectRepository_.createProject(input);
+            const auto project = co_await projectService_.createProject(input);
             co_return api::ok(buildCreatedProjectJson(project));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
@@ -316,6 +322,107 @@ namespace project_tracker::modules::project::controller {
             }
 
             co_return api::ok(buildProjectDetailJson(*project));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectController::updateProjectBasicInfo(drogon::HttpRequestPtr request,
+                                              std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        dto::command::UpdateProjectBasicInfoInput input{
+            .projectId = projectId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+
+        if (!util::readOptionalString(*json, "name", input.name)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "name 必须是字符串");
+        }
+        if (input.name && input.name->empty()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "name 不能为空字符串");
+        }
+
+        if (!util::readOptionalString(*json, "description", input.description)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "description 必须是字符串");
+        }
+
+        if (!util::readOptionalString(*json, "planned_start_date", input.plannedStartDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_start_date 必须是字符串");
+        }
+        if (input.plannedStartDate && input.plannedStartDate->empty()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_start_date 不能为空字符串");
+        }
+        if (input.plannedStartDate && !isValidDateString(*input.plannedStartDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_start_date 必须是 YYYY-MM-DD 格式");
+        }
+
+        if (!util::readOptionalString(*json, "planned_end_date", input.plannedEndDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_end_date 必须是字符串");
+        }
+        if (input.plannedEndDate && input.plannedEndDate->empty()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_end_date 不能为空字符串");
+        }
+        if (input.plannedEndDate && !isValidDateString(*input.plannedEndDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_end_date 必须是 YYYY-MM-DD 格式");
+        }
+
+        try {
+            const auto project = co_await projectService_.updateProjectBasicInfo(input);
+            co_return api::ok(buildUpdatedProjectBasicInfoJson(project));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

@@ -93,6 +93,12 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - `filters` 优先直接返回 `api::fail(...)`，不要依赖抛异常完成拦截。
 - 对 query 参数这类基础输入，优先只做格式校验；如果数据库已有 `CHECK` 约束，不重复在 controller 里做同层枚举兜底。
 
+## Validation Boundary
+
+- `Controller` 负责 HTTP 边界校验：是否登录、请求体是否为 JSON 对象、字段是否存在、字段类型是否正确、单字段基础格式是否正确。
+- `Service` 负责业务规则校验：跨字段约束、权限判断、状态流转、唯一性或冲突规则，不重复做 controller 已经完成的单字段存在性 / 基础格式校验。
+- 例如创建项目时，`name` 是否非空、日期字符串是否为 `YYYY-MM-DD` 放在 `Controller`；`planned_start_date <= planned_end_date` 这种跨字段业务约束放在 `Service`。
+
 ## Current Auth Snapshot
 
 - 当前已落地认证接口：
