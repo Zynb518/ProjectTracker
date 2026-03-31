@@ -7,6 +7,7 @@
 
 #include <drogon/utils/coroutine.h>
 
+#include "common/db/SqlExecutor.h"
 #include "modules/project/dto/command/CreateProjectInput.h"
 #include "modules/project/dto/command/UpdateProjectBasicInfoInput.h"
 #include "modules/project/dto/view/CreatedProjectView.h"
@@ -38,21 +39,30 @@ namespace project_tracker::modules::project::repository {
 
     class ProjectRepository {
     public:
-        // 创建项目
         drogon::Task<dto::view::CreatedProjectView>
-        createProject(const dto::command::CreateProjectInput &input) const;
+        insertProject(const common::db::SqlExecutorPtr &executor,
+                      const dto::command::CreateProjectInput &input) const;
+
+        drogon::Task<void>
+        insertProjectMember(const common::db::SqlExecutorPtr &executor,
+                            std::int64_t projectId,
+                            std::int64_t userId,
+                            std::int64_t addedBy) const;
 
         // 修改项目基础信息
         drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView>>
-        updateProjectBasicInfo(const dto::command::UpdateProjectBasicInfoInput &input) const;
+        updateProjectBasicInfo(const common::db::SqlExecutorPtr &executor,
+                               const dto::command::UpdateProjectBasicInfoInput &input) const;
 
         // 查询项目分页列表
         drogon::Task<ProjectListPage>
-        listProjects(const ProjectListQuery &query) const;
+        listProjects(const common::db::SqlExecutorPtr &executor,
+                     const ProjectListQuery &query) const;
 
         // 查询项目详情
         drogon::Task<std::optional<dto::view::ProjectDetailView>>
-        findProjectDetail(std::int64_t projectId,
+        findProjectDetail(const common::db::SqlExecutorPtr &executor,
+                          std::int64_t projectId,
                           std::int64_t currentUserId,
                           user::domain::SystemRole currentUserRole) const;
     };

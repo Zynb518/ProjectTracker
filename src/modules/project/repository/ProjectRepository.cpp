@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <string>
 
-#include <drogon/drogon.h>
 #include <drogon/orm/Exception.h>
 
 #include "common/error/ErrorCode.h"
@@ -14,7 +13,8 @@ namespace project_tracker::modules::project::repository {
     namespace user_domain = modules::user::domain;
 
     drogon::Task<dto::view::CreatedProjectView>
-    ProjectRepository::createProject(const dto::command::CreateProjectInput &input) const {
+    ProjectRepository::insertProject(const common::db::SqlExecutorPtr &executor,
+                                     const dto::command::CreateProjectInput &input) const {
         static const std::string insertProjectSql = R"SQL(
             INSERT INTO project (
                 name,
@@ -47,23 +47,8 @@ namespace project_tracker::modules::project::repository {
                 to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
         )SQL";
 
-        static const std::string insertProjectMemberSql = R"SQL(
-            INSERT INTO project_member (
-                project_id,
-                user_id,
-                added_by
-            ) VALUES (
-                $1,
-                $2,
-                $3
-            )
-        )SQL";
-
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            auto transaction = co_await dbClient->newTransactionCoro();
-
-            const auto projectResult = co_await transaction->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 insertProjectSql,
                 input.name,
                 input.description,
@@ -72,13 +57,7 @@ namespace project_tracker::modules::project::repository {
                 input.plannedEndDate,
                 input.creatorUserId);
 
-            const auto &row = projectResult.front();
-
-            co_await transaction->execSqlCoro(
-                insertProjectMemberSql,
-                row["id"].as<std::int64_t>(),
-                input.creatorUserId,
-                input.creatorUserId);
+            const auto &row = result.front();
 
             std::optional<std::string> completedAt;
             if (!row["completed_at"].isNull()) {
@@ -105,8 +84,40 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
+    drogon::Task<void>
+    ProjectRepository::insertProjectMember(const common::db::SqlExecutorPtr &executor,
+                                           std::int64_t projectId,
+                                           std::int64_t userId,
+                                           std::int64_t addedBy) const {
+        static const std::string insertProjectMemberSql = R"SQL(
+            INSERT INTO project_member (
+                project_id,
+                user_id,
+                added_by
+            ) VALUES (
+                $1,
+                $2,
+                $3
+            )
+        )SQL";
+
+        try {
+            co_await executor->execSqlCoro(
+                insertProjectMemberSql,
+                projectId,
+                userId,
+                addedBy);
+            co_return;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView>>
     ProjectRepository::updateProjectBasicInfo(
+        const common::db::SqlExecutorPtr &executor,
         const dto::command::UpdateProjectBasicInfoInput &input) const {
         static const std::string updateProjectBasicInfoSql = R"SQL(
             UPDATE project
@@ -131,8 +142,7 @@ namespace project_tracker::modules::project::repository {
         const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 updateProjectBasicInfoSql,
                 input.projectId,
                 input.name,
@@ -163,76 +173,107 @@ namespace project_tracker::modules::project::repository {
     }
 
     drogon::Task<ProjectListPage>
-    ProjectRepository::listProjects(const ProjectListQuery &query) const {
+    ProjectRepository::listProjects(const common::db::SqlExecutorPtr &executor,
+                                    const ProjectListQuery &query) const {
 
-        // 先进行筛选（项目名，状态，拥有者）
-        // 再根据是否是管理员，拥有者，项目成员
-        static const std::string countProjectsSql = R"SQL(
-            SELECT COUNT(*) AS total
-            FROM project p
-            WHERE ($1 = '' OR p.name ILIKE $1) AND
-                ($2 = 0 OR p.status = $2) AND
-                ($3 = 0::bigint OR p.owner_user_id = $3) AND
-                (
-                    $4 = TRUE OR
-                    p.owner_user_id = $5 OR
-                    EXISTS (
-                        SELECT 1
-                        FROM project_member pm
-                        WHERE pm.project_id = p.id AND
-                            pm.user_id = $5
+        // 1.先进行筛选（项目名，状态，拥有者）
+        //   再根据是否是管理员，拥有者，项目成员
+        // 2.再根据filter中间结果，求 total, paged
+        static const std::string listProjectsSql = R"SQL(
+            WITH filtered AS (
+                SELECT
+                    p.id,
+                    p.name,
+                    p.description,
+                    p.owner_user_id,
+                    owner_user.real_name AS owner_real_name,
+                    p.status,
+                    p.planned_start_date,
+                    p.planned_end_date,
+                    p.completed_at,
+                    p.created_at,
+                    p.updated_at
+                FROM project p
+                JOIN sys_user owner_user ON owner_user.id = p.owner_user_id
+                WHERE ($1 = '' OR p.name ILIKE $1) AND
+                    ($2 = 0 OR p.status = $2) AND
+                    ($3 = 0::bigint OR p.owner_user_id = $3) AND
+                    (
+                        $4 = TRUE OR
+                        p.owner_user_id = $5 OR
+                        EXISTS (
+                            SELECT 1
+                            FROM project_member pm
+                            WHERE pm.project_id = p.id AND
+                                pm.user_id = $5
+                        )
                     )
-                )
-        )SQL";
-
-        static const std::string selectProjectsSql = R"SQL(
+            ),
+            total AS (
+                SELECT COUNT(*) AS total
+                FROM filtered
+            ),
+            paged AS (
+                SELECT
+                    f.id,
+                    f.name,
+                    f.description,
+                    f.owner_user_id,
+                    f.owner_real_name,
+                    f.status,
+                    to_char(f.planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                    to_char(f.planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
+                    to_char(f.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                    (
+                        SELECT COUNT(*)
+                        FROM project_member pm
+                        WHERE pm.project_id = f.id
+                    ) AS member_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM project_node pn
+                        WHERE pn.project_id = f.id
+                    ) AS node_count,
+                    (
+                        SELECT COUNT(*)
+                        FROM sub_task st
+                        JOIN project_node pn ON pn.id = st.node_id
+                        WHERE pn.project_id = f.id
+                    ) AS sub_task_count,
+                    to_char(f.created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS created_at,
+                    to_char(f.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at,
+                    (f.owner_user_id = $5) AS is_owner
+                FROM filtered f
+                ORDER BY f.updated_at DESC, f.id DESC
+                LIMIT $6 OFFSET $7
+            )
             SELECT
+                t.total,
                 p.id,
                 p.name,
                 p.description,
                 p.owner_user_id,
-                owner_user.real_name AS owner_real_name,
+                p.owner_real_name,
                 p.status,
-                to_char(p.planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
-                to_char(p.planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
-                to_char(p.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
-                (
-                    SELECT COUNT(*)
-                    FROM project_member pm
-                    WHERE pm.project_id = p.id
-                ) AS member_count,
-                (
-                    SELECT COUNT(*)
-                    FROM project_node pn
-                    WHERE pn.project_id = p.id
-                ) AS node_count,
-                (
-                    SELECT COUNT(*)
-                    FROM sub_task st
-                    JOIN project_node pn ON pn.id = st.node_id
-                    WHERE pn.project_id = p.id
-                ) AS sub_task_count,
-                to_char(p.created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS created_at,
-                to_char(p.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at,
-                (p.owner_user_id = $5) AS is_owner
-            FROM project p
-            JOIN sys_user owner_user ON owner_user.id = p.owner_user_id
-            WHERE ($1 = '' OR p.name ILIKE $1) AND
-                ($2 = 0 OR p.status = $2) AND
-                ($3 = 0::bigint OR p.owner_user_id = $3) AND
-                (
-                    $4 = TRUE OR
-                    p.owner_user_id = $5 OR
-                    EXISTS (
-                        SELECT 1
-                        FROM project_member pm
-                        WHERE pm.project_id = p.id AND
-                            pm.user_id = $5
-                    )
-                )
-            ORDER BY p.updated_at DESC, p.id DESC
-            LIMIT $6 OFFSET $7
+                p.planned_start_date,
+                p.planned_end_date,
+                p.completed_at,
+                p.member_count,
+                p.node_count,
+                p.sub_task_count,
+                p.created_at,
+                p.updated_at,
+                p.is_owner
+            FROM total t
+            LEFT JOIN paged p ON TRUE
         )SQL";
+
+        /*
+        *   - 有分页数据时：
+              返回多行，每行都带同一个 total
+            - 没分页数据时：
+              返回一行，total 有值，但项目列全是 NULL
+         */
 
         const std::int64_t page = std::max(query.page, std::int64_t{1});
         const std::int64_t pageSizeForSql = std::max(query.pageSize, std::int64_t{1});
@@ -243,18 +284,8 @@ namespace project_tracker::modules::project::repository {
         const bool isAdmin = query.currentUserRole == user_domain::SystemRole::Admin;
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-
-            const auto totalResult = co_await dbClient->execSqlCoro(
-                countProjectsSql,
-                keyword,
-                status,
-                ownerUserId,
-                isAdmin,
-                query.currentUserId);
-
-            const auto listResult = co_await dbClient->execSqlCoro(
-                selectProjectsSql,
+            const auto listResult = co_await executor->execSqlCoro(
+                listProjectsSql,
                 keyword,
                 status,
                 ownerUserId,
@@ -265,7 +296,7 @@ namespace project_tracker::modules::project::repository {
 
             ProjectListPage result{
                 .list = {},
-                .total = totalResult.front()["total"].as<std::int64_t>(),
+                .total = listResult.front()["total"].as<std::int64_t>(),
                 .page = page,
                 .pageSize = pageSizeForSql
             };
@@ -273,6 +304,10 @@ namespace project_tracker::modules::project::repository {
             result.list.reserve(listResult.size());
 
             for (const auto &row : listResult) {
+                if (row["id"].isNull()) {
+                    continue;
+                }
+
                 std::optional<std::string> completedAt;
                 if (!row["completed_at"].isNull()) {
                     completedAt = row["completed_at"].as<std::string>();
@@ -306,7 +341,8 @@ namespace project_tracker::modules::project::repository {
     }
 
     drogon::Task<std::optional<dto::view::ProjectDetailView>>
-    ProjectRepository::findProjectDetail(std::int64_t projectId,
+    ProjectRepository::findProjectDetail(const common::db::SqlExecutorPtr &executor,
+                                         std::int64_t projectId,
                                          std::int64_t currentUserId,
                                          user::domain::SystemRole currentUserRole) const {
         static const std::string findProjectDetailSql = R"SQL(
@@ -373,8 +409,7 @@ namespace project_tracker::modules::project::repository {
         const bool isAdmin = currentUserRole == user_domain::SystemRole::Admin;
 
         try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await dbClient->execSqlCoro(
+            const auto result = co_await executor->execSqlCoro(
                 findProjectDetailSql,
                 projectId,
                 isAdmin,

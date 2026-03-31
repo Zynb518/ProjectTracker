@@ -2,6 +2,8 @@
 
 #include <regex>
 
+#include <drogon/drogon.h>
+
 #include "common/api/ApiResponse.h"
 #include "common/error/BusinessException.h"
 #include "common/error/ErrorCode.h"
@@ -270,7 +272,8 @@ namespace project_tracker::modules::project::controller {
                 query.pageSize = *pageSize;
             }
 
-            const auto pageResult = co_await projectRepository_.listProjects(query);
+            const auto dbClient = drogon::app().getDbClient();
+            const auto pageResult = co_await projectRepository_.listProjects(dbClient, query);
 
             Json::Value data(Json::objectValue);
             data["list"] = Json::Value(Json::arrayValue);
@@ -309,7 +312,9 @@ namespace project_tracker::modules::project::controller {
         }
 
         try {
+            const auto dbClient = drogon::app().getDbClient();
             const auto project = co_await projectRepository_.findProjectDetail(
+                dbClient,
                 projectId,
                 *userId,
                 *systemRole);

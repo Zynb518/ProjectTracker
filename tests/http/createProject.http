@@ -2,7 +2,7 @@
 @adminUsername = admin
 @employeeUsername = chen_xu
 @password = 123456
-@projectName = 创建项目测试用例002
+@projectName = 创建项目测试用例003
 
 ### 提示：正常创建会写入数据库；如需重复验证正常路径，请先修改 @projectName 或重置种子数据
 

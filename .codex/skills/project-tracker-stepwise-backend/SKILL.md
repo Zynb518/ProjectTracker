@@ -64,9 +64,13 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - `namespace error = project_tracker::common::error;`
 - 当前项目偏好简单实现，避免为了“抽象完整”引入多余 DTO、包装器、匿名辅助层。
 - 对“简单纯读接口”允许直接走 `Controller -> Repository`，不要为了形式对称强行补一层 service。
+- 对带业务规则的写接口，优先走 `Controller -> Service -> Repository`；不要把跨字段校验、权限判断、状态流转规则直接压进 controller。
+- 当前项目若采用事务驱动的 repository，优先让 repository 显式接收 `SqlExecutorPtr` 一类执行器；写接口由 `Service` 传事务，简单读接口由 `Controller` 传普通 `DbClient`。
+- 如果某个写场景需要多条 SQL 才完成，优先由 `Service` 组织多个 repository 原子动作；repository 公开方法优先一条 SQL 对应一个动作，不再额外保留多 SQL 的组合型写方法。
 - 像 `/api/auth/me` 这种只按 session 查询单条用户信息的接口，可以直接在 controller 中访问 repository。
 - 如果某个辅助函数只在一个 `.cpp` 文件里局部使用，可以放匿名命名空间；如果反而让代码跳转变多，就直接内联到主函数中。
-- repository 优先直写主查询逻辑，除非重复已经明显出现。
+- 写侧 repository 优先提供 SQL 级原子动作；读侧 repository 可以直接承接完整查询逻辑，不必为了形式把同一个读操作强拆到上层。
+- 对分页列表这类读接口，不必机械要求“一个公开 repository 方法只含一条 SQL”；如果 `count + list` 本质上属于同一个读操作，允许在一个 repository 方法里用单条 CTE SQL 统一完成，优先保证结果一致性和筛选条件只写一遍。
 
 ## Data And Enum Rules
 
@@ -76,6 +80,7 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 若返回时间字符串，优先生成接口最终需要的格式，不要保留中间态再二次加工。
 - 即便正常链路里“理论上一定存在”，repository 仍可用 `std::optional` 显式表达“数据库可能查不到”这一事实，例如 session 残留或用户记录已不存在的情况。
 - 分页相关的 `page`、`page_size`、`total` 优先使用 `std::int64_t`，和 PostgreSQL 的 `COUNT(*)`、`LIMIT`、`OFFSET` 保持一致。
+- 如果分页读接口既要返回 `total` 又要返回当前页列表，并且希望空页时仍能拿到 `total`，优先考虑 `WITH filtered / total / paged` 再 `LEFT JOIN` 的单条 SQL 结构，而不是依赖两次查询或单纯 `COUNT(*) OVER()`。
 - 如果 SQL 参数一边和 `BIGINT` 列比较，一边又和 `0` 这类整数字面量比较，要显式写成 `0::bigint` 或 `$n::bigint`，避免 PostgreSQL 把参数先推断成 `integer`，再和 Drogon 传入的 `std::int64_t` 二进制绑定格式冲突。
 - 类似 `($3 = 0 OR p.owner_user_id = $3)` 这种写法在 `owner_user_id` 为 `BIGINT` 时有踩坑风险；优先写成 `($3 = 0::bigint OR p.owner_user_id = $3)`。
 - 对本地模块内跨层复用的简单输入模型，优先放在 `dto/command/`，避免同一条简单输入在 service / repository 重复定义。
@@ -86,6 +91,7 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - `Controller` 是 HTTP 边界；只要调用链中可能抛 `BusinessException`，`try/catch` 就必须覆盖整段请求处理流程，而不是只包某个 `co_await`。
 - `Service` 可以抛 `BusinessException`，用于业务规则不满足、权限失败、状态冲突等场景。
 - `Repository` 不用异常表达“正常查不到”；这类情况优先返回 `std::optional`。
+- 但如果 `UPDATE ... WHERE` 或 `SELECT ... WHERE` 已经把“状态不允许 / 权限不满足”这类业务限制压进 SQL 条件，`std::optional` 为空可能同时包含多种原因；这种情况下要么在 `Service` 预查并细分错误语义，要么至少在代码注释里明确当前空结果的几种来源。
 - 对单条写 SQL 可直接表达的唯一冲突，优先使用 PostgreSQL 原子冲突处理，例如 `ON CONFLICT ... DO NOTHING RETURNING`，再由空结果映射 `409`，不要优先依赖 Drogon 细分数据库异常类型的捕获。
 - 事务用于保障多条 SQL 的原子性，不要只为了识别单条唯一约束冲突就引入事务。
 - `Repository` 只在数据库异常、底层调用失败等系统错误场景，把异常转成 `InternalError`。
@@ -98,6 +104,7 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - `Controller` 负责 HTTP 边界校验：是否登录、请求体是否为 JSON 对象、字段是否存在、字段类型是否正确、单字段基础格式是否正确。
 - `Service` 负责业务规则校验：跨字段约束、权限判断、状态流转、唯一性或冲突规则，不重复做 controller 已经完成的单字段存在性 / 基础格式校验。
 - 例如创建项目时，`name` 是否非空、日期字符串是否为 `YYYY-MM-DD` 放在 `Controller`；`planned_start_date <= planned_end_date` 这种跨字段业务约束放在 `Service`。
+- 如果暂时不做完整事务重构，但又想缩小“先查再更”的并发窗口，可以先把关键业务约束再压到写 SQL 的 `WHERE` 条件里，例如把 `status <> 3` 加进 `UPDATE`，作为 service 预检查之外的第二层保护。
 
 ## Current Auth Snapshot
 

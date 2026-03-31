@@ -1,5 +1,8 @@
 #include "modules/project/service/ProjectService.h"
 
+#include <drogon/drogon.h>
+#include <drogon/orm/Exception.h>
+
 #include "common/error/ErrorCode.h"
 #include "common/error/Throw.h"
 
@@ -14,7 +17,21 @@ namespace project_tracker::modules::project::service {
                 "planned_start_date 不能晚于 planned_end_date");
         }
 
-        co_return co_await projectRepository_.createProject(input);
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+            const auto project = co_await projectRepository_.insertProject(transaction, input);
+            co_await projectRepository_.insertProjectMember(
+                transaction,
+                project.id,
+                input.creatorUserId,
+                input.creatorUserId);
+            co_return project;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
     }
 
     drogon::Task<dto::view::UpdatedProjectBasicInfoView>
@@ -34,19 +51,27 @@ namespace project_tracker::modules::project::service {
                 "planned_start_date 不能晚于 planned_end_date");
         }
 
-        const auto project = co_await projectRepository_.updateProjectBasicInfo(input);
-        if (!project) {
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+            const auto project = co_await projectRepository_.updateProjectBasicInfo(transaction, input);
+            if (!project) {
 
-            // 当前空结果统一包含三种情况：
-            // 1. 项目不存在
-            // 2. 项目已完成，被更新 SQL 的 status 条件拦截
-            // 3. 当前操作者不是管理员且不是项目负责人
+                // 当前空结果统一包含三种情况：
+                // 1. 项目不存在
+                // 2. 项目已完成，被更新 SQL 的 status 条件拦截
+                // 3. 当前操作者不是管理员且不是项目负责人
 
-            error::throwNotFound(
-                error::ErrorCode::ProjectNotFound,
-                "项目不存在/项目已完成/当前操作者不是管理员且不是项目负责人");
+                error::throwNotFound(
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在/项目已完成/当前操作者不是管理员且不是项目负责人");
+            }
+
+            co_return *project;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
         }
-
-        co_return *project;
     }
 } // namespace project_tracker::modules::project::service
