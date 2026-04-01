@@ -317,12 +317,6 @@ namespace project_tracker::modules::project::service {
                     "项目已完成，必须先撤销完成");
             }
 
-            if (project->hasNodes) {
-                error::throwConflict(
-                    error::ErrorCode::StartConditionNotMet,
-                    "项目下存在阶段节点，不允许手动开始");
-            }
-
             const auto updatedProject = co_await projectRepository_.updateProjectStatusForStart(
                 transaction,
                 input.projectId);
@@ -372,12 +366,6 @@ namespace project_tracker::modules::project::service {
                 error::throwConflict(
                     error::ErrorCode::ProjectCompletedReadonly,
                     "项目已完成，不能重复完成");
-            }
-
-            if (project->nodeCount > 0 && project->completedNodeCount != project->nodeCount) {
-                error::throwConflict(
-                    error::ErrorCode::ProjectCompleteConditionNotMet,
-                    "项目下存在未完成阶段节点，不能手动完成");
             }
 
             const auto updatedProject = co_await projectRepository_.updateProjectStatusForComplete(

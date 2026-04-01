@@ -63,7 +63,6 @@ namespace project_tracker::modules::project::repository {
         std::int64_t ownerUserId;
         user::domain::SystemRole creatorUserRole;
         domain::ProjectStatus status;
-        bool hasNodes;
     };
 
     // 手动完成项目前的校验信息
@@ -71,8 +70,6 @@ namespace project_tracker::modules::project::repository {
         std::int64_t ownerUserId;
         user::domain::SystemRole creatorUserRole;
         domain::ProjectStatus status;
-        std::int64_t nodeCount;
-        std::int64_t completedNodeCount;
     };
 
     // 撤销项目完成前的校验信息

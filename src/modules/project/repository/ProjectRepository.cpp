@@ -275,12 +275,7 @@ namespace project_tracker::modules::project::repository {
             SELECT
                 p.owner_user_id,
                 creator_user.system_role AS creator_user_role,
-                p.status,
-                EXISTS (
-                    SELECT 1
-                    FROM project_node pn
-                    WHERE pn.project_id = p.id
-                ) AS has_nodes
+                p.status
             FROM project p
             JOIN sys_user creator_user ON creator_user.id = p.created_by
             WHERE p.id = $1
@@ -302,8 +297,7 @@ namespace project_tracker::modules::project::repository {
                 .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
                 .creatorUserRole = static_cast<user_domain::SystemRole>(
                     row["creator_user_role"].as<int>()),
-                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
-                .hasNodes = row["has_nodes"].as<bool>()
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>())
             };
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(
@@ -331,7 +325,7 @@ namespace project_tracker::modules::project::repository {
                     SELECT 1
                     FROM project_node pn
                     WHERE pn.project_id = project.id
-                ) AND
+                )
             RETURNING
                 id,
                 status,
@@ -376,18 +370,7 @@ namespace project_tracker::modules::project::repository {
             SELECT
                 p.owner_user_id,
                 creator_user.system_role AS creator_user_role,
-                p.status,
-                (
-                    SELECT COUNT(*)
-                    FROM project_node pn
-                    WHERE pn.project_id = p.id
-                ) AS node_count,
-                (
-                    SELECT COUNT(*)
-                    FROM project_node pn
-                    WHERE pn.project_id = p.id AND
-                        pn.status = 3
-                ) AS completed_node_count
+                p.status
             FROM project p
             JOIN sys_user creator_user ON creator_user.id = p.created_by
             WHERE p.id = $1
@@ -408,9 +391,7 @@ namespace project_tracker::modules::project::repository {
             co_return ProjectCompleteCheckResult{
                 .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
                 .creatorUserRole = static_cast<user_domain::SystemRole>(row["creator_user_role"].as<int>()),
-                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
-                .nodeCount = row["node_count"].as<std::int64_t>(),
-                .completedNodeCount = row["completed_node_count"].as<std::int64_t>()
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>())
             };
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(
