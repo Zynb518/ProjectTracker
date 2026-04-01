@@ -1,6 +1,6 @@
 ---
 name: project-tracker-stepwise-backend
-description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQL backend. Use when working in this repo and the user wants Chinese communication, simple code, CLion-style formatting, and exactly one small code segment or one micro-change per turn for review. Trigger on requests such as "继续写", "先看 controller", "一段一段来", "我先审查", or "每次只生成一段代码".
+description: Use when continuing backend work in this Project-Tracker C++20/Drogon/PostgreSQL repo with Chinese communication, CLion-style formatting, and one small code segment or micro-change per turn for review.
 ---
 
 # Project Tracker Stepwise Backend
@@ -8,6 +8,7 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 ## Overview
 
 用于当前 `Project-Tracker` 仓库的后端协作约束。目标不是一次性把功能铺满，而是按“先读上下文 -> 只推进一个小段 -> 等用户审查 -> 再继续”的节奏稳定开发。
+如果当前对话里用户已经给出更具体的新约束，以本轮确认过的约束为准，不要死守 skill 里的旧偏好。
 
 ## Read Context First
 
@@ -30,24 +31,12 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 如果一个需求天然涉及多个文件，先完成第一个阻塞文件或第一段核心代码，然后停下等用户继续。
 - 如果已经获得直接编辑授权，也只做这一小段，不要顺手扩展到下一段。
 
-## Response Pattern
-
-- 回答代码时优先用这个顺序：
-- `Target:` 指明文件和落点
-- `Why:` 只解释当前段为什么这样写
-- `Next:` 明确下一步是什么，但不要提前把下一段代码也写出来
-- 当前协作默认不展示 `Code:`，只保留 `Target / Why / Next`。
-- 只有用户明确要求查看当前代码片段时，才额外补 `Code:`。
-- 用户说“继续”时，给下一个最小可推进片段，不重复之前整段内容。
-- 用户说“审查”时，先给发现，再给是否继续改。
-
 ## Project Defaults
 
 - 使用 C++20、Drogon、PostgreSQL。
 - 源文件后缀使用 `.cpp`。
 - 构建目录固定为 `cmake-build-debug`。
 - CMake 保持简单，优先根 `CMakeLists.txt` 加 `src/CMakeLists.txt`，不要引入不必要的复杂模块化写法。
-- 当前 `Project_Tracker` 可执行目标定义在 `src/CMakeLists.txt`，所以默认产物路径是 `cmake-build-debug/src/Project_Tracker`。
 - 中文注释可以保留；新增注释要简短直接，只解释职责或当前这小段逻辑。
 - SQL 脚本放在 `db/migrations/` 和 `db/seeds/`，不要继续堆在 `design-flow/`。
 - 头文件引用按 `src` 根来写，例如 `#include "common/error/ErrorCode.h"`。
@@ -70,10 +59,19 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 对带业务规则的写接口，优先走 `Controller -> Service -> Repository`；不要把跨字段校验、权限判断、状态流转规则直接压进 controller。
 - 当前项目若采用事务驱动的 repository，优先让 repository 显式接收 `SqlExecutorPtr` 一类执行器；写接口由 `Service` 传事务，简单读接口由 `Controller` 传普通 `DbClient`。
 - 如果某个写场景需要多条 SQL 才完成，优先由 `Service` 组织多个 repository 原子动作；repository 公开方法优先一条 SQL 对应一个动作，不再额外保留多 SQL 的组合型写方法。
+- 不要在 `Controller` 中串多个 SQL 再只传普通 `DbClient` 做业务判断；涉及多步写前检查时，优先下沉到 `Service` 并放进同一个事务。
 - 像 `/api/auth/me` 这种只按 session 查询单条用户信息的接口，可以直接在 controller 中访问 repository。
 - 如果某个辅助函数只在一个 `.cpp` 文件里局部使用，可以放匿名命名空间；如果反而让代码跳转变多，就直接内联到主函数中。
 - 写侧 repository 优先提供 SQL 级原子动作；读侧 repository 可以直接承接完整查询逻辑，不必为了形式把同一个读操作强拆到上层。
 - 对分页列表这类读接口，不必机械要求“一个公开 repository 方法只含一条 SQL”；如果 `count + list` 本质上属于同一个读操作，允许在一个 repository 方法里用单条 CTE SQL 统一完成，优先保证结果一致性和筛选条件只写一遍。
+
+## Write-Side Concurrency
+
+- 对写接口中的“先查再改”场景，优先把检查拆成 `...ForUpdate(...)` 一类带锁检查方法，不要继续用布尔参数在同一个方法里切换是否锁行。
+- 当写接口依赖多个资源时，例如同时依赖 `project` 和 `target_user`，优先拆成多个明确的带锁检查方法，而不是继续保留一个大而全的组合检查查询。
+- 这类带锁检查若只表达“资源是否存在”，优先返回 `std::optional<CheckResult>`，不要在结果结构里继续保留 `projectExists`、`targetUserExists` 这类存在性布尔字段。
+- 对“自动补关系”这类附带写动作，优先提供 `ensureXxxExists(...)` 幂等写方法，并在 SQL 中使用 `ON CONFLICT ... DO NOTHING`；不要直接污染原本表达“新增语义”的 `insertXxx(...)` 方法。
+- 如果写接口在 `Service` 中已经做了前置带锁检查，后续 repository 写 SQL 仍可保留必要的条件保护，但不要再把完整业务判断重新堆回 `Controller`。
 
 ## Data And Enum Rules
 
@@ -110,20 +108,6 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - `Service` 负责业务规则校验：跨字段约束、权限判断、状态流转、唯一性或冲突规则，不重复做 controller 已经完成的单字段存在性 / 基础格式校验。
 - 例如创建项目时，`name` 是否非空、日期字符串是否为 `YYYY-MM-DD` 放在 `Controller`；`planned_start_date <= planned_end_date` 这种跨字段业务约束放在 `Service`。
 - 如果暂时不做完整事务重构，但又想缩小“先查再更”的并发窗口，可以先把关键业务约束再压到写 SQL 的 `WHERE` 条件里，例如把 `status <> 3` 加进 `UPDATE`，作为 service 预检查之外的第二层保护。
-
-## Current Auth Snapshot
-
-- 当前已落地认证接口：
-- `POST /api/auth/login`
-- `POST /api/auth/logout`
-- `GET /api/auth/me`
-- `GET /api/auth/me` 当前通过 `filters/LoginRequiredFilter` 保护，路由约束里直接使用 `filters::LoginRequiredFilter::classTypeName()`。
-- 登录成功后会把 `user_id` 和 `system_role` 写入 session，并调用 `changeSessionIdToClient()`。
-- 登出时会清空 session，并调用 `changeSessionIdToClient()`。
-- 认证模块当前分工：
-- `findUserByUsername()` 仍返回 `AuthUserRecord`，因为登录要校验 `password_hash`
-- `findUserById()` 已改为返回 `SysUserView`，用于 `/api/auth/me` 这种只读展示场景
-- `/api/auth/me` 当前采用 `Controller -> Repository`，如果 session 中 `user_id` 非法或数据库已查不到该用户，则返回未登录，并清理 session。
 
 ## Filter And Test Notes
 

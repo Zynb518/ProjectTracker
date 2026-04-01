@@ -115,6 +115,38 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
+    drogon::Task<void>
+    ProjectRepository::ensureProjectMemberExists(const common::db::SqlExecutorPtr &executor,
+                                                 std::int64_t projectId,
+                                                 std::int64_t userId,
+                                                 std::int64_t addedBy) const {
+        static const std::string ensureProjectMemberExistsSql = R"SQL(
+            INSERT INTO project_member (
+                project_id,
+                user_id,
+                added_by
+            ) VALUES (
+                $1,
+                $2,
+                $3
+            )
+            ON CONFLICT (project_id, user_id) DO NOTHING
+        )SQL";
+
+        try {
+            co_await executor->execSqlCoro(
+                ensureProjectMemberExistsSql,
+                projectId,
+                userId,
+                addedBy);
+            co_return;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView> >
     ProjectRepository::updateProjectBasicInfo(
         const common::db::SqlExecutorPtr &executor,
@@ -454,43 +486,75 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
-    drogon::Task<ProjectOwnerTransferCheckResult>
-    ProjectRepository::findProjectOwnerTransferCheckResult(
+    drogon::Task<std::optional<ProjectOwnerTransferProjectCheckResult>>
+    ProjectRepository::findProjectOwnerTransferProjectCheckResultForUpdate(
         const common::db::SqlExecutorPtr &executor,
-        std::int64_t projectId,
-        std::int64_t targetUserId) const {
-        static const std::string findProjectOwnerTransferCheckResultSql = R"SQL(
+        std::int64_t projectId) const {
+        static const std::string findProjectOwnerTransferProjectCheckResultForUpdateSql = R"SQL(
             SELECT
-                (p.id IS NOT NULL) AS project_exists,
-                (target_user.id IS NOT NULL) AS target_user_exists,
-                COALESCE(p.owner_user_id, 0) AS previous_owner_user_id,
-                COALESCE(creator_user.system_role, 3) AS creator_user_role,
-                COALESCE(target_user.system_role, 3) AS target_user_role,
-                COALESCE(target_user.status, 2) AS target_user_status,
-                EXISTS (
-                    SELECT 1
-                    FROM project_member pm
-                    WHERE pm.project_id = $1 AND
-                        pm.user_id = $2
-                ) AS target_is_project_member
-            FROM (SELECT 1) anchor
-            LEFT JOIN project p ON p.id = $1
-            LEFT JOIN sys_user creator_user ON creator_user.id = p.created_by
-            LEFT JOIN sys_user target_user ON target_user.id = $2
+                p.owner_user_id AS previous_owner_user_id,
+                creator_user.system_role AS creator_user_role
+            FROM project p
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1
+            FOR UPDATE OF p
+            LIMIT 1
         )SQL";
 
         try {
             const auto result = co_await executor->execSqlCoro(
-                findProjectOwnerTransferCheckResultSql,
+                findProjectOwnerTransferProjectCheckResultForUpdateSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectOwnerTransferProjectCheckResult{
+                .previousOwnerUserId = row["previous_owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(row["creator_user_role"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<TransferTargetUserCheckResult>>
+    ProjectRepository::findTransferTargetUserCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId,
+        std::int64_t targetUserId) const {
+        static const std::string findTransferTargetUserCheckResultForUpdateSql = R"SQL(
+            SELECT
+                u.system_role AS target_user_role,
+                u.status AS target_user_status,
+                EXISTS (
+                    SELECT 1
+                    FROM project_member pm
+                    WHERE pm.project_id = $1 AND
+                        pm.user_id = u.id
+                ) AS target_is_project_member
+            FROM sys_user u
+            WHERE u.id = $2
+            FOR UPDATE OF u
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findTransferTargetUserCheckResultForUpdateSql,
                 projectId,
                 targetUserId);
 
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
             const auto &row = result.front();
-            co_return ProjectOwnerTransferCheckResult{
-                .projectExists = row["project_exists"].as<bool>(),
-                .targetUserExists = row["target_user_exists"].as<bool>(),
-                .previousOwnerUserId = row["previous_owner_user_id"].as<std::int64_t>(),
-                .creatorUserRole = static_cast<user_domain::SystemRole>(row["creator_user_role"].as<int>()),
+            co_return TransferTargetUserCheckResult{
                 .targetUserRole = static_cast<user_domain::SystemRole>(row["target_user_role"].as<int>()),
                 .targetUserStatus = static_cast<user_domain::UserStatus>(row["target_user_status"].as<int>()),
                 .targetIsProjectMember = row["target_is_project_member"].as<bool>()

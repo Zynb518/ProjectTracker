@@ -74,15 +74,17 @@ namespace project_tracker::modules::project::repository {
         domain::ProjectStatus status;
     };
 
-    // 转交项目负责人前的校验信息
-    struct ProjectOwnerTransferCheckResult {
-        bool projectExists = false;
-        bool targetUserExists = false;
-        std::int64_t previousOwnerUserId = 0;
-        user::domain::SystemRole creatorUserRole = user::domain::SystemRole::Employee;
-        user::domain::SystemRole targetUserRole = user::domain::SystemRole::Employee;
-        user::domain::UserStatus targetUserStatus = user::domain::UserStatus::Disabled;
-        bool targetIsProjectMember = false;
+    // 转交项目负责人前的项目级校验信息
+    struct ProjectOwnerTransferProjectCheckResult {
+        std::int64_t previousOwnerUserId;
+        user::domain::SystemRole creatorUserRole;
+    };
+
+    // 转交项目负责人前的目标用户校验信息
+    struct TransferTargetUserCheckResult {
+        user::domain::SystemRole targetUserRole;
+        user::domain::UserStatus targetUserStatus;
+        bool targetIsProjectMember;
     };
 
     class ProjectRepository {
@@ -96,6 +98,12 @@ namespace project_tracker::modules::project::repository {
                             std::int64_t projectId,
                             std::int64_t userId,
                             std::int64_t addedBy) const;
+
+        drogon::Task<void>
+        ensureProjectMemberExists(const common::db::SqlExecutorPtr &executor,
+                                  std::int64_t projectId,
+                                  std::int64_t userId,
+                                  std::int64_t addedBy) const;
 
         // 修改项目基础信息
         drogon::Task<std::optional<dto::view::UpdatedProjectBasicInfoView>>
@@ -137,11 +145,16 @@ namespace project_tracker::modules::project::repository {
         findProjectReopenCheckResult(const common::db::SqlExecutorPtr &executor,
                                      std::int64_t projectId) const;
 
-        // 查询转交项目负责人前的校验信息
-        drogon::Task<ProjectOwnerTransferCheckResult>
-        findProjectOwnerTransferCheckResult(const common::db::SqlExecutorPtr &executor,
-                                            std::int64_t projectId,
-                                            std::int64_t targetUserId) const;
+        // 锁定项目行，供转交项目负责人写事务做前置检查
+        drogon::Task<std::optional<ProjectOwnerTransferProjectCheckResult>>
+        findProjectOwnerTransferProjectCheckResultForUpdate(const common::db::SqlExecutorPtr &executor,
+                                                            std::int64_t projectId) const;
+
+        // 锁定目标用户行，供转交项目负责人写事务做前置检查
+        drogon::Task<std::optional<TransferTargetUserCheckResult>>
+        findTransferTargetUserCheckResultForUpdate(const common::db::SqlExecutorPtr &executor,
+                                                   std::int64_t projectId,
+                                                   std::int64_t targetUserId) const;
 
         // 按撤销完成动作更新项目状态
         drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>

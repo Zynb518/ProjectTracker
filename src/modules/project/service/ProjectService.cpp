@@ -160,65 +160,67 @@ namespace project_tracker::modules::project::service {
             const auto dbClient = drogon::app().getDbClient();
             auto transaction = co_await dbClient->newTransactionCoro();
 
-            const auto checkResult = co_await projectRepository_.findProjectOwnerTransferCheckResult(
+            const auto projectCheckResult = co_await projectRepository_.findProjectOwnerTransferProjectCheckResultForUpdate(
                 transaction,
-                input.projectId,
-                input.targetUserId);
-
-            if (!checkResult.projectExists) {
+                input.projectId);
+            if (!projectCheckResult) {
                 error::throwNotFound(
                     error::ErrorCode::ProjectNotFound,
                     "项目不存在");
             }
 
-            if (!checkResult.targetUserExists) {
+            const auto targetUserCheckResult = co_await projectRepository_.findTransferTargetUserCheckResultForUpdate(
+                transaction,
+                input.projectId,
+                input.targetUserId);
+            if (!targetUserCheckResult) {
                 error::throwNotFound(
                     error::ErrorCode::UserNotFound,
                     "目标用户不存在");
             }
 
             const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
-            if (!isAdmin && checkResult.previousOwnerUserId != input.operatorUserId) {
+            if (!isAdmin && projectCheckResult->previousOwnerUserId != input.operatorUserId) {
                 error::throwForbidden(
                     error::ErrorCode::Forbidden,
                     "当前操作者不是管理员且不是项目负责人");
             }
 
-            if (checkResult.creatorUserRole == user_domain::SystemRole::Employee) {
+            if (projectCheckResult->creatorUserRole == user_domain::SystemRole::Employee) {
                 error::throwForbidden(
                     error::ErrorCode::Forbidden,
                     "普通员工创建的个人自用项目不允许转交负责人");
             }
 
-            if (input.targetUserId == checkResult.previousOwnerUserId) {
+            if (input.targetUserId == projectCheckResult->previousOwnerUserId) {
                 error::throwConflict(
                     error::ErrorCode::OwnerTransferTargetInvalid,
                     "target_user_id 不能与当前负责人相同");
             }
 
-            if (checkResult.targetUserStatus != user_domain::UserStatus::Enabled) {
+            if (targetUserCheckResult->targetUserStatus != user_domain::UserStatus::Enabled) {
                 error::throwConflict(
                     error::ErrorCode::OwnerTransferTargetInvalid,
                     "目标用户必须是启用状态");
             }
 
             if (isAdmin) {
-                if (checkResult.targetUserRole != user_domain::SystemRole::Admin &&
-                    checkResult.targetUserRole != user_domain::SystemRole::ProjectManager) {
+                if (targetUserCheckResult->targetUserRole != user_domain::SystemRole::Admin &&
+                    targetUserCheckResult->targetUserRole != user_domain::SystemRole::ProjectManager) {
                     error::throwConflict(
                         error::ErrorCode::OwnerTransferTargetInvalid,
                         "管理员转交时，目标用户必须是管理员或项目经理");
                 }
-            } else if (checkResult.targetUserRole != user_domain::SystemRole::ProjectManager) {
+            } else if (targetUserCheckResult->targetUserRole != user_domain::SystemRole::ProjectManager) {
                 error::throwConflict(
                     error::ErrorCode::OwnerTransferTargetInvalid,
                     "项目负责人转交时，目标用户必须是项目经理");
             }
 
             // 先补成员，再转交负责人，保证转交成功后的负责人一定属于当前项目成员。
-            const bool autoAddedAsMember = !checkResult.targetIsProjectMember;
+            const bool autoAddedAsMember = !targetUserCheckResult->targetIsProjectMember;
             if (autoAddedAsMember) {
-                co_await projectRepository_.insertProjectMember(
+                co_await projectRepository_.ensureProjectMemberExists(
                     transaction,
                     input.projectId,
                     input.targetUserId,

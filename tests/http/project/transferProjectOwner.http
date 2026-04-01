@@ -1,0 +1,196 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@ownerUsername = li_ming
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableAdminProjectName = transfer_owner_admin_case_{{$timestamp}}
+@repeatableOwnerProjectName = transfer_owner_owner_case_{{$timestamp}}
+@missingProjectId = 999999
+@invalidProjectId = 0
+@missingUserId = 999999
+
+### 提示：正常路径会先创建临时项目，因此可以重复回放
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目，默认负责人为 admin
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableAdminProjectName}}",
+  "description": "用于验证管理员转交项目负责人接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableAdminTransferProjectId", response.body.data.id); %}
+
+### 正常路径：管理员把负责人转交给项目经理 wang_jie
+POST {{baseUrl}}/api/projects/{{repeatableAdminTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：项目负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：项目负责人创建临时项目，默认负责人为 li_ming
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableOwnerProjectName}}",
+  "description": "用于验证项目负责人主动转交负责人接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableOwnerTransferProjectId", response.body.data.id); %}
+
+### 正常路径：项目负责人把负责人转交给项目经理 wang_jie
+POST {{baseUrl}}/api/projects/{{repeatableOwnerTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+### 正常路径：项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录转交项目负责人，预期 401
+POST {{baseUrl}}/api/projects/{{repeatableAdminTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工转交非本人负责项目，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableAdminTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{invalidProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+[
+  {
+    "target_user_id": 3
+  }
+]
+
+### 异常路径：target_user_id 缺失，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{}
+
+### 异常路径：target_user_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 0
+}
+
+### 异常路径：项目不存在，预期 404
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+### 异常路径：目标用户不存在，预期 404
+POST {{baseUrl}}/api/projects/{{repeatableAdminTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{missingUserId}}
+}
+
+### 异常路径：目标用户等于当前负责人，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableAdminTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+### 异常路径：管理员把负责人转交给普通员工 chen_xu，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableOwnerTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 4
+}
+
+### 异常路径：管理员把负责人转交给禁用用户 zhao_yue，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableOwnerTransferProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 5
+}
