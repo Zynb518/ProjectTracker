@@ -23,6 +23,14 @@ namespace project_tracker::modules::project::controller {
                           "/api/projects/{project_id}",
                           drogon::Get,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::listProjectOwnerCandidates,
+                          "/api/projects/{project_id}/owner/candidates",
+                          drogon::Get,
+                          filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::transferProjectOwner,
+                          "/api/projects/{project_id}/owner/transfer",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(ProjectController::updateProjectBasicInfo,
                           "/api/projects/{project_id}",
                           drogon::Patch,
@@ -53,6 +61,12 @@ namespace project_tracker::modules::project::controller {
 
         drogon::Task<drogon::HttpResponsePtr>
         getProjectDetail(drogon::HttpRequestPtr request, std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        listProjectOwnerCandidates(drogon::HttpRequestPtr request, std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        transferProjectOwner(drogon::HttpRequestPtr request, std::int64_t projectId);
 
         drogon::Task<drogon::HttpResponsePtr>
         updateProjectBasicInfo(drogon::HttpRequestPtr request, std::int64_t projectId);

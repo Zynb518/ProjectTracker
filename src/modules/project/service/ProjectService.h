@@ -21,6 +21,14 @@ namespace project_tracker::modules::project::service {
         drogon::Task<std::int64_t>
         deleteProject(const dto::command::DeleteProjectInput &input) const;
 
+        // 获取项目负责人转交候选列表
+        drogon::Task<repository::ProjectOwnerCandidatePage>
+        listProjectOwnerCandidates(const dto::command::ListProjectOwnerCandidatesInput &input) const;
+
+        // 转交项目负责人
+        drogon::Task<dto::view::TransferredProjectOwnerView>
+        transferProjectOwner(const dto::command::TransferProjectOwnerInput &input) const;
+
         // 手动开始项目
         drogon::Task<dto::view::UpdatedProjectStatusView>
         startProject(const dto::command::ProjectStatusActionInput &input) const;

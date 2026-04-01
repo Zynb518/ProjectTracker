@@ -32,6 +32,24 @@ namespace project_tracker::modules::project::repository {
         std::int64_t pageSize;
     };
 
+    // 项目负责人转交候选列表查询条件
+    struct ProjectOwnerCandidateQuery {
+        std::int64_t projectId;
+        std::int64_t ownerUserId;
+        bool includeAdminCandidates;
+        std::string keyword;
+        std::int64_t page = 1;
+        std::int64_t pageSize = 10;
+    };
+
+    // 项目负责人转交候选列表分页结果
+    struct ProjectOwnerCandidatePage {
+        std::vector<dto::view::ProjectOwnerCandidateView> list;
+        std::int64_t total;
+        std::int64_t page;
+        std::int64_t pageSize;
+    };
+
     // 手动开始项目前的校验信息
     struct ProjectStartCheckResult {
         std::int64_t ownerUserId;
@@ -54,6 +72,17 @@ namespace project_tracker::modules::project::repository {
         std::int64_t ownerUserId;
         user::domain::SystemRole creatorUserRole;
         domain::ProjectStatus status;
+    };
+
+    // 转交项目负责人前的校验信息
+    struct ProjectOwnerTransferCheckResult {
+        bool projectExists = false;
+        bool targetUserExists = false;
+        std::int64_t previousOwnerUserId = 0;
+        user::domain::SystemRole creatorUserRole = user::domain::SystemRole::Employee;
+        user::domain::SystemRole targetUserRole = user::domain::SystemRole::Employee;
+        user::domain::UserStatus targetUserStatus = user::domain::UserStatus::Disabled;
+        bool targetIsProjectMember = false;
     };
 
     class ProjectRepository {
@@ -108,15 +137,31 @@ namespace project_tracker::modules::project::repository {
         findProjectReopenCheckResult(const common::db::SqlExecutorPtr &executor,
                                      std::int64_t projectId) const;
 
+        // 查询转交项目负责人前的校验信息
+        drogon::Task<ProjectOwnerTransferCheckResult>
+        findProjectOwnerTransferCheckResult(const common::db::SqlExecutorPtr &executor,
+                                            std::int64_t projectId,
+                                            std::int64_t targetUserId) const;
+
         // 按撤销完成动作更新项目状态
         drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
         updateProjectStatusForReopen(const common::db::SqlExecutorPtr &executor,
                                      const dto::command::ProjectStatusActionInput &input) const;
 
+        // 更新项目负责人
+        drogon::Task<std::optional<dto::view::TransferredProjectOwnerView>>
+        updateProjectOwner(const common::db::SqlExecutorPtr &executor,
+                           const dto::command::TransferProjectOwnerInput &input) const;
+
         // 查询项目分页列表
         drogon::Task<ProjectListPage>
         listProjects(const common::db::SqlExecutorPtr &executor,
                      const ProjectListQuery &query) const;
+
+        // 查询项目负责人转交候选列表
+        drogon::Task<ProjectOwnerCandidatePage>
+        listProjectOwnerCandidates(const common::db::SqlExecutorPtr &executor,
+                                   const ProjectOwnerCandidateQuery &query) const;
 
         // 查询项目详情
         drogon::Task<std::optional<dto::view::ProjectDetailView>>

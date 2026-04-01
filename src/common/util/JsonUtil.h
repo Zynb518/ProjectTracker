@@ -41,6 +41,23 @@ namespace project_tracker::common::util {
         return true;
     }
 
+    // 读取必填 64 位整数字段
+    inline bool readRequiredInt64(const Json::Value &json,
+                                  const std::string &key,
+                                  std::int64_t &value) {
+        if (!json.isObject() || !json.isMember(key)) {
+            return false;
+        }
+
+        const Json::Value &field = json[key];
+        if (!field.isInt64()) {
+            return false;
+        }
+
+        value = field.asInt64();
+        return true;
+    }
+
     // 读取可选字符串字段，如果没有就用value的默认值（一般为""）
     inline bool readOptionalString(const Json::Value &json,
                                    const std::string &key,

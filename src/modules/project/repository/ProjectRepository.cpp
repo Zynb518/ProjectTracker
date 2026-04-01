@@ -454,6 +454,54 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
+    drogon::Task<ProjectOwnerTransferCheckResult>
+    ProjectRepository::findProjectOwnerTransferCheckResult(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId,
+        std::int64_t targetUserId) const {
+        static const std::string findProjectOwnerTransferCheckResultSql = R"SQL(
+            SELECT
+                (p.id IS NOT NULL) AS project_exists,
+                (target_user.id IS NOT NULL) AS target_user_exists,
+                COALESCE(p.owner_user_id, 0) AS previous_owner_user_id,
+                COALESCE(creator_user.system_role, 3) AS creator_user_role,
+                COALESCE(target_user.system_role, 3) AS target_user_role,
+                COALESCE(target_user.status, 2) AS target_user_status,
+                EXISTS (
+                    SELECT 1
+                    FROM project_member pm
+                    WHERE pm.project_id = $1 AND
+                        pm.user_id = $2
+                ) AS target_is_project_member
+            FROM (SELECT 1) anchor
+            LEFT JOIN project p ON p.id = $1
+            LEFT JOIN sys_user creator_user ON creator_user.id = p.created_by
+            LEFT JOIN sys_user target_user ON target_user.id = $2
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectOwnerTransferCheckResultSql,
+                projectId,
+                targetUserId);
+
+            const auto &row = result.front();
+            co_return ProjectOwnerTransferCheckResult{
+                .projectExists = row["project_exists"].as<bool>(),
+                .targetUserExists = row["target_user_exists"].as<bool>(),
+                .previousOwnerUserId = row["previous_owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(row["creator_user_role"].as<int>()),
+                .targetUserRole = static_cast<user_domain::SystemRole>(row["target_user_role"].as<int>()),
+                .targetUserStatus = static_cast<user_domain::UserStatus>(row["target_user_status"].as<int>()),
+                .targetIsProjectMember = row["target_is_project_member"].as<bool>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
     ProjectRepository::updateProjectStatusForReopen(
         const common::db::SqlExecutorPtr &executor,
@@ -504,6 +552,67 @@ namespace project_tracker::modules::project::repository {
                 .id = row["id"].as<std::int64_t>(),
                 .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
                 .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::TransferredProjectOwnerView>>
+    ProjectRepository::updateProjectOwner(const common::db::SqlExecutorPtr &executor,
+                                          const dto::command::TransferProjectOwnerInput &input) const {
+        static const std::string updateProjectOwnerSql = R"SQL(
+            WITH locked_project AS (
+                SELECT
+                    p.id,
+                    p.owner_user_id
+                FROM project p
+                WHERE p.id = $1
+                FOR UPDATE
+            ),
+            updated AS (
+                UPDATE project p
+                SET
+                    owner_user_id = $2,
+                    updated_at = NOW()
+                FROM locked_project lp
+                WHERE p.id = lp.id
+                RETURNING
+                    p.id AS project_id,
+                    lp.owner_user_id AS previous_owner_user_id,
+                    p.owner_user_id,
+                    p.updated_at
+            )
+            SELECT
+                u.project_id,
+                u.previous_owner_user_id,
+                u.owner_user_id,
+                target_user.real_name AS owner_real_name,
+                to_char(u.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD\"T\"HH24:MI:SS') || '+08:00' AS updated_at
+            FROM updated u
+            JOIN sys_user target_user ON target_user.id = u.owner_user_id
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateProjectOwnerSql,
+                input.projectId,
+                input.targetUserId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return dto::view::TransferredProjectOwnerView{
+                .projectId = row["project_id"].as<std::int64_t>(),
+                .previousOwnerUserId = row["previous_owner_user_id"].as<std::int64_t>(),
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .ownerRealName = row["owner_real_name"].as<std::string>(),
+                .autoAddedAsMember = false,
                 .updatedAt = row["updated_at"].as<std::string>()
             };
         } catch (const drogon::orm::DrogonDbException &) {
@@ -696,6 +805,107 @@ namespace project_tracker::modules::project::repository {
                     .createdAt = row["created_at"].as<std::string>(),
                     .updatedAt = row["updated_at"].as<std::string>(),
                     .isOwner = row["is_owner"].as<bool>()
+                });
+            }
+
+            co_return result;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<ProjectOwnerCandidatePage>
+    ProjectRepository::listProjectOwnerCandidates(const common::db::SqlExecutorPtr &executor,
+                                                  const ProjectOwnerCandidateQuery &query) const {
+        static const std::string listProjectOwnerCandidatesSql = R"SQL(
+            WITH filtered AS (
+                SELECT
+                    u.id,
+                    u.username,
+                    u.real_name,
+                    u.system_role,
+                    u.status,
+                    EXISTS (
+                        SELECT 1
+                        FROM project_member pm
+                        WHERE pm.project_id = $1 AND
+                            pm.user_id = u.id
+                    ) AS is_project_member
+                FROM sys_user u
+                WHERE u.status = 1 AND
+                    (
+                        ($2 = TRUE AND u.system_role IN (1, 2)) OR
+                        ($2 = FALSE AND u.system_role = 2)
+                    ) AND
+                    ($3 = '' OR u.username ILIKE $3 OR u.real_name ILIKE $3) AND
+                    u.id <> $4
+            ),
+            total AS (
+                SELECT COUNT(*) AS total
+                FROM filtered
+            ),
+            paged AS (
+                SELECT
+                    f.id,
+                    f.username,
+                    f.real_name,
+                    f.system_role,
+                    f.status,
+                    f.is_project_member
+                FROM filtered f
+                ORDER BY f.system_role ASC, f.id DESC
+                LIMIT $5 OFFSET $6
+            )
+            SELECT
+                t.total,
+                p.id,
+                p.username,
+                p.real_name,
+                p.system_role,
+                p.status,
+                p.is_project_member
+            FROM total t
+            LEFT JOIN paged p ON TRUE
+        )SQL";
+
+        const std::int64_t page = std::max(query.page, std::int64_t{1});
+        const std::int64_t pageSizeForSql = std::max(query.pageSize, std::int64_t{1});
+        const std::int64_t offsetForSql = (page - 1) * pageSizeForSql;
+        const std::string keyword = query.keyword.empty() ? "" : "%" + query.keyword + "%";
+
+        try {
+            const auto listResult = co_await executor->execSqlCoro(
+                listProjectOwnerCandidatesSql,
+                query.projectId,
+                query.includeAdminCandidates,
+                keyword,
+                query.ownerUserId,
+                pageSizeForSql,
+                offsetForSql);
+
+            ProjectOwnerCandidatePage result{
+                .list = {},
+                .total = listResult.front()["total"].as<std::int64_t>(),
+                .page = page,
+                .pageSize = pageSizeForSql
+            };
+
+            result.list.reserve(listResult.size());
+
+            for (const auto &row : listResult) {
+                if (row["id"].isNull()) {
+                    continue;
+                }
+
+                result.list.push_back(dto::view::ProjectOwnerCandidateView{
+                    .id = row["id"].as<std::int64_t>(),
+                    .username = row["username"].as<std::string>(),
+                    .realName = row["real_name"].as<std::string>(),
+                    .systemRole = static_cast<user_domain::SystemRole>(row["system_role"].as<int>()),
+                    .status = static_cast<user_domain::UserStatus>(row["status"].as<int>()),
+                    .isProjectMember = row["is_project_member"].as<bool>()
                 });
             }
 

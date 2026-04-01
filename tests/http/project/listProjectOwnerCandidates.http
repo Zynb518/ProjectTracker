@@ -1,0 +1,96 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@ownerUsername = li_ming
+@employeeUsername = chen_xu
+@password = 123456
+@ownerProjectId = 1
+@missingProjectId = 999999
+@invalidProjectId = 0
+
+### 提示：当前种子数据中，project 1（官网重构）的负责人是 li_ming。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员获取负责人转交候选列表
+### 预期候选范围：启用状态的管理员 + 项目经理，并带 is_project_member 字段
+GET {{baseUrl}}/api/projects/{{ownerProjectId}}/owner/candidates?page=1&page_size=10
+
+### 正常路径：管理员按关键字筛选负责人转交候选列表
+GET {{baseUrl}}/api/projects/{{ownerProjectId}}/owner/candidates?keyword=wang
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取负责人转交候选列表，预期 401
+GET {{baseUrl}}/api/projects/{{ownerProjectId}}/owner/candidates
+
+### 正常路径：项目负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：项目负责人获取负责人转交候选列表
+### 预期候选范围：仅启用状态的项目经理，并带 is_project_member 字段
+GET {{baseUrl}}/api/projects/{{ownerProjectId}}/owner/candidates?page=1&page_size=10
+
+### 正常路径：项目负责人按关键字筛选负责人转交候选列表
+GET {{baseUrl}}/api/projects/{{ownerProjectId}}/owner/candidates?keyword=wang
+
+### 正常路径：项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工获取负责人转交候选列表，预期 403
+GET {{baseUrl}}/api/projects/{{ownerProjectId}}/owner/candidates
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects/{{invalidProjectId}}/owner/candidates
+
+### 异常路径：项目不存在，预期 404
+GET {{baseUrl}}/api/projects/{{missingProjectId}}/owner/candidates
+
+### 异常路径：page 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects/{{ownerProjectId}}/owner/candidates?page=0
+
+### 异常路径：page_size 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects/{{ownerProjectId}}/owner/candidates?page_size=0

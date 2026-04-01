@@ -78,6 +78,32 @@ namespace project_tracker::modules::project::controller {
             return json;
         }
 
+        Json::Value buildProjectOwnerCandidateJson(
+            const dto::view::ProjectOwnerCandidateView &candidate) {
+            Json::Value json(Json::objectValue);
+            json["id"] = candidate.id;
+            json["username"] = candidate.username;
+            json["real_name"] = candidate.realName;
+            json["system_role"] = user_domain::toInt(candidate.systemRole);
+            json["status"] = user_domain::toInt(candidate.status);
+            json["is_project_member"] = candidate.isProjectMember;
+
+            return json;
+        }
+
+        Json::Value buildTransferredProjectOwnerJson(
+            const dto::view::TransferredProjectOwnerView &project) {
+            Json::Value json(Json::objectValue);
+            json["project_id"] = project.projectId;
+            json["previous_owner_user_id"] = project.previousOwnerUserId;
+            json["owner_user_id"] = project.ownerUserId;
+            json["owner_real_name"] = project.ownerRealName;
+            json["auto_added_as_member"] = project.autoAddedAsMember;
+            json["updated_at"] = project.updatedAt;
+
+            return json;
+        }
+
         Json::Value buildCreatedProjectJson(const dto::view::CreatedProjectView &project) {
             Json::Value json(Json::objectValue);
             json["id"] = project.id;
@@ -327,6 +353,133 @@ namespace project_tracker::modules::project::controller {
             }
 
             co_return api::ok(buildProjectDetailJson(*project));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectController::listProjectOwnerCandidates(drogon::HttpRequestPtr request,
+                                                  std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        try {
+            std::optional<std::int64_t> page;
+            if (!util::readPositiveQueryInt64(request, "page", page)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "page 必须是大于 0 的整数");
+            }
+
+            std::optional<std::int64_t> pageSize;
+            if (!util::readPositiveQueryInt64(request, "page_size", pageSize)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "page_size 必须是大于 0 的整数");
+            }
+
+            dto::command::ListProjectOwnerCandidatesInput input{
+                .projectId = projectId,
+                .operatorUserId = *userId,
+                .operatorUserRole = *systemRole
+            };
+
+            if (const auto keyword = util::readQueryString(request, "keyword")) {
+                input.keyword = *keyword;
+            }
+            if (page) {
+                input.page = *page;
+            }
+            if (pageSize) {
+                input.pageSize = *pageSize;
+            }
+
+            const auto pageResult = co_await projectService_.listProjectOwnerCandidates(input);
+
+            Json::Value data(Json::objectValue);
+            data["list"] = Json::Value(Json::arrayValue);
+            for (const auto &candidate : pageResult.list) {
+                data["list"].append(buildProjectOwnerCandidateJson(candidate));
+            }
+            data["total"] = pageResult.total;
+            data["page"] = pageResult.page;
+            data["page_size"] = pageResult.pageSize;
+
+            co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectController::transferProjectOwner(drogon::HttpRequestPtr request,
+                                            std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        dto::command::TransferProjectOwnerInput input{
+            .projectId = projectId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+
+        if (!util::readRequiredInt64(*json, "target_user_id", input.targetUserId)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "target_user_id 必须是大于 0 的整数");
+        }
+        if (input.targetUserId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "target_user_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto project = co_await projectService_.transferProjectOwner(input);
+            co_return api::ok(buildTransferredProjectOwnerJson(project));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

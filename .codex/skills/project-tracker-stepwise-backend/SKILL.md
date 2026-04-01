@@ -53,6 +53,7 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 头文件引用按 `src` 根来写，例如 `#include "common/error/ErrorCode.h"`。
 - 组装 JSON 时优先直接赋值，不为了整数类型额外包 `Json::Int64(...)`。
 - Repository 内部的 SQL 常量优先写成 `static const std::string`，不要继续写 `constexpr std::string_view` 再在调用点临时构造 `std::string(...)`。
+- 当同一模块的 `service/repository` 头文件同时依赖多个 `dto/command` 和 `dto/view` 时，允许增加一个聚合头，例如 `modules/project/dto/ProjectDto.h`，后续优先直接 include 这个聚合头。
 
 ## Naming And Structure
 
@@ -62,6 +63,8 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 只有跨模块且全路径明显影响可读性时，才考虑保留一个必要别名。
 - `common` 这类全局公共命名空间可以继续写成：
 - `namespace error = project_tracker::common::error;`
+- 像 `modules::user::domain` 这类跨模块但反复出现的命名空间，允许保留一个简短别名，例如：
+- `namespace user_domain = modules::user::domain;`
 - 当前项目偏好简单实现，避免为了“抽象完整”引入多余 DTO、包装器、匿名辅助层。
 - 对“简单纯读接口”允许直接走 `Controller -> Repository`，不要为了形式对称强行补一层 service。
 - 对带业务规则的写接口，优先走 `Controller -> Service -> Repository`；不要把跨字段校验、权限判断、状态流转规则直接压进 controller。
@@ -84,6 +87,8 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - 如果 SQL 参数一边和 `BIGINT` 列比较，一边又和 `0` 这类整数字面量比较，要显式写成 `0::bigint` 或 `$n::bigint`，避免 PostgreSQL 把参数先推断成 `integer`，再和 Drogon 传入的 `std::int64_t` 二进制绑定格式冲突。
 - 类似 `($3 = 0 OR p.owner_user_id = $3)` 这种写法在 `owner_user_id` 为 `BIGINT` 时有踩坑风险；优先写成 `($3 = 0::bigint OR p.owner_user_id = $3)`。
 - 对本地模块内跨层复用的简单输入模型，优先放在 `dto/command/`，避免同一条简单输入在 service / repository 重复定义。
+- 如果多个“状态动作接口”输入结构完全一致，例如项目的 `start / complete / reopen`，优先合并成一个共享输入模型，例如 `ProjectStatusActionInput`，不要继续为每个动作保留重复 DTO。
+- 对按北京时间判断是否延期的 SQL，优先显式写成 `(NOW() AT TIME ZONE 'Asia/Shanghai')::date` 再和 `DATE` 列比较；必要时加一行短注释说明不是直接拿 session 时区取 `NOW()::date`。
 
 ## Error Handling Rules
 
@@ -128,6 +133,8 @@ description: Incremental workflow for the Project-Tracker C++20/Drogon/PostgreSQ
 - `.http` 文件按接口粒度拆分，不按整模块长期混放；例如 `listUsers.http` 这种命名优于宽泛的 `users.http`。
 - JetBrains / CLion 的 `.http` 文件优先保持最简单形式，默认信任 IDE 自动保存和回放 Cookie，不手写 `Set-Cookie` 解析脚本，除非确实需要。
 - `.http` 用例的顺序优先写成“正常路径在前，异常路径在后”，便于人工顺序点击验证。
+- 对会直接修改数据库状态的正常路径，优先把 `.http` 用例写成可重复回放：先创建临时资源，再继续开始/完成/删除等动作；如果需要承接上一步响应里的 ID，允许使用 JetBrains HTTP client 的 `client.global.set(...)` 保存变量。
+- 如果某条异常路径依赖种子数据中的固定项目或固定状态，要在 `.http` 注释里明确写出这一前提；如果能通过“先创建再操作”改造成可重复用例，优先改成可重复。
 
 ## Debugging Workflow
 
