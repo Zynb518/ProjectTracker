@@ -55,17 +55,40 @@ namespace project_tracker::modules::project::service {
         try {
             const auto dbClient = drogon::app().getDbClient();
             auto transaction = co_await dbClient->newTransactionCoro();
-            const auto project = co_await projectRepository_.updateProjectBasicInfo(transaction, input);
-            if (!project) {
-
-                // 当前空结果统一包含三种情况：
-                // 1. 项目不存在
-                // 2. 项目已完成，被更新 SQL 的 status 条件拦截
-                // 3. 当前操作者不是管理员且不是项目负责人
-
+            const auto projectCheckResult = co_await
+                projectRepository_.findProjectBasicInfoUpdateCheckResultForUpdate(
+                    transaction,
+                    input.projectId);
+            if (!projectCheckResult) {
                 error::throwNotFound(
                     error::ErrorCode::ProjectNotFound,
-                    "项目不存在/项目已完成/当前操作者不是管理员且不是项目负责人");
+                    "项目不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (projectCheckResult->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员修改基础信息");
+            }
+
+            if (!isAdmin && projectCheckResult->ownerUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目负责人");
+            }
+
+            if (projectCheckResult->status == domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "项目已完成，不允许修改基础信息");
+            }
+
+            const auto project = co_await projectRepository_.updateProjectBasicInfo(transaction, input);
+            if (!project) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "修改项目基础信息失败");
             }
 
             co_return *project;
@@ -81,7 +104,7 @@ namespace project_tracker::modules::project::service {
         try {
             const auto dbClient = drogon::app().getDbClient();
             auto transaction = co_await dbClient->newTransactionCoro();
-            const auto ownerUserId = co_await projectRepository_.findProjectDeleteCheckResult(
+            const auto ownerUserId = co_await projectRepository_.findProjectDeleteCheckResultForUpdate(
                 transaction,
                 input.projectId);
             if (!ownerUserId) {
@@ -97,7 +120,9 @@ namespace project_tracker::modules::project::service {
                     "当前操作者不是管理员且不是项目负责人");
             }
 
-            const bool deleted = co_await projectRepository_.deleteProject(transaction, input);
+            const bool deleted = co_await projectRepository_.deleteProject(
+                transaction,
+                input.projectId);
             if (!deleted) {
                 error::throwNotFound(
                     error::ErrorCode::ProjectNotFound,
@@ -117,36 +142,38 @@ namespace project_tracker::modules::project::service {
         const dto::command::ListProjectOwnerCandidatesInput &input) const {
         try {
             const auto dbClient = drogon::app().getDbClient();
-            auto transaction = co_await dbClient->newTransactionCoro();
-
-            const auto ownerUserId = co_await projectRepository_.findProjectDeleteCheckResult(
-                transaction,
-                input.projectId);
-            if (!ownerUserId) {
-                error::throwNotFound(
-                    error::ErrorCode::ProjectNotFound,
-                    "项目不存在");
-            }
-
             const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
-            if (!isAdmin && *ownerUserId != input.operatorUserId) {
-                error::throwForbidden(
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是项目负责人");
-            }
 
-            const auto pageResult = co_await projectRepository_.listProjectOwnerCandidates(
-                transaction,
+            const auto queryResult = co_await projectRepository_.listProjectOwnerCandidates(
+                dbClient,
                 repository::ProjectOwnerCandidateQuery{
                     .projectId = input.projectId,
-                    .ownerUserId = *ownerUserId,
+                    .operatorUserId = input.operatorUserId,
                     .includeAdminCandidates = isAdmin,
                     .keyword = input.keyword,
                     .page = input.page,
                     .pageSize = input.pageSize
                 });
 
-            co_return pageResult;
+            if (!queryResult.projectExists) {
+                error::throwNotFound(
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            if (!queryResult.hasPermission) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目负责人");
+            }
+
+            if (!queryResult.ownerTransferAllowed) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许转交负责人");
+            }
+
+            co_return queryResult.page;
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(
                 error::ErrorCode::InternalError,
@@ -156,9 +183,12 @@ namespace project_tracker::modules::project::service {
 
     drogon::Task<dto::view::TransferredProjectOwnerView>
     ProjectService::transferProjectOwner(const dto::command::TransferProjectOwnerInput &input) const {
+        std::shared_ptr<drogon::orm::Transaction> transaction;
+        bool hasWrittenBeforeFinish = false;
+
         try {
             const auto dbClient = drogon::app().getDbClient();
-            auto transaction = co_await dbClient->newTransactionCoro();
+            transaction = co_await dbClient->newTransactionCoro();
 
             const auto projectCheckResult = co_await projectRepository_.findProjectOwnerTransferProjectCheckResultForUpdate(
                 transaction,
@@ -225,10 +255,15 @@ namespace project_tracker::modules::project::service {
                     input.projectId,
                     input.targetUserId,
                     input.operatorUserId);
+                hasWrittenBeforeFinish = true;
             }
 
             const auto project = co_await projectRepository_.updateProjectOwner(transaction, input);
             if (!project) {
+                if (hasWrittenBeforeFinish) {
+                    transaction->rollback();
+                    hasWrittenBeforeFinish = false;
+                }
                 error::throwNotFound(
                     error::ErrorCode::ProjectNotFound,
                     "项目不存在");
@@ -237,6 +272,11 @@ namespace project_tracker::modules::project::service {
             auto result = *project;
             result.autoAddedAsMember = autoAddedAsMember;
             co_return result;
+        } catch (const error::BusinessException &) {
+            if (hasWrittenBeforeFinish && transaction) {
+                transaction->rollback();
+            }
+            throw;
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(
                 error::ErrorCode::InternalError,
@@ -249,7 +289,7 @@ namespace project_tracker::modules::project::service {
         try {
             const auto dbClient = drogon::app().getDbClient();
             auto transaction = co_await dbClient->newTransactionCoro();
-            const auto project = co_await projectRepository_.findProjectStartCheckResult(
+            const auto project = co_await projectRepository_.findProjectStartCheckResultForUpdate(
                 transaction,
                 input.projectId);
             if (!project) {
@@ -285,7 +325,7 @@ namespace project_tracker::modules::project::service {
 
             const auto updatedProject = co_await projectRepository_.updateProjectStatusForStart(
                 transaction,
-                input);
+                input.projectId);
 
             if (!updatedProject) {
                 error::throwConflict(
@@ -306,7 +346,7 @@ namespace project_tracker::modules::project::service {
         try {
             const auto dbClient = drogon::app().getDbClient();
             auto transaction = co_await dbClient->newTransactionCoro();
-            const auto project = co_await projectRepository_.findProjectCompleteCheckResult(
+            const auto project = co_await projectRepository_.findProjectCompleteCheckResultForUpdate(
                 transaction,
                 input.projectId);
             if (!project) {
@@ -342,7 +382,7 @@ namespace project_tracker::modules::project::service {
 
             const auto updatedProject = co_await projectRepository_.updateProjectStatusForComplete(
                 transaction,
-                input);
+                input.projectId);
             if (!updatedProject) {
                 error::throwConflict(
                     error::ErrorCode::ProjectCompleteConditionNotMet,
@@ -362,7 +402,7 @@ namespace project_tracker::modules::project::service {
         try {
             const auto dbClient = drogon::app().getDbClient();
             auto transaction = co_await dbClient->newTransactionCoro();
-            const auto project = co_await projectRepository_.findProjectReopenCheckResult(
+            const auto project = co_await projectRepository_.findProjectReopenCheckResultForUpdate(
                 transaction,
                 input.projectId);
             if (!project) {
@@ -392,7 +432,7 @@ namespace project_tracker::modules::project::service {
 
             const auto updatedProject = co_await projectRepository_.updateProjectStatusForReopen(
                 transaction,
-                input);
+                input.projectId);
             if (!updatedProject) {
                 error::throwConflict(
                     error::ErrorCode::ReopenFailed,

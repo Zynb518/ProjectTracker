@@ -57,12 +57,11 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 - 当前项目偏好简单实现，避免为了“抽象完整”引入多余 DTO、包装器、匿名辅助层。
 - 对“简单纯读接口”允许直接走 `Controller -> Repository`，不要为了形式对称强行补一层 service。
 - 对带业务规则的写接口，优先走 `Controller -> Service -> Repository`；不要把跨字段校验、权限判断、状态流转规则直接压进 controller。
-- 当前项目若采用事务驱动的 repository，优先让 repository 显式接收 `SqlExecutorPtr` 一类执行器；写接口由 `Service` 传事务，简单读接口由 `Controller` 传普通 `DbClient`。
-- 如果某个写场景需要多条 SQL 才完成，优先由 `Service` 组织多个 repository 原子动作；repository 公开方法优先一条 SQL 对应一个动作，不再额外保留多 SQL 的组合型写方法。
-- 不要在 `Controller` 中串多个 SQL 再只传普通 `DbClient` 做业务判断；涉及多步写前检查时，优先下沉到 `Service` 并放进同一个事务。
+- 当前项目若采用事务驱动的 repository，优先让 repository 显式接收 `SqlExecutorPtr` 一类执行器；写接口由 `Service` 传事务并编排多步原子动作，简单读接口由 `Controller` 传普通 `DbClient`。
+- 不要在 `Controller` 中串多个 SQL 做业务判断；涉及多步写前检查时，优先下沉到 `Service` 并放进同一个事务。
 - 像 `/api/auth/me` 这种只按 session 查询单条用户信息的接口，可以直接在 controller 中访问 repository。
 - 如果某个辅助函数只在一个 `.cpp` 文件里局部使用，可以放匿名命名空间；如果反而让代码跳转变多，就直接内联到主函数中。
-- 写侧 repository 优先提供 SQL 级原子动作；读侧 repository 可以直接承接完整查询逻辑，不必为了形式把同一个读操作强拆到上层。
+- repository 公开写方法优先一条 SQL 对应一个原子动作；读侧 repository 可以直接承接完整查询逻辑，不必为了形式把同一个读操作强拆到上层。
 - 对分页列表这类读接口，不必机械要求“一个公开 repository 方法只含一条 SQL”；如果 `count + list` 本质上属于同一个读操作，允许在一个 repository 方法里用单条 CTE SQL 统一完成，优先保证结果一致性和筛选条件只写一遍。
 
 ## Write-Side Concurrency
@@ -71,7 +70,11 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 - 当写接口依赖多个资源时，例如同时依赖 `project` 和 `target_user`，优先拆成多个明确的带锁检查方法，而不是继续保留一个大而全的组合检查查询。
 - 这类带锁检查若只表达“资源是否存在”，优先返回 `std::optional<CheckResult>`，不要在结果结构里继续保留 `projectExists`、`targetUserExists` 这类存在性布尔字段。
 - 对“自动补关系”这类附带写动作，优先提供 `ensureXxxExists(...)` 幂等写方法，并在 SQL 中使用 `ON CONFLICT ... DO NOTHING`；不要直接污染原本表达“新增语义”的 `insertXxx(...)` 方法。
-- 如果写接口在 `Service` 中已经做了前置带锁检查，后续 repository 写 SQL 仍可保留必要的条件保护，但不要再把完整业务判断重新堆回 `Controller`。
+- 如果写接口在 `Service` 中已经做了前置带锁检查，后续 repository 写 SQL 仍可保留必要的条件保护，例如把 `status <> 3` 这类并发窗口保护继续压在 `WHERE` 条件里；但不要再把完整业务判断重新堆回 `Controller`。
+- PostgreSQL 默认隔离级别是 `READ COMMITTED`，不要把“放进同一个事务”误当成“多个 `SELECT` 天然读到同一快照”；如果两次读取之间不允许漂移，优先改成单条 SQL，或者明确使用带锁检查来定义一致性边界。
+- Drogon 的 `newTransactionCoro()` 返回事务对象后，事务会绑定在该连接上；不要假设“抛异常后一定自动按业务意图回滚”。对“先 `FOR UPDATE` 再校验，校验失败直接结束”的场景，如果后续还没有真正执行写 SQL，这次事务收尾本质只是释放锁；但一旦已经执行过写 SQL，又希望整段放弃，就优先显式 `transaction->rollback()`，不要只依赖作用域结束来隐式收尾。
+- 对“多段写但语义要求整段全有或全无”的场景，不要按“第一段成功 / 前两段成功 / 前三段成功”去枚举状态；通常只需要区分“尚未写入”与“已经发生过至少一次写入”，并在第一条写 SQL 之后用一个类似 `hasWrittenBeforeFinish` 的布尔标记统一决定是否整段 `rollback()`。
+- 能重排流程时，优先写成“先全部读取和校验，再连续执行多段写”；尽量不要让第一条写之后还夹着新的业务校验。只有当不同写阶段失败后需要保留前半段结果、或需要做不同补偿动作时，才考虑更细的阶段状态或 `SAVEPOINT`；当前项目默认优先整段事务回滚，而不是维护多阶段半成功状态。
 
 ## Data And Enum Rules
 
@@ -107,7 +110,6 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 - `Controller` 负责 HTTP 边界校验：是否登录、请求体是否为 JSON 对象、字段是否存在、字段类型是否正确、单字段基础格式是否正确。
 - `Service` 负责业务规则校验：跨字段约束、权限判断、状态流转、唯一性或冲突规则，不重复做 controller 已经完成的单字段存在性 / 基础格式校验。
 - 例如创建项目时，`name` 是否非空、日期字符串是否为 `YYYY-MM-DD` 放在 `Controller`；`planned_start_date <= planned_end_date` 这种跨字段业务约束放在 `Service`。
-- 如果暂时不做完整事务重构，但又想缩小“先查再更”的并发窗口，可以先把关键业务约束再压到写 SQL 的 `WHERE` 条件里，例如把 `status <> 3` 加进 `UPDATE`，作为 service 预检查之外的第二层保护。
 
 ## Filter And Test Notes
 

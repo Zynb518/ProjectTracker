@@ -159,9 +159,7 @@ namespace project_tracker::modules::project::repository {
                 planned_start_date = COALESCE($4, planned_start_date),
                 planned_end_date = COALESCE($5, planned_end_date),
                 updated_at = NOW()
-            WHERE id = $1 AND
-                status <> 3 AND
-                ($6 = TRUE OR owner_user_id = $7)
+            WHERE id = $1
             RETURNING
                 id,
                 name,
@@ -171,8 +169,6 @@ namespace project_tracker::modules::project::repository {
                 to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
         )SQL";
 
-        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
-
         try {
             const auto result = co_await executor->execSqlCoro(
                 updateProjectBasicInfoSql,
@@ -180,9 +176,7 @@ namespace project_tracker::modules::project::repository {
                 input.name,
                 input.description,
                 input.plannedStartDate,
-                input.plannedEndDate,
-                isAdmin,
-                input.operatorUserId);
+                input.plannedEndDate);
 
             if (result.empty()) {
                 co_return std::nullopt;
@@ -204,19 +198,61 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
-    drogon::Task<std::optional<std::int64_t> >
-    ProjectRepository::findProjectDeleteCheckResult(const common::db::SqlExecutorPtr &executor,
-                                                    std::int64_t projectId) const {
-        static const std::string findProjectDeleteCheckResultSql = R"SQL(
-            SELECT owner_user_id
-            FROM project
-            WHERE id = $1
+    drogon::Task<std::optional<ProjectBasicInfoUpdateCheckResult>>
+    ProjectRepository::findProjectBasicInfoUpdateCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId) const {
+        static const std::string findProjectBasicInfoUpdateCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status
+            FROM project p
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1
+            FOR UPDATE OF p
             LIMIT 1
         )SQL";
 
         try {
             const auto result = co_await executor->execSqlCoro(
-                findProjectDeleteCheckResultSql,
+                findProjectBasicInfoUpdateCheckResultForUpdateSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectBasicInfoUpdateCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<std::int64_t>>
+    ProjectRepository::findProjectDeleteCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId) const {
+        static const std::string findProjectDeleteCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.owner_user_id
+            FROM project p
+            WHERE p.id = $1
+            FOR UPDATE OF p
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectDeleteCheckResultForUpdateSql,
                 projectId);
 
             if (result.empty()) {
@@ -231,10 +267,11 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
-    drogon::Task<std::optional<ProjectStartCheckResult> >
-    ProjectRepository::findProjectStartCheckResult(const common::db::SqlExecutorPtr &executor,
-                                                   std::int64_t projectId) const {
-        static const std::string findProjectStartCheckResultSql = R"SQL(
+    drogon::Task<std::optional<ProjectStartCheckResult>>
+    ProjectRepository::findProjectStartCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId) const {
+        static const std::string findProjectStartCheckResultForUpdateSql = R"SQL(
             SELECT
                 p.owner_user_id,
                 creator_user.system_role AS creator_user_role,
@@ -247,12 +284,13 @@ namespace project_tracker::modules::project::repository {
             FROM project p
             JOIN sys_user creator_user ON creator_user.id = p.created_by
             WHERE p.id = $1
+            FOR UPDATE OF p
             LIMIT 1
         )SQL";
 
         try {
             const auto result = co_await executor->execSqlCoro(
-                findProjectStartCheckResultSql,
+                findProjectStartCheckResultForUpdateSql,
                 projectId);
 
             if (result.empty()) {
@@ -276,7 +314,7 @@ namespace project_tracker::modules::project::repository {
 
     drogon::Task<std::optional<dto::view::UpdatedProjectStatusView> >
     ProjectRepository::updateProjectStatusForStart(const common::db::SqlExecutorPtr &executor,
-                                                   const dto::command::ProjectStatusActionInput &input) const {
+                                                   std::int64_t projectId) const {
         // -- 按北京时间取“今天”，再和 DATE 类型的 planned_end_date 比较是否已延期。
         static const std::string updateProjectStatusForStartSql = R"SQL(
             UPDATE project
@@ -294,7 +332,6 @@ namespace project_tracker::modules::project::repository {
                     FROM project_node pn
                     WHERE pn.project_id = project.id
                 ) AND
-                ($2 = TRUE OR owner_user_id = $3)
             RETURNING
                 id,
                 status,
@@ -302,14 +339,10 @@ namespace project_tracker::modules::project::repository {
                 to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
         )SQL";
 
-        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
-
         try {
             const auto result = co_await executor->execSqlCoro(
                 updateProjectStatusForStartSql,
-                input.projectId,
-                isAdmin,
-                input.operatorUserId);
+                projectId);
 
             if (result.empty()) {
                 co_return std::nullopt;
@@ -335,10 +368,11 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
-    drogon::Task<std::optional<ProjectCompleteCheckResult> >
-    ProjectRepository::findProjectCompleteCheckResult(const common::db::SqlExecutorPtr &executor,
-                                                      std::int64_t projectId) const {
-        static const std::string findProjectCompleteCheckResultSql = R"SQL(
+    drogon::Task<std::optional<ProjectCompleteCheckResult>>
+    ProjectRepository::findProjectCompleteCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId) const {
+        static const std::string findProjectCompleteCheckResultForUpdateSql = R"SQL(
             SELECT
                 p.owner_user_id,
                 creator_user.system_role AS creator_user_role,
@@ -357,12 +391,13 @@ namespace project_tracker::modules::project::repository {
             FROM project p
             JOIN sys_user creator_user ON creator_user.id = p.created_by
             WHERE p.id = $1
+            FOR UPDATE OF p
             LIMIT 1
         )SQL";
 
         try {
             const auto result = co_await executor->execSqlCoro(
-                findProjectCompleteCheckResultSql,
+                findProjectCompleteCheckResultForUpdateSql,
                 projectId);
 
             if (result.empty()) {
@@ -386,7 +421,7 @@ namespace project_tracker::modules::project::repository {
 
     drogon::Task<std::optional<dto::view::UpdatedProjectStatusView> >
     ProjectRepository::updateProjectStatusForComplete(const common::db::SqlExecutorPtr &executor,
-                                                      const dto::command::ProjectStatusActionInput &input) const {
+                                                      std::int64_t projectId) const {
         static const std::string updateProjectStatusForCompleteSql = R"SQL(
             UPDATE project
             SET
@@ -407,8 +442,7 @@ namespace project_tracker::modules::project::repository {
                         WHERE pn.project_id = project.id AND
                             pn.status <> 3
                     )
-                ) AND
-                ($2 = TRUE OR owner_user_id = $3)
+                )
             RETURNING
                 id,
                 status,
@@ -416,14 +450,10 @@ namespace project_tracker::modules::project::repository {
                 to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
         )SQL";
 
-        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
-
         try {
             const auto result = co_await executor->execSqlCoro(
                 updateProjectStatusForCompleteSql,
-                input.projectId,
-                isAdmin,
-                input.operatorUserId);
+                projectId);
 
             if (result.empty()) {
                 co_return std::nullopt;
@@ -450,9 +480,10 @@ namespace project_tracker::modules::project::repository {
     }
 
     drogon::Task<std::optional<ProjectReopenCheckResult>>
-    ProjectRepository::findProjectReopenCheckResult(const common::db::SqlExecutorPtr &executor,
-                                                    std::int64_t projectId) const {
-        static const std::string findProjectReopenCheckResultSql = R"SQL(
+    ProjectRepository::findProjectReopenCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId) const {
+        static const std::string findProjectReopenCheckResultForUpdateSql = R"SQL(
             SELECT
                 p.owner_user_id,
                 creator_user.system_role AS creator_user_role,
@@ -460,12 +491,13 @@ namespace project_tracker::modules::project::repository {
             FROM project p
             JOIN sys_user creator_user ON creator_user.id = p.created_by
             WHERE p.id = $1
+            FOR UPDATE OF p
             LIMIT 1
         )SQL";
 
         try {
             const auto result = co_await executor->execSqlCoro(
-                findProjectReopenCheckResultSql,
+                findProjectReopenCheckResultForUpdateSql,
                 projectId);
 
             if (result.empty()) {
@@ -569,7 +601,7 @@ namespace project_tracker::modules::project::repository {
     drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
     ProjectRepository::updateProjectStatusForReopen(
         const common::db::SqlExecutorPtr &executor,
-        const dto::command::ProjectStatusActionInput &input) const {
+        std::int64_t projectId) const {
 
         // 按北京时间先判断是否已延期；当前 schema 没有项目级开始信号历史，
         // 这里对已完成项目按“已存在开始信号”回退到进行中/已延期。
@@ -583,8 +615,7 @@ namespace project_tracker::modules::project::repository {
                 completed_at = NULL,
                 updated_at = NOW()
             WHERE id = $1 AND
-                status = 3 AND
-                ($2 = TRUE OR owner_user_id = $3)
+                status = 3
             RETURNING
                 id,
                 status,
@@ -592,14 +623,10 @@ namespace project_tracker::modules::project::repository {
                 to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
         )SQL";
 
-        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
-
         try {
             const auto result = co_await executor->execSqlCoro(
                 updateProjectStatusForReopenSql,
-                input.projectId,
-                isAdmin,
-                input.operatorUserId);
+                projectId);
 
             if (result.empty()) {
                 co_return std::nullopt;
@@ -688,22 +715,17 @@ namespace project_tracker::modules::project::repository {
 
     drogon::Task<bool>
     ProjectRepository::deleteProject(const common::db::SqlExecutorPtr &executor,
-                                     const dto::command::DeleteProjectInput &input) const {
+                                     std::int64_t projectId) const {
         static const std::string deleteProjectSql = R"SQL(
             DELETE FROM project
-            WHERE id = $1 AND
-                ($2 = TRUE OR owner_user_id = $3)
+            WHERE id = $1
             RETURNING id
         )SQL";
-
-        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
 
         try {
             const auto result = co_await executor->execSqlCoro(
                 deleteProjectSql,
-                input.projectId,
-                isAdmin,
-                input.operatorUserId);
+                projectId);
 
             co_return !result.empty();
         } catch (const drogon::orm::DrogonDbException &) {
@@ -880,11 +902,29 @@ namespace project_tracker::modules::project::repository {
         }
     }
 
-    drogon::Task<ProjectOwnerCandidatePage>
+    drogon::Task<ProjectOwnerCandidateListResult>
     ProjectRepository::listProjectOwnerCandidates(const common::db::SqlExecutorPtr &executor,
                                                   const ProjectOwnerCandidateQuery &query) const {
         static const std::string listProjectOwnerCandidatesSql = R"SQL(
-            WITH filtered AS (
+            WITH project_context AS (
+                SELECT
+                    (p.id IS NOT NULL) AS project_exists,
+                    COALESCE(p.owner_user_id, 0::bigint) AS owner_user_id,
+                    CASE
+                        WHEN p.id IS NULL THEN FALSE
+                        WHEN creator_user.system_role = 3 THEN FALSE
+                        ELSE TRUE
+                    END AS owner_transfer_allowed,
+                    CASE
+                        WHEN p.id IS NULL THEN FALSE
+                        WHEN $2 = TRUE THEN TRUE
+                        ELSE p.owner_user_id = $3
+                    END AS has_permission
+                FROM (SELECT 1) anchor
+                LEFT JOIN project p ON p.id = $1
+                LEFT JOIN sys_user creator_user ON creator_user.id = p.created_by
+            ),
+            filtered AS (
                 SELECT
                     u.id,
                     u.username,
@@ -897,14 +937,15 @@ namespace project_tracker::modules::project::repository {
                         WHERE pm.project_id = $1 AND
                             pm.user_id = u.id
                     ) AS is_project_member
-                FROM sys_user u
+                FROM project_context pc
+                JOIN sys_user u ON pc.project_exists AND pc.has_permission AND pc.owner_transfer_allowed
                 WHERE u.status = 1 AND
                     (
                         ($2 = TRUE AND u.system_role IN (1, 2)) OR
                         ($2 = FALSE AND u.system_role = 2)
                     ) AND
-                    ($3 = '' OR u.username ILIKE $3 OR u.real_name ILIKE $3) AND
-                    u.id <> $4
+                    ($4 = '' OR u.username ILIKE $4 OR u.real_name ILIKE $4) AND
+                    u.id <> pc.owner_user_id
             ),
             total AS (
                 SELECT COUNT(*) AS total
@@ -923,6 +964,9 @@ namespace project_tracker::modules::project::repository {
                 LIMIT $5 OFFSET $6
             )
             SELECT
+                pc.project_exists,
+                pc.has_permission,
+                pc.owner_transfer_allowed,
                 t.total,
                 p.id,
                 p.username,
@@ -930,7 +974,8 @@ namespace project_tracker::modules::project::repository {
                 p.system_role,
                 p.status,
                 p.is_project_member
-            FROM total t
+            FROM project_context pc
+            LEFT JOIN total t ON TRUE
             LEFT JOIN paged p ON TRUE
         )SQL";
 
@@ -944,26 +989,31 @@ namespace project_tracker::modules::project::repository {
                 listProjectOwnerCandidatesSql,
                 query.projectId,
                 query.includeAdminCandidates,
+                query.operatorUserId,
                 keyword,
-                query.ownerUserId,
                 pageSizeForSql,
                 offsetForSql);
 
-            ProjectOwnerCandidatePage result{
-                .list = {},
-                .total = listResult.front()["total"].as<std::int64_t>(),
-                .page = page,
-                .pageSize = pageSizeForSql
+            ProjectOwnerCandidateListResult result{
+                .projectExists = listResult.front()["project_exists"].as<bool>(),
+                .hasPermission = listResult.front()["has_permission"].as<bool>(),
+                .ownerTransferAllowed = listResult.front()["owner_transfer_allowed"].as<bool>(),
+                .page = ProjectOwnerCandidatePage{
+                    .list = {},
+                    .total = listResult.front()["total"].as<std::int64_t>(),
+                    .page = page,
+                    .pageSize = pageSizeForSql
+                }
             };
 
-            result.list.reserve(listResult.size());
+            result.page.list.reserve(listResult.size());
 
             for (const auto &row : listResult) {
                 if (row["id"].isNull()) {
                     continue;
                 }
 
-                result.list.push_back(dto::view::ProjectOwnerCandidateView{
+                result.page.list.push_back(dto::view::ProjectOwnerCandidateView{
                     .id = row["id"].as<std::int64_t>(),
                     .username = row["username"].as<std::string>(),
                     .realName = row["real_name"].as<std::string>(),
