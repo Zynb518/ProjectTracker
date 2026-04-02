@@ -47,6 +47,15 @@ namespace project_tracker::modules::project_node::repository {
         domain::ProjectNodeStatus nodeStatus;
     };
 
+    // 创建阶段节点前的项目级校验信息
+    struct ProjectNodeCreateCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+        std::string projectPlannedStartDate;
+        std::string projectPlannedEndDate;
+    };
+
     class ProjectNodeRepository {
     public:
         // 查询项目阶段节点列表
@@ -63,6 +72,17 @@ namespace project_tracker::modules::project_node::repository {
         drogon::Task<std::optional<std::int64_t>>
         findProjectIdForUpdate(const common::db::SqlExecutorPtr &executor,
                                std::int64_t projectId) const;
+
+        // 锁定项目行，供创建阶段节点写事务做项目级前置检查
+        drogon::Task<std::optional<ProjectNodeCreateCheckResult>>
+        findProjectNodeCreateCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t projectId) const;
+
+        // 创建阶段节点
+        drogon::Task<dto::view::CreatedProjectNodeView>
+        insertProjectNode(const common::db::SqlExecutorPtr &executor,
+                          const dto::command::CreateProjectNodeInput &input) const;
 
         // 锁定阶段节点行，供修改阶段节点基础信息写事务做前置检查
         drogon::Task<std::optional<ProjectNodeBasicInfoUpdateCheckResult>>

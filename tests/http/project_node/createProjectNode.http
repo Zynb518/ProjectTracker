@@ -1,0 +1,319 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@ownerUsername = li_ming
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableAdminNodeProjectName = create_node_admin_case_{{$timestamp}}
+@repeatableOwnerNodeProjectName = create_node_owner_case_{{$timestamp}}
+@repeatablePersonalNodeProjectName = create_node_personal_case_{{$timestamp}}
+@completedProjectId = 1
+@missingProjectId = 999999
+@invalidProjectId = 0
+
+### 提示：正常路径会先创建临时项目，再创建阶段节点，因此可以重复回放。
+### 提示：当前使用固定 completedProjectId=1（官网重构）验证“项目已完成不允许新增节点”。
+### 当前为 12.2 创建阶段节点 的 RED 用例；接口未实现前，相关请求会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableAdminNodeProjectName}}",
+  "description": "用于验证管理员创建阶段节点接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableAdminCreateNodeProjectId", response.body.data.id); %}
+
+### 正常路径：管理员在临时项目末尾追加阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "需求梳理",
+  "description": "用于验证管理员默认追加创建阶段节点。",
+  "planned_start_date": "2026-04-05",
+  "planned_end_date": "2026-04-10"
+}
+
+### 正常路径：管理员继续创建第二个阶段节点，默认仍追加到末尾
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "原型设计",
+  "description": "用于验证连续创建时仍默认追加到末尾。",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-14"
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录创建阶段节点，预期 401
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "未登录节点",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 正常路径：项目负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：项目负责人创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableOwnerNodeProjectName}}",
+  "description": "用于验证项目负责人创建阶段节点接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableOwnerCreateNodeProjectId", response.body.data.id); %}
+
+### 正常路径：项目负责人为自己的临时项目创建阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableOwnerCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "开发实现",
+  "description": "用于验证项目负责人创建阶段节点。",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-15"
+}
+
+### 正常路径：项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工为非本人负责项目创建阶段节点，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "越权节点",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 正常路径：普通员工创建个人自用临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatablePersonalNodeProjectName}}",
+  "description": "用于验证普通员工个人自用项目的阶段节点权限。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatablePersonalCreateNodeProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员为普通员工个人自用项目创建阶段节点，预期 403
+POST {{baseUrl}}/api/projects/{{repeatablePersonalCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "管理员越权节点",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{invalidProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "非法项目ID",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+[
+  {
+    "name": "invalid_body_case"
+  }
+]
+
+### 异常路径：缺少 name，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：name 不是字符串，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": 123,
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：name 为空字符串，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：description 不是字符串，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "非法说明",
+  "description": 123,
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：planned_start_date 缺失，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "缺少开始日期",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：planned_start_date 格式错误，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "非法开始日期格式",
+  "planned_start_date": "2026/04/11",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：planned_end_date 缺失，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "缺少结束日期",
+  "planned_start_date": "2026-04-11"
+}
+
+### 异常路径：planned_end_date 格式错误，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "非法结束日期格式",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026/04/12"
+}
+
+### 异常路径：开始日期晚于结束日期，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "非法日期区间",
+  "planned_start_date": "2026-04-13",
+  "planned_end_date": "2026-04-12"
+}
+
+### 异常路径：节点开始日期早于项目开始日期，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "项目外日期区间-前",
+  "planned_start_date": "2026-03-31",
+  "planned_end_date": "2026-04-02"
+}
+
+### 异常路径：节点结束日期晚于项目结束日期，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "项目外日期区间-后",
+  "planned_start_date": "2026-04-28",
+  "planned_end_date": "2026-05-01"
+}
+
+### 异常路径：项目已完成时创建阶段节点，预期 409
+POST {{baseUrl}}/api/projects/{{completedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "已完成项目节点",
+  "planned_start_date": "2026-03-08",
+  "planned_end_date": "2026-03-10"
+}
+
+### 异常路径：项目不存在，预期 404
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "不存在项目节点",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-12"
+}

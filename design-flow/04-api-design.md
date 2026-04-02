@@ -1232,7 +1232,6 @@ null
 {
   "name": "开发实现",
   "description": "完成核心功能开发",
-  "sequence_no": 2,
   "planned_start_date": "2026-03-26",
   "planned_end_date": "2026-04-20"
 }
@@ -1244,7 +1243,6 @@ null
 | --- | --- | --- |
 | `name` | 是 | 节点名称 |
 | `description` | 否 | 节点说明 |
-| `sequence_no` | 否 | 不传时默认追加到末尾 |
 | `planned_start_date` | 是 | 节点计划开始日期 |
 | `planned_end_date` | 是 | 节点计划结束日期 |
 
@@ -1270,7 +1268,7 @@ null
 业务约束：
 
 - 节点时间区间必须被项目时间区间包含
-- 若指定 `sequence_no`，Service 层应在事务内处理插入位移
+- 创建阶段节点时默认追加到末尾
 - 项目已完成时不允许新增节点
 
 ### 12.3 获取阶段节点详情

@@ -288,6 +288,137 @@ namespace project_tracker::modules::project_node::repository {
         }
     }
 
+    drogon::Task<std::optional<ProjectNodeCreateCheckResult>>
+    ProjectNodeRepository::findProjectNodeCreateCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId) const {
+        static const std::string findProjectNodeCreateCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status AS project_status,
+                to_char(p.planned_start_date, 'YYYY-MM-DD') AS project_planned_start_date,
+                to_char(p.planned_end_date, 'YYYY-MM-DD') AS project_planned_end_date
+            FROM project p
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1
+            FOR UPDATE OF p
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectNodeCreateCheckResultForUpdateSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectNodeCreateCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .projectStatus = static_cast<project::domain::ProjectStatus>(
+                    row["project_status"].as<int>()),
+                .projectPlannedStartDate = row["project_planned_start_date"].as<std::string>(),
+                .projectPlannedEndDate = row["project_planned_end_date"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<dto::view::CreatedProjectNodeView>
+    ProjectNodeRepository::insertProjectNode(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::CreateProjectNodeInput &input) const {
+        // 查询思路：
+        // 1. sequence_context 先拿到当前项目已有的最大 sequence_no。
+        // 2. 新节点的 sequence_no 一律取 max_sequence_no + 1，默认追加到末尾。
+        static const std::string insertProjectNodeSql = R"SQL(
+            WITH sequence_context AS (
+                SELECT
+                    COALESCE(MAX(pn.sequence_no), 0) AS max_sequence_no
+                FROM project_node pn
+                WHERE pn.project_id = $1
+            )
+            INSERT INTO project_node (
+                project_id,
+                name,
+                description,
+                sequence_no,
+                status,
+                planned_start_date,
+                planned_end_date,
+                created_by
+            )
+            SELECT
+                $1,
+                $2,
+                $3,
+                sc.max_sequence_no + 1,
+                1,
+                $4,
+                $5,
+                $6
+            FROM sequence_context sc
+            RETURNING
+                id,
+                project_id,
+                name,
+                description,
+                sequence_no,
+                status,
+                to_char(planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                to_char(planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
+                to_char(completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                created_by,
+                to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS created_at,
+                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                insertProjectNodeSql,
+                input.projectId,
+                input.name,
+                input.description,
+                input.plannedStartDate,
+                input.plannedEndDate,
+                input.creatorUserId);
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::CreatedProjectNodeView{
+                .id = row["id"].as<std::int64_t>(),
+                .projectId = row["project_id"].as<std::int64_t>(),
+                .name = row["name"].as<std::string>(),
+                .description = row["description"].as<std::string>(),
+                .sequenceNo = row["sequence_no"].as<int>(),
+                .status = static_cast<domain::ProjectNodeStatus>(row["status"].as<int>()),
+                .plannedStartDate = row["planned_start_date"].as<std::string>(),
+                .plannedEndDate = row["planned_end_date"].as<std::string>(),
+                .completedAt = completedAt,
+                .createdBy = row["created_by"].as<std::int64_t>(),
+                .createdAt = row["created_at"].as<std::string>(),
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<dto::view::UpdatedProjectNodeBasicInfoView>>
     ProjectNodeRepository::updateProjectNodeBasicInfo(
         const common::db::SqlExecutorPtr &executor,
