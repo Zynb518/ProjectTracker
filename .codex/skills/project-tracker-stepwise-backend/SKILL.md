@@ -9,6 +9,7 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 
 用于当前 `Project-Tracker` 仓库的后端协作约束。目标不是一次性把功能铺满，而是按“先读上下文 -> 只推进一个小段 -> 等用户审查 -> 再继续”的节奏稳定开发。
 如果当前对话里用户已经给出更具体的新约束，以本轮确认过的约束为准，不要死守 skill 里的旧偏好。
+默认优先在一条接口链路或当前这一轮目标段落闭合后，再统一做编译验证；不要机械地每改一小行就立刻编译。
 
 ## Read Context First
 
@@ -50,10 +51,8 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 - 本地模块内部同样优先直接写 `dto::view::`、`dto::command::`，不要为了缩短名字额外起 `template_view` 这类本地别名。
 - 如果目标字段本身就是 `std::optional`，优先直接把解析结果写入目标字段，例如直接写 `query.systemRole`；不要额外创建一个临时 `std::optional` 再二次赋值，除非这样做明显更清晰。
 - 只有跨模块且全路径明显影响可读性时，才考虑保留一个必要别名。
-- `common` 这类全局公共命名空间可以继续写成：
-- `namespace error = project_tracker::common::error;`
-- 像 `modules::user::domain` 这类跨模块但反复出现的命名空间，允许保留一个简短别名，例如：
-- `namespace user_domain = modules::user::domain;`
+- `common` 这类全局公共命名空间可以保留必要别名，例如 `namespace error = project_tracker::common::error;`
+- 像 `modules::user::domain` 这类跨模块且反复出现的命名空间，允许保留一个简短别名，例如 `namespace user_domain = modules::user::domain;`
 - 当前项目偏好简单实现，避免为了“抽象完整”引入多余 DTO、包装器、匿名辅助层。
 - 对“简单纯读接口”允许直接走 `Controller -> Repository`，不要为了形式对称强行补一层 service。
 - 对带业务规则的写接口，优先走 `Controller -> Service -> Repository`；不要把跨字段校验、权限判断、状态流转规则直接压进 controller。
@@ -68,6 +67,8 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 
 - 对写接口中的“先查再改”场景，优先把检查拆成 `...ForUpdate(...)` 一类带锁检查方法，不要继续用布尔参数在同一个方法里切换是否锁行。
 - 当写接口依赖多个资源时，例如同时依赖 `project` 和 `target_user`，优先拆成多个明确的带锁检查方法，而不是继续保留一个大而全的组合检查查询。
+- 如果写接口需要把“父资源不存在”和“子资源不存在”区分成不同 `404`，优先先单独锁定并确认父资源存在，再做子资源的 `...ForUpdate(...)` 检查；不要把两者混在一个联表查询里再统一返回 `std::nullopt`。
+- 如果父资源已经在写事务前一步单独加锁，后续子资源检查查询就不要再重复 `FOR UPDATE OF parent`；继续读取父资源字段可以，但锁目标只保留当前真正需要新加锁的子资源。
 - 这类带锁检查若只表达“资源是否存在”，优先返回 `std::optional<CheckResult>`，不要在结果结构里继续保留 `projectExists`、`targetUserExists` 这类存在性布尔字段。
 - 对“自动补关系”这类附带写动作，优先提供 `ensureXxxExists(...)` 幂等写方法，并在 SQL 中使用 `ON CONFLICT ... DO NOTHING`；不要直接污染原本表达“新增语义”的 `insertXxx(...)` 方法。
 - 如果写接口在 `Service` 中已经做了前置带锁检查，后续 repository 写 SQL 仍可保留必要的条件保护，例如把 `status <> 3` 这类并发窗口保护继续压在 `WHERE` 条件里；但不要再把完整业务判断重新堆回 `Controller`。
@@ -82,6 +83,7 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 
 - 如果数据库已有 `CHECK` 约束，应用层不重复做同一层枚举合法性兜底，优先直接映射。
 - 但如果请求体里的整数会先在 controller 转成 enum 再向下传递，controller 需要先做枚举范围校验，避免非法底层值一路落到数据库并被映射成 `500`。
+- PostgreSQL 方言可以直接使用 `UPDATE ... SET ... FROM ...`；但 `FROM` 侧必须保证对每个目标行最多只匹配一条来源记录，避免一条目标行连出多条来源后产生不稳定更新结果。
 - 对中国区固定业务时间，可以明确按 `Asia/Shanghai` 处理。
 - 若返回时间字符串，优先生成接口最终需要的格式，不要保留中间态再二次加工。
 - 即便正常链路里“理论上一定存在”，repository 仍可用 `std::optional` 显式表达“数据库可能查不到”这一事实，例如 session 残留或用户记录已不存在的情况。
@@ -105,12 +107,12 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 - `Repository` 只在数据库异常、底层调用失败等系统错误场景，把异常转成 `InternalError`。
 - `common/util` 默认不直接抛 `BusinessException`，优先返回值、`std::optional` 或显式失败态，让 `Controller / Service` 决定如何返回 HTTP 错误。
 - `filters` 优先直接返回 `api::fail(...)`，不要依赖抛异常完成拦截。
-- 对 query 参数这类基础输入，优先只做格式校验；如果数据库已有 `CHECK` 约束，不重复在 controller 里做同层枚举兜底。
 
 ## Validation Boundary
 
 - `Controller` 负责 HTTP 边界校验：是否登录、请求体是否为 JSON 对象、字段是否存在、字段类型是否正确、单字段基础格式是否正确。
 - `Service` 负责业务规则校验：跨字段约束、权限判断、状态流转、唯一性或冲突规则，不重复做 controller 已经完成的单字段存在性 / 基础格式校验。
+- 对 `PATCH` 类基础信息接口，controller 默认只校验当前输入 DTO 真正接收的字段；请求体里出现未消费字段时，不必机械地逐个显式拦截。只有在“没有任何可修改字段”或已消费字段本身类型/格式错误时，再按现有输入模型返回 `400`。
 - 例如创建项目时，`name` 是否非空、日期字符串是否为 `YYYY-MM-DD` 放在 `Controller`；`planned_start_date <= planned_end_date` 这种跨字段业务约束放在 `Service`。
 
 ## Filter And Test Notes
@@ -128,7 +130,8 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 
 - 出现联调或运行时 bug 时，一次只定位并修复一个问题，不并行修改多个未确认根因。
 - 修复 bug 时优先做最小改动，先让当前问题收平，再决定是否继续做下一处清理。
-- 每次小改后优先做本地编译验证：`cmake -S . -B cmake-build-debug` 和 `cmake --build cmake-build-debug`。
+- 默认在一条接口链路或当前这一轮目标段落闭合后，再做本地编译验证：`cmake -S . -B cmake-build-debug` 和 `cmake --build cmake-build-debug`。
+- 如果当前轮只改了 `.http` 用例、DTO 头文件或 skill 文档，并且用户明确希望先审查，可以先不编译。
 - 如果是 `.http` 联调问题，代码层编译通过后先停给用户重测，不顺手扩展到下一个功能点。
 
 ## Review Discipline

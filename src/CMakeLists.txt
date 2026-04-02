@@ -14,6 +14,7 @@ add_executable(
     modules/project/service/ProjectService.cpp
     modules/project_node/controller/ProjectNodeController.cpp
     modules/project_node/repository/ProjectNodeRepository.cpp
+    modules/project_node/service/ProjectNodeService.cpp
     modules/project_member/controller/ProjectMemberController.cpp
     modules/project_member/repository/ProjectMemberRepository.cpp
     modules/project_member/service/ProjectMemberService.cpp

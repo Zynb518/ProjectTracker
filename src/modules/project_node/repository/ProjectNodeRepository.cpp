@@ -258,4 +258,175 @@ namespace project_tracker::modules::project_node::repository {
                 "数据库操作失败");
         }
     }
+
+    drogon::Task<std::optional<std::int64_t>>
+    ProjectNodeRepository::findProjectIdForUpdate(const common::db::SqlExecutorPtr &executor,
+                                                  std::int64_t projectId) const {
+        static const std::string findProjectIdForUpdateSql = R"SQL(
+            SELECT
+                p.id
+            FROM project p
+            WHERE p.id = $1
+            FOR UPDATE OF p
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectIdForUpdateSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            co_return result.front()["id"].as<std::int64_t>();
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::UpdatedProjectNodeBasicInfoView>>
+    ProjectNodeRepository::updateProjectNodeBasicInfo(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::UpdateProjectNodeBasicInfoInput &input) const {
+        // 查询思路：
+        // 1. target_context 先算出节点本次更新后的有效名称、说明、起止日期，并带上所属项目日期范围。
+        // 2. sub_task_range 单独聚合该节点下全部子任务的最小开始日期和最大结束日期。
+        // 3. 最后只在“节点日期合法、落在项目范围内、且能覆盖全部子任务”时执行更新并返回结果。
+
+        static const std::string updateProjectNodeBasicInfoSql = R"SQL(
+            WITH target_context AS (
+                SELECT
+                    pn.id,
+                    COALESCE($3, pn.name) AS next_name,
+                    COALESCE($4, pn.description) AS next_description,
+                    COALESCE($5, pn.planned_start_date) AS next_planned_start_date,
+                    COALESCE($6, pn.planned_end_date) AS next_planned_end_date,
+                    p.planned_start_date AS project_planned_start_date,
+                    p.planned_end_date AS project_planned_end_date
+                FROM project_node pn
+                JOIN project p ON p.id = pn.project_id
+                WHERE p.id = $1 AND
+                    pn.id = $2
+            ),
+            sub_task_range AS (
+                SELECT
+                    st.node_id,
+                    MIN(st.planned_start_date) AS min_planned_start_date,
+                    MAX(st.planned_end_date) AS max_planned_end_date
+                FROM sub_task st
+                WHERE st.node_id = $2
+                GROUP BY st.node_id
+            )
+            UPDATE project_node pn
+            SET
+                name = tc.next_name,
+                description = tc.next_description,
+                planned_start_date = tc.next_planned_start_date,
+                planned_end_date = tc.next_planned_end_date,
+                updated_at = NOW()
+            FROM target_context tc
+            LEFT JOIN sub_task_range str ON str.node_id = tc.id
+            WHERE pn.id = tc.id AND
+                tc.next_planned_start_date <= tc.next_planned_end_date AND
+                tc.next_planned_start_date >= tc.project_planned_start_date AND
+                tc.next_planned_end_date <= tc.project_planned_end_date AND
+                (
+                    str.node_id IS NULL OR
+                    (
+                        tc.next_planned_start_date <= str.min_planned_start_date AND
+                        tc.next_planned_end_date >= str.max_planned_end_date
+                    )
+                )
+            RETURNING
+                pn.id,
+                pn.name,
+                pn.description,
+                to_char(pn.planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                to_char(pn.planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
+                to_char(pn.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateProjectNodeBasicInfoSql,
+                input.projectId,
+                input.nodeId,
+                input.name,
+                input.description,
+                input.plannedStartDate,
+                input.plannedEndDate);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return dto::view::UpdatedProjectNodeBasicInfoView{
+                .id = row["id"].as<std::int64_t>(),
+                .name = row["name"].as<std::string>(),
+                .description = row["description"].as<std::string>(),
+                .plannedStartDate = row["planned_start_date"].as<std::string>(),
+                .plannedEndDate = row["planned_end_date"].as<std::string>(),
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<ProjectNodeBasicInfoUpdateCheckResult>>
+    ProjectNodeRepository::findProjectNodeBasicInfoUpdateCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId,
+        std::int64_t nodeId) const {
+        // 查询思路：
+        // 1. 项目行已在写事务上一步锁定，这里只锁目标节点，继续带回所属项目上的权限/状态字段。
+        // 2. 同时带回项目负责人、项目创建人角色，供 service 做权限判断。
+        static const std::string findProjectNodeBasicInfoUpdateCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status AS project_status,
+                pn.status AS node_status
+            FROM project p
+            JOIN project_node pn ON pn.project_id = p.id
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1 AND
+                pn.id = $2
+            FOR UPDATE OF pn
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectNodeBasicInfoUpdateCheckResultForUpdateSql,
+                projectId,
+                nodeId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectNodeBasicInfoUpdateCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .projectStatus = static_cast<project::domain::ProjectStatus>(
+                    row["project_status"].as<int>()),
+                .nodeStatus = static_cast<domain::ProjectNodeStatus>(
+                    row["node_status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
 } // namespace project_tracker::modules::project_node::repository

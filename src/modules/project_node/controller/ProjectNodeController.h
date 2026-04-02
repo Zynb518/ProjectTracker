@@ -5,6 +5,7 @@
 
 #include "filters/LoginRequiredFilter.h"
 #include "modules/project_node/repository/ProjectNodeRepository.h"
+#include "modules/project_node/service/ProjectNodeService.h"
 
 namespace project_tracker::modules::project_node::controller {
     class ProjectNodeController : public drogon::HttpController<ProjectNodeController> {
@@ -18,6 +19,10 @@ namespace project_tracker::modules::project_node::controller {
                           "/api/projects/{project_id}/nodes/{node_id}",
                           drogon::Get,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::updateProjectNodeBasicInfo,
+                          "/api/projects/{project_id}/nodes/{node_id}",
+                          drogon::Patch,
+                          filters::LoginRequiredFilter::classTypeName());
         METHOD_LIST_END
 
         drogon::Task<drogon::HttpResponsePtr>
@@ -29,8 +34,14 @@ namespace project_tracker::modules::project_node::controller {
                              std::int64_t projectId,
                              std::int64_t nodeId);
 
+        drogon::Task<drogon::HttpResponsePtr>
+        updateProjectNodeBasicInfo(drogon::HttpRequestPtr request,
+                                   std::int64_t projectId,
+                                   std::int64_t nodeId);
+
     private:
-        // 12.1 是简单读接口，先直接访问 repository。
+        // 简单读接口直接访问 repository，写接口走 service。
         repository::ProjectNodeRepository projectNodeRepository_;
+        service::ProjectNodeService projectNodeService_;
     };
 } // namespace project_tracker::modules::project_node::controller

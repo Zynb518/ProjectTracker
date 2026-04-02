@@ -1,0 +1,212 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@ownerUsername = wang_jie
+@employeeUsername = chen_xu
+@password = 123456
+@targetProjectId = 2
+@targetNodeId = 2
+@completedProjectId = 1
+@completedNodeId = 1
+@missingProjectId = 999999
+@missingNodeId = 999999
+@invalidProjectId = 0
+@invalidNodeId = 0
+
+### 提示：正常路径会写入数据库；当前使用固定节点反复写入相同值，便于重复回放。
+### 提示：project 2（移动端打卡）下的 node 2（原型设计）为未完成节点；project 1 下的 node 1（需求分析）为已完成节点。
+### 当前为 12.4 修改阶段节点基础信息 的先行失败用例；接口未实现前，相关请求会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员修改阶段节点基础信息
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "name": "原型设计阶段",
+  "description": "用于验证阶段节点基础信息修改接口。",
+  "planned_start_date": "2026-04-10",
+  "planned_end_date": "2026-04-18"
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录修改阶段节点基础信息，预期 401
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "description": "未登录修改阶段节点。"
+}
+
+### 正常路径：负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：负责人修改自己项目下的阶段节点基础信息
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "description": "用于验证负责人修改阶段节点基础信息。"
+}
+
+### 正常路径：负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工修改非本人负责项目下的阶段节点，预期 403
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "description": "普通员工尝试修改非本人负责项目下的阶段节点。"
+}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+PATCH {{baseUrl}}/api/projects/{{invalidProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "name": "非法项目ID"
+}
+
+### 异常路径：node_id 小于等于 0，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{invalidNodeId}}
+Content-Type: application/json
+
+{
+  "name": "非法节点ID"
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+[
+  {
+    "name": "invalid_body_case"
+  }
+]
+
+### 异常路径：请求体没有可修改字段，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{}
+
+### 异常路径：name 不是字符串，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "name": 123
+}
+
+### 异常路径：name 为空字符串，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+### 异常路径：planned_start_date 格式错误，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026/04/10"
+}
+
+### 异常路径：planned_end_date 格式错误，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "planned_end_date": "2026/04/18"
+}
+
+### 异常路径：同时修改开始和结束日期且区间非法，预期 409
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-04-19",
+  "planned_end_date": "2026-04-18"
+}
+
+### 异常路径：只传 status 和 completed_at，因没有可修改字段，预期 400
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "status": 2,
+  "completed_at": "2026-04-18T10:00:00+08:00"
+}
+
+### 异常路径：已完成阶段节点修改基础信息，预期 409
+PATCH {{baseUrl}}/api/projects/{{completedProjectId}}/nodes/{{completedNodeId}}
+Content-Type: application/json
+
+{
+  "description": "尝试修改已完成阶段节点。"
+}
+
+### 异常路径：项目不存在，预期 404
+PATCH {{baseUrl}}/api/projects/{{missingProjectId}}/nodes/{{targetNodeId}}
+Content-Type: application/json
+
+{
+  "description": "不存在项目。"
+}
+
+### 异常路径：阶段节点不存在，预期 404
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}/nodes/{{missingNodeId}}
+Content-Type: application/json
+
+{
+  "description": "不存在阶段节点。"
+}

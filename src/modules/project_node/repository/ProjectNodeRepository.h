@@ -7,6 +7,7 @@
 #include <drogon/utils/coroutine.h>
 
 #include "common/db/SqlExecutor.h"
+#include "modules/project/domain/ProjectEnums.h"
 #include "modules/project_node/dto/ProjectNodeDto.h"
 #include "modules/user/domain/UserEnums.h"
 
@@ -38,6 +39,14 @@ namespace project_tracker::modules::project_node::repository {
         std::optional<dto::view::ProjectNodeDetailView> detail;
     };
 
+    // 修改阶段节点基础信息前的校验信息
+    struct ProjectNodeBasicInfoUpdateCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+        domain::ProjectNodeStatus nodeStatus;
+    };
+
     class ProjectNodeRepository {
     public:
         // 查询项目阶段节点列表
@@ -49,5 +58,22 @@ namespace project_tracker::modules::project_node::repository {
         drogon::Task<std::optional<ProjectNodeDetailResult>>
         findProjectNodeDetail(const common::db::SqlExecutorPtr &executor,
                               const ProjectNodeDetailQuery &query) const;
+
+        // 锁定项目行，供修改阶段节点基础信息写事务区分项目是否存在
+        drogon::Task<std::optional<std::int64_t>>
+        findProjectIdForUpdate(const common::db::SqlExecutorPtr &executor,
+                               std::int64_t projectId) const;
+
+        // 锁定阶段节点行，供修改阶段节点基础信息写事务做前置检查
+        drogon::Task<std::optional<ProjectNodeBasicInfoUpdateCheckResult>>
+        findProjectNodeBasicInfoUpdateCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t projectId,
+            std::int64_t nodeId) const;
+
+        // 修改阶段节点基础信息
+        drogon::Task<std::optional<dto::view::UpdatedProjectNodeBasicInfoView>>
+        updateProjectNodeBasicInfo(const common::db::SqlExecutorPtr &executor,
+                                   const dto::command::UpdateProjectNodeBasicInfoInput &input) const;
     };
 } // namespace project_tracker::modules::project_node::repository
