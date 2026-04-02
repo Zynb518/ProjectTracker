@@ -1,0 +1,222 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@ownerUsername = li_ming
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableAdminProjectName = add_member_admin_case_{{$timestamp}}
+@repeatableOwnerProjectName = add_member_owner_case_{{$timestamp}}
+@repeatablePersonalProjectName = add_member_personal_case_{{$timestamp}}
+@missingProjectId = 999999
+@invalidProjectId = 0
+@missingUserId = 999999
+@candidateUserId = 3
+@existingMemberUserId = 4
+@disabledUserId = 5
+
+### 提示：正常路径会先创建临时项目，再添加成员，因此可以重复回放。
+### 当前种子数据中：wang_jie(id=3) 为启用状态项目经理，chen_xu(id=4) 已是 project 1 的成员，zhao_yue(id=5) 为禁用用户。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableAdminProjectName}}",
+  "description": "用于验证管理员添加项目成员接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableAdminAddMemberProjectId", response.body.data.id); %}
+
+### 正常路径：管理员为临时项目添加成员 wang_jie
+POST {{baseUrl}}/api/projects/{{repeatableAdminAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：项目负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：项目负责人创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableOwnerProjectName}}",
+  "description": "用于验证项目负责人添加项目成员接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableOwnerAddMemberProjectId", response.body.data.id); %}
+
+### 正常路径：项目负责人为临时项目添加成员 wang_jie
+POST {{baseUrl}}/api/projects/{{repeatableOwnerAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 正常路径：项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录添加项目成员，预期 401
+POST {{baseUrl}}/api/projects/{{repeatableAdminAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工为非本人负责项目添加成员，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableAdminAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 正常路径：普通员工创建临时个人项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatablePersonalProjectName}}",
+  "description": "用于验证个人自用项目禁止添加成员。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatablePersonalAddMemberProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员向普通员工个人自用项目添加成员，预期 409（40913）
+POST {{baseUrl}}/api/projects/{{repeatablePersonalAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 异常路径：重复添加成员，预期 409（40903）
+POST {{baseUrl}}/api/projects/{{repeatableAdminAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 异常路径：添加禁用用户 zhao_yue，预期 409（40902）
+POST {{baseUrl}}/api/projects/{{repeatableOwnerAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{disabledUserId}}
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{invalidProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminAddMemberProjectId}}/members
+Content-Type: application/json
+
+[
+  {
+    "user_id": {{candidateUserId}}
+  }
+]
+
+### 异常路径：user_id 缺失，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminAddMemberProjectId}}/members
+Content-Type: application/json
+
+{}
+
+### 异常路径：user_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": 0
+}
+
+### 异常路径：项目不存在，预期 404
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 异常路径：目标用户不存在，预期 404
+POST {{baseUrl}}/api/projects/{{repeatableAdminAddMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{missingUserId}}
+}
+
+### 异常路径：向稳定项目重复添加现有成员 chen_xu，预期 409（40903）
+POST {{baseUrl}}/api/projects/1/members
+Content-Type: application/json
+
+{
+  "user_id": {{existingMemberUserId}}
+}

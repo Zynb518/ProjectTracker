@@ -1,0 +1,128 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@ownerUsername = li_ming
+@memberUsername = chen_xu
+@employeeUsername = chen_xu
+@password = 123456
+@projectId = 1
+@repeatablePersonalProjectName = member_candidates_personal_case_{{$timestamp}}
+@missingProjectId = 999999
+@invalidProjectId = 0
+
+### 提示：当前种子数据中，project 1（官网重构）的成员包含 li_ming 和 chen_xu。
+### 预期候选范围应排除现有成员，且仅返回启用状态用户，因此默认候选应包含 admin 和 wang_jie。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员获取可添加成员候选列表
+GET {{baseUrl}}/api/projects/{{projectId}}/members/candidates?page=1&page_size=10
+
+### 正常路径：管理员按关键字筛选可添加成员候选列表
+GET {{baseUrl}}/api/projects/{{projectId}}/members/candidates?keyword=wang
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取可添加成员候选列表，预期 401
+GET {{baseUrl}}/api/projects/{{projectId}}/members/candidates
+
+### 正常路径：项目负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：项目负责人获取可添加成员候选列表
+GET {{baseUrl}}/api/projects/{{projectId}}/members/candidates?page=1&page_size=10
+
+### 正常路径：项目负责人按关键字筛选可添加成员候选列表
+GET {{baseUrl}}/api/projects/{{projectId}}/members/candidates?keyword=wang
+
+### 正常路径：项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通成员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{memberUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通成员获取可添加成员候选列表，预期 403
+GET {{baseUrl}}/api/projects/{{projectId}}/members/candidates
+
+### 正常路径：普通成员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工创建临时个人项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatablePersonalProjectName}}",
+  "description": "用于验证个人自用项目禁止获取成员候选列表。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatablePersonalProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员获取普通员工个人自用项目的成员候选列表，预期 409（40913）
+GET {{baseUrl}}/api/projects/{{repeatablePersonalProjectId}}/members/candidates
+
+### 异常路径：project_id 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects/{{invalidProjectId}}/members/candidates
+
+### 异常路径：项目不存在，预期 404
+GET {{baseUrl}}/api/projects/{{missingProjectId}}/members/candidates
+
+### 异常路径：page 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects/{{projectId}}/members/candidates?page=0
+
+### 异常路径：page_size 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects/{{projectId}}/members/candidates?page_size=0
