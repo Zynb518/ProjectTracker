@@ -35,6 +35,30 @@ namespace project_tracker::modules::project_node::controller {
 
             return json;
         }
+
+        Json::Value buildProjectNodeJson(const dto::view::ProjectNodeDetailView &node) {
+            Json::Value json(Json::objectValue);
+            json["id"] = node.id;
+            json["project_id"] = node.projectId;
+            json["name"] = node.name;
+            json["description"] = node.description;
+            json["sequence_no"] = node.sequenceNo;
+            json["status"] = domain::toInt(node.status);
+            json["planned_start_date"] = node.plannedStartDate;
+            json["planned_end_date"] = node.plannedEndDate;
+            if (node.completedAt) {
+                json["completed_at"] = *node.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+            json["created_by"] = node.createdBy;
+            json["created_at"] = node.createdAt;
+            json["updated_at"] = node.updatedAt;
+            json["sub_task_count"] = node.subTaskCount;
+            json["completed_sub_task_count"] = node.completedSubTaskCount;
+
+            return json;
+        }
     } // namespace
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -89,6 +113,73 @@ namespace project_tracker::modules::project_node::controller {
             }
 
             co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectNodeController::getProjectNodeDetail(drogon::HttpRequestPtr request,
+                                                std::int64_t projectId,
+                                                std::int64_t nodeId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        if (nodeId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "node_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await projectNodeRepository_.findProjectNodeDetail(
+                dbClient,
+                repository::ProjectNodeDetailQuery{
+                    .projectId = projectId,
+                    .nodeId = nodeId,
+                    .currentUserId = *userId,
+                    .currentUserRole = *systemRole
+                });
+
+            if (!result) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            if (!result->hasPermission) {
+                co_return api::fail(
+                    drogon::k403Forbidden,
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目成员");
+            }
+
+            if (!result->detail) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::PhaseNotFound,
+                    "阶段节点不存在");
+            }
+
+            co_return api::ok(buildProjectNodeJson(*result->detail));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

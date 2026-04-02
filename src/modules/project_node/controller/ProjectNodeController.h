@@ -14,11 +14,20 @@ namespace project_tracker::modules::project_node::controller {
                           "/api/projects/{project_id}/nodes",
                           drogon::Get,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::getProjectNodeDetail,
+                          "/api/projects/{project_id}/nodes/{node_id}",
+                          drogon::Get,
+                          filters::LoginRequiredFilter::classTypeName());
         METHOD_LIST_END
 
         drogon::Task<drogon::HttpResponsePtr>
         listProjectNodes(drogon::HttpRequestPtr request,
                          std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        getProjectNodeDetail(drogon::HttpRequestPtr request,
+                             std::int64_t projectId,
+                             std::int64_t nodeId);
 
     private:
         // 12.1 是简单读接口，先直接访问 repository。
