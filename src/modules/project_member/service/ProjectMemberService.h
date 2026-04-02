@@ -2,10 +2,7 @@
 
 #include <drogon/utils/coroutine.h>
 
-#include "modules/project_member/dto/command/AddProjectMemberInput.h"
-#include "modules/project_member/dto/command/RemoveProjectMemberInput.h"
-#include "modules/project_member/dto/view/AddedProjectMemberView.h"
-#include "modules/project_member/dto/view/RemovedProjectMemberView.h"
+#include "modules/project_member/dto/ProjectMemberDto.h"
 #include "modules/project_member/repository/ProjectMemberRepository.h"
 
 namespace project_tracker::modules::project_member::service {

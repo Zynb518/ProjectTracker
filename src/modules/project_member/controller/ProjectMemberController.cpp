@@ -7,6 +7,7 @@
 #include "common/error/ErrorCode.h"
 #include "common/util/JsonUtil.h"
 #include "common/util/QueryParamUtil.h"
+#include "modules/project_member/dto/ProjectMemberDto.h"
 
 namespace project_tracker::modules::project_member::controller {
     namespace api = project_tracker::common::api;

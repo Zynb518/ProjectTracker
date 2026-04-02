@@ -9,12 +9,7 @@
 
 #include "common/db/SqlExecutor.h"
 #include "modules/project/domain/ProjectEnums.h"
-#include "modules/project_member/dto/command/AddProjectMemberInput.h"
-#include "modules/project_member/dto/command/RemoveProjectMemberInput.h"
-#include "modules/project_member/dto/view/AddedProjectMemberView.h"
-#include "modules/project_member/dto/view/ProjectMemberCandidateView.h"
-#include "modules/project_member/dto/view/ProjectMemberListItemView.h"
-#include "modules/project_member/dto/view/RemovedProjectMemberView.h"
+#include "modules/project_member/dto/ProjectMemberDto.h"
 #include "modules/user/domain/UserEnums.h"
 
 namespace project_tracker::modules::project_member::repository {
