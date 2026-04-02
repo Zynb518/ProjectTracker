@@ -27,6 +27,10 @@ namespace project_tracker::modules::project_node::controller {
                           "/api/projects/{project_id}/nodes/{node_id}",
                           drogon::Patch,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::reorderProjectNodes,
+                          "/api/projects/{project_id}/nodes/reorder",
+                          drogon::Put,
+                          filters::LoginRequiredFilter::classTypeName());
         METHOD_LIST_END
 
         drogon::Task<drogon::HttpResponsePtr>
@@ -46,6 +50,10 @@ namespace project_tracker::modules::project_node::controller {
         updateProjectNodeBasicInfo(drogon::HttpRequestPtr request,
                                    std::int64_t projectId,
                                    std::int64_t nodeId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        reorderProjectNodes(drogon::HttpRequestPtr request,
+                            std::int64_t projectId);
 
     private:
         // 简单读接口直接访问 repository，写接口走 service。

@@ -47,6 +47,16 @@ namespace project_tracker::modules::project_node::repository {
         domain::ProjectNodeStatus nodeStatus;
     };
 
+    // 调整阶段节点顺序前的校验信息
+    struct ProjectNodeReorderCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+        std::int64_t totalNodeCount;
+        std::int64_t matchedNodeCount;
+        std::int64_t completedNodeCount;
+    };
+
     // 创建阶段节点前的项目级校验信息
     struct ProjectNodeCreateCheckResult {
         std::int64_t ownerUserId;
@@ -95,5 +105,16 @@ namespace project_tracker::modules::project_node::repository {
         drogon::Task<std::optional<dto::view::UpdatedProjectNodeBasicInfoView>>
         updateProjectNodeBasicInfo(const common::db::SqlExecutorPtr &executor,
                                    const dto::command::UpdateProjectNodeBasicInfoInput &input) const;
+
+        // 锁定输入中的阶段节点，供调整顺序写事务做前置检查
+        drogon::Task<std::optional<ProjectNodeReorderCheckResult>>
+        findProjectNodeReorderCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            const dto::command::ReorderProjectNodesInput &input) const;
+
+        // 调整阶段节点顺序
+        drogon::Task<std::optional<dto::view::ReorderedProjectNodesView>>
+        reorderProjectNodes(const common::db::SqlExecutorPtr &executor,
+                            const dto::command::ReorderProjectNodesInput &input) const;
     };
 } // namespace project_tracker::modules::project_node::repository

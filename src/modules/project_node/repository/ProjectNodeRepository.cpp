@@ -560,4 +560,174 @@ namespace project_tracker::modules::project_node::repository {
                 "数据库操作失败");
         }
     }
+
+    drogon::Task<std::optional<ProjectNodeReorderCheckResult>>
+    ProjectNodeRepository::findProjectNodeReorderCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::ReorderProjectNodesInput &input) const {
+        std::string inputNodeValuesSql;
+        inputNodeValuesSql.reserve(input.nodes.size() * 32);
+        for (std::size_t index = 0; index < input.nodes.size(); ++index) {
+            if (index > 0) {
+                inputNodeValuesSql += ", ";
+            }
+            inputNodeValuesSql += "(" + std::to_string(input.nodes[index].nodeId) + ")";
+        }
+
+        // 查询思路：
+        // 1. 先锁项目行，和创建/删除/完成这类依赖项目状态的写操作串行化。
+        // 2. 再锁当前项目下全部节点，冻结本次重排期间的节点集合与节点状态。
+        // 3. 最后统计项目当前节点总数、请求命中的节点数、以及已完成节点数，供 service 做对账判断。
+        const std::string findProjectNodeReorderCheckResultForUpdateSql = R"SQL(
+            WITH input_nodes AS (
+                SELECT DISTINCT raw_input_nodes.node_id
+                FROM (VALUES
+        )SQL" + inputNodeValuesSql + R"SQL(
+                ) AS raw_input_nodes(node_id)
+            ),
+            project_context AS (
+                SELECT
+                    p.id AS project_id,
+                    p.owner_user_id,
+                    creator_user.system_role AS creator_user_role,
+                    p.status AS project_status
+                FROM project p
+                JOIN sys_user creator_user ON creator_user.id = p.created_by
+                WHERE p.id = $1
+                FOR UPDATE OF p
+                LIMIT 1
+            ),
+            project_nodes AS (
+                SELECT
+                    pn.id,
+                    pn.status
+                FROM project_context pc
+                JOIN project_node pn ON pn.project_id = pc.project_id
+                FOR UPDATE OF pn
+            ),
+            node_stats AS (
+                SELECT
+                    COUNT(pn.id) AS total_node_count,
+                    COUNT(input_nodes.node_id) AS matched_node_count,
+                    COUNT(pn.id) FILTER (WHERE pn.status = 3) AS completed_node_count
+                FROM project_nodes pn
+                LEFT JOIN input_nodes ON input_nodes.node_id = pn.id
+            )
+            SELECT
+                pc.owner_user_id,
+                pc.creator_user_role,
+                pc.project_status,
+                ns.total_node_count,
+                ns.matched_node_count,
+                ns.completed_node_count
+            FROM project_context pc
+            CROSS JOIN node_stats ns
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectNodeReorderCheckResultForUpdateSql,
+                input.projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectNodeReorderCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .projectStatus = static_cast<project::domain::ProjectStatus>(
+                    row["project_status"].as<int>()),
+                .totalNodeCount = row["total_node_count"].as<std::int64_t>(),
+                .matchedNodeCount = row["matched_node_count"].as<std::int64_t>(),
+                .completedNodeCount = row["completed_node_count"].as<std::int64_t>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::ReorderedProjectNodesView>>
+    ProjectNodeRepository::reorderProjectNodes(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::ReorderProjectNodesInput &input) const {
+        std::string inputNodeValuesSql;
+        inputNodeValuesSql.reserve(input.nodes.size() * 48);
+        for (std::size_t index = 0; index < input.nodes.size(); ++index) {
+            if (index > 0) {
+                inputNodeValuesSql += ", ";
+            }
+            inputNodeValuesSql.push_back('(');
+            inputNodeValuesSql += std::to_string(input.nodes[index].nodeId);
+            inputNodeValuesSql += ", ";
+            inputNodeValuesSql += std::to_string(input.nodes[index].sequenceNo);
+            inputNodeValuesSql.push_back(')');
+        }
+
+        // 查询思路：
+        // 1. input_nodes 把前端提交的完整节点顺序集合转成临时输入表。
+        // 2. updated_nodes 用单条 UPDATE ... FROM 批量改写当前项目全部节点的 sequence_no。
+        // 3. 最后按新的 sequence_no 排序返回，供 controller 直接组织响应。
+        const std::string reorderProjectNodesSql = R"SQL(
+            WITH input_nodes(node_id, sequence_no) AS (
+                VALUES
+        )SQL" + inputNodeValuesSql + R"SQL(
+            ),
+            updated_nodes AS (
+                UPDATE project_node pn
+                SET
+                    sequence_no = input_nodes.sequence_no,
+                    updated_at = NOW()
+                FROM input_nodes
+                WHERE pn.project_id = $1 AND
+                    pn.id = input_nodes.node_id
+                RETURNING
+                    pn.project_id,
+                    pn.id AS node_id,
+                    pn.sequence_no,
+                    to_char(pn.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+            )
+            SELECT
+                un.project_id,
+                un.node_id,
+                un.sequence_no,
+                un.updated_at
+            FROM updated_nodes un
+            ORDER BY un.sequence_no ASC, un.node_id ASC
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                reorderProjectNodesSql,
+                input.projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            dto::view::ReorderedProjectNodesView view{
+                .projectId = result.front()["project_id"].as<std::int64_t>(),
+                .nodes = {},
+                .updatedAt = result.front()["updated_at"].as<std::string>()
+            };
+            view.nodes.reserve(result.size());
+
+            for (const auto &row : result) {
+                view.nodes.push_back(dto::view::ReorderedProjectNodeItemView{
+                    .nodeId = row["node_id"].as<std::int64_t>(),
+                    .sequenceNo = row["sequence_no"].as<int>()
+                });
+            }
+
+            co_return view;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
 } // namespace project_tracker::modules::project_node::repository

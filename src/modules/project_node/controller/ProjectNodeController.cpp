@@ -1,6 +1,7 @@
 #include "modules/project_node/controller/ProjectNodeController.h"
 
 #include <regex>
+#include <unordered_set>
 
 #include <drogon/drogon.h>
 
@@ -97,6 +98,23 @@ namespace project_tracker::modules::project_node::controller {
             json["created_at"] = node.createdAt;
             json["updated_at"] = node.updatedAt;
 
+            return json;
+        }
+
+        Json::Value buildReorderedProjectNodesJson(
+            const dto::view::ReorderedProjectNodesView &result) {
+            Json::Value json(Json::objectValue);
+            json["project_id"] = result.projectId;
+            json["nodes"] = Json::Value(Json::arrayValue);
+
+            for (const auto &node : result.nodes) {
+                Json::Value nodeJson(Json::objectValue);
+                nodeJson["node_id"] = node.nodeId;
+                nodeJson["sequence_no"] = node.sequenceNo;
+                json["nodes"].append(nodeJson);
+            }
+
+            json["updated_at"] = result.updatedAt;
             return json;
         }
 
@@ -426,6 +444,117 @@ namespace project_tracker::modules::project_node::controller {
         try {
             const auto node = co_await projectNodeService_.updateProjectNodeBasicInfo(input);
             co_return api::ok(buildUpdatedProjectNodeBasicInfoJson(node));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectNodeController::reorderProjectNodes(drogon::HttpRequestPtr request,
+                                               std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        if (!json->isMember("nodes") || !(*json)["nodes"].isArray()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "nodes 必须是数组");
+        }
+
+        const Json::Value &nodesJson = (*json)["nodes"];
+        if (nodesJson.empty()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "nodes 不能为空数组");
+        }
+
+        dto::command::ReorderProjectNodesInput input{
+            .projectId = projectId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole,
+            .nodes = {}
+        };
+        input.nodes.reserve(nodesJson.size());
+
+        std::unordered_set<std::int64_t> seenNodeIds;
+        seenNodeIds.reserve(nodesJson.size());
+        std::vector<bool> seenSequenceNos(nodesJson.size() + 1, false);
+
+        for (Json::ArrayIndex index = 0; index < nodesJson.size(); ++index) {
+            const Json::Value &nodeJson = nodesJson[index];
+            if (!nodeJson.isObject()) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes 中的每一项都必须是 JSON 对象");
+            }
+
+            std::int64_t nodeId = 0;
+            if (!util::readRequiredInt64(nodeJson, "node_id", nodeId) || nodeId <= 0) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].node_id 必须是大于 0 的整数");
+            }
+
+            int sequenceNo = 0;
+            if (!util::readRequiredInt(nodeJson, "sequence_no", sequenceNo) || sequenceNo <= 0) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].sequence_no 必须是大于 0 的整数");
+            }
+
+            if (!seenNodeIds.insert(nodeId).second) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].node_id 不能重复");
+            }
+
+            if (static_cast<Json::ArrayIndex>(sequenceNo) > nodesJson.size() ||
+                seenSequenceNos[sequenceNo]) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].sequence_no 必须从 1 连续递增");
+            }
+
+            seenSequenceNos[sequenceNo] = true;
+            input.nodes.push_back(dto::command::ReorderProjectNodeItem{
+                .nodeId = nodeId,
+                .sequenceNo = sequenceNo
+            });
+        }
+
+        try {
+            const auto result = co_await projectNodeService_.reorderProjectNodes(input);
+            co_return api::ok(buildReorderedProjectNodesJson(result));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }
