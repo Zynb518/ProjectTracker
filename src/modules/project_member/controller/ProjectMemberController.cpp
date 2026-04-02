@@ -49,6 +49,14 @@ namespace project_tracker::modules::project_member::controller {
 
             return json;
         }
+
+        Json::Value buildRemovedProjectMemberJson(const dto::view::RemovedProjectMemberView &member) {
+            Json::Value json(Json::objectValue);
+            json["project_id"] = member.projectId;
+            json["user_id"] = member.userId;
+
+            return json;
+        }
     } // namespace
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -154,6 +162,49 @@ namespace project_tracker::modules::project_member::controller {
         try {
             const auto member = co_await projectMemberService_.addProjectMember(input);
             co_return api::ok(buildAddedProjectMemberJson(member));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectMemberController::removeProjectMember(drogon::HttpRequestPtr request,
+                                                 std::int64_t projectId,
+                                                 std::int64_t memberUserId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        if (memberUserId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "member_user_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto member = co_await projectMemberService_.removeProjectMember(
+                dto::command::RemoveProjectMemberInput{
+                    .projectId = projectId,
+                    .memberUserId = memberUserId,
+                    .operatorUserId = *userId,
+                    .operatorUserRole = *systemRole
+                });
+            co_return api::ok(buildRemovedProjectMemberJson(member));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

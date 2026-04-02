@@ -355,4 +355,122 @@ namespace project_tracker::modules::project_member::repository {
                 "数据库操作失败");
         }
     }
+
+    drogon::Task<std::optional<RemoveProjectMemberProjectCheckResult>>
+    ProjectMemberRepository::findRemoveProjectMemberProjectCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId) const {
+        static const std::string findRemoveProjectMemberProjectCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status
+            FROM project p
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1
+            FOR UPDATE OF p
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findRemoveProjectMemberProjectCheckResultForUpdateSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return RemoveProjectMemberProjectCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .status = static_cast<project_domain::ProjectStatus>(row["status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<std::int64_t>>
+    ProjectMemberRepository::findRemoveProjectMemberCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId,
+        std::int64_t memberUserId) const {
+        static const std::string findRemoveProjectMemberCheckResultForUpdateSql = R"SQL(
+            SELECT
+                pm.id
+            FROM project_member pm
+            WHERE pm.project_id = $1 AND
+                pm.user_id = $2
+            FOR UPDATE OF pm
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findRemoveProjectMemberCheckResultForUpdateSql,
+                projectId,
+                memberUserId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            co_return result.front()["id"].as<std::int64_t>();
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::RemovedProjectMemberView>>
+    ProjectMemberRepository::deleteProjectMember(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::RemoveProjectMemberInput &input) const {
+        // 这条 DELETE 把“目标成员仍存在”与“当前项目下已无未完成子任务”收敛到同一条 statement。
+        // 在 service 已先锁住 project 和 project_member 行的前提下，
+        // 这里返回空就只表达一种语义：目标成员在当前项目下仍存在未完成子任务。
+        static const std::string deleteProjectMemberSql = R"SQL(
+            DELETE FROM project_member pm
+            WHERE pm.project_id = $1 AND
+                pm.user_id = $2 AND
+                NOT EXISTS (
+                    SELECT 1
+                    FROM sub_task st
+                    JOIN project_node pn ON pn.id = st.node_id
+                    WHERE pn.project_id = $1 AND
+                        st.responsible_user_id = $2 AND
+                        st.status <> 3
+                )
+            RETURNING
+                pm.project_id,
+                pm.user_id
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                deleteProjectMemberSql,
+                input.projectId,
+                input.memberUserId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return dto::view::RemovedProjectMemberView{
+                .projectId = row["project_id"].as<std::int64_t>(),
+                .userId = row["user_id"].as<std::int64_t>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
 } // namespace project_tracker::modules::project_member::repository

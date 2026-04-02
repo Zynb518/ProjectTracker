@@ -10,9 +10,11 @@
 #include "common/db/SqlExecutor.h"
 #include "modules/project/domain/ProjectEnums.h"
 #include "modules/project_member/dto/command/AddProjectMemberInput.h"
+#include "modules/project_member/dto/command/RemoveProjectMemberInput.h"
 #include "modules/project_member/dto/view/AddedProjectMemberView.h"
 #include "modules/project_member/dto/view/ProjectMemberCandidateView.h"
 #include "modules/project_member/dto/view/ProjectMemberListItemView.h"
+#include "modules/project_member/dto/view/RemovedProjectMemberView.h"
 #include "modules/user/domain/UserEnums.h"
 
 namespace project_tracker::modules::project_member::repository {
@@ -61,6 +63,13 @@ namespace project_tracker::modules::project_member::repository {
         project::domain::ProjectStatus status;
     };
 
+    // 移除项目成员前的项目级校验信息
+    struct RemoveProjectMemberProjectCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus status;
+    };
+
     class ProjectMemberRepository {
     public:
         // 查询项目成员列表
@@ -89,5 +98,23 @@ namespace project_tracker::modules::project_member::repository {
         drogon::Task<std::optional<dto::view::AddedProjectMemberView>>
         insertProjectMember(const common::db::SqlExecutorPtr &executor,
                             const dto::command::AddProjectMemberInput &input) const;
+
+        // 锁定项目行，供移除项目成员写事务做前置检查
+        drogon::Task<std::optional<RemoveProjectMemberProjectCheckResult>>
+        findRemoveProjectMemberProjectCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t projectId) const;
+
+        // 锁定目标成员关系；返回空表示目标用户不是当前项目成员
+        drogon::Task<std::optional<std::int64_t>>
+        findRemoveProjectMemberCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t projectId,
+            std::int64_t memberUserId) const;
+
+        // 原子移除项目成员；返回空表示目标成员仍存在未完成子任务
+        drogon::Task<std::optional<dto::view::RemovedProjectMemberView>>
+        deleteProjectMember(const common::db::SqlExecutorPtr &executor,
+                            const dto::command::RemoveProjectMemberInput &input) const;
     };
 } // namespace project_tracker::modules::project_member::repository

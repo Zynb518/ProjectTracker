@@ -1,0 +1,159 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@ownerUsername = li_ming
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableAdminProjectName = remove_member_admin_case_{{$timestamp}}
+@repeatableOwnerProjectName = remove_member_owner_case_{{$timestamp}}
+@repeatablePersonalProjectName = remove_member_personal_case_{{$timestamp}}
+@candidateUserId = 3
+@missingProjectId = 999999
+@missingMemberUserId = 999999
+@invalidProjectId = 0
+@invalidMemberUserId = 0
+
+### 提示：正常路径会先创建临时项目，再添加成员，再移除成员，因此可以重复回放。
+### 当前种子数据中：wang_jie(id=3) 为启用状态项目经理。
+### 说明：40908 需要“目标成员在当前项目下仍负责未完成子任务”的稳定样本；当前种子暂不满足这一前提，后续等节点/子任务链路补齐后再改成可重复用例。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableAdminProjectName}}",
+  "description": "用于验证管理员移除项目成员接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableAdminRemoveMemberProjectId", response.body.data.id); %}
+
+### 正常路径：管理员为临时项目添加成员 wang_jie
+POST {{baseUrl}}/api/projects/{{repeatableAdminRemoveMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 正常路径：管理员移除临时项目成员 wang_jie
+DELETE {{baseUrl}}/api/projects/{{repeatableAdminRemoveMemberProjectId}}/members/{{candidateUserId}}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：项目负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：项目负责人创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableOwnerProjectName}}",
+  "description": "用于验证项目负责人移除项目成员接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableOwnerRemoveMemberProjectId", response.body.data.id); %}
+
+### 正常路径：项目负责人为临时项目添加成员 wang_jie
+POST {{baseUrl}}/api/projects/{{repeatableOwnerRemoveMemberProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateUserId}}
+}
+
+### 正常路径：项目负责人移除临时项目成员 wang_jie
+DELETE {{baseUrl}}/api/projects/{{repeatableOwnerRemoveMemberProjectId}}/members/{{candidateUserId}}
+
+### 异常路径：项目负责人尝试移除自己，预期 403
+DELETE {{baseUrl}}/api/projects/{{repeatableOwnerRemoveMemberProjectId}}/members/2
+
+### 正常路径：项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录移除项目成员，预期 401
+DELETE {{baseUrl}}/api/projects/{{repeatableAdminRemoveMemberProjectId}}/members/{{candidateUserId}}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工移除非本人负责项目的成员，预期 403
+DELETE {{baseUrl}}/api/projects/{{repeatableAdminRemoveMemberProjectId}}/members/{{candidateUserId}}
+
+### 正常路径：普通员工创建临时个人项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatablePersonalProjectName}}",
+  "description": "用于验证个人自用项目禁止移除成员。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatablePersonalRemoveMemberProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员尝试在普通员工个人自用项目移除成员，预期 409（40913）
+DELETE {{baseUrl}}/api/projects/{{repeatablePersonalRemoveMemberProjectId}}/members/{{candidateUserId}}
+
+### 异常路径：项目成员不存在，预期 404（40404）
+DELETE {{baseUrl}}/api/projects/{{repeatableAdminRemoveMemberProjectId}}/members/{{missingMemberUserId}}
+
+### 异常路径：重复移除同一成员，预期 404（40404）
+DELETE {{baseUrl}}/api/projects/{{repeatableAdminRemoveMemberProjectId}}/members/{{candidateUserId}}
+
+### 异常路径：project_id 小于等于 0，预期 400
+DELETE {{baseUrl}}/api/projects/{{invalidProjectId}}/members/{{candidateUserId}}
+
+### 异常路径：member_user_id 小于等于 0，预期 400
+DELETE {{baseUrl}}/api/projects/{{repeatableAdminRemoveMemberProjectId}}/members/{{invalidMemberUserId}}
+
+### 异常路径：项目不存在，预期 404
+DELETE {{baseUrl}}/api/projects/{{missingProjectId}}/members/{{candidateUserId}}

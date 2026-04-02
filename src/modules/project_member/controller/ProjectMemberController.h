@@ -19,6 +19,10 @@ namespace project_tracker::modules::project_member::controller {
                           "/api/projects/{project_id}/members",
                           drogon::Post,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectMemberController::removeProjectMember,
+                          "/api/projects/{project_id}/members/{member_user_id}",
+                          drogon::Delete,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(ProjectMemberController::listProjectMemberCandidates,
                           "/api/projects/{project_id}/members/candidates",
                           drogon::Get,
@@ -32,6 +36,11 @@ namespace project_tracker::modules::project_member::controller {
         drogon::Task<drogon::HttpResponsePtr>
         addProjectMember(drogon::HttpRequestPtr request,
                          std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        removeProjectMember(drogon::HttpRequestPtr request,
+                            std::int64_t projectId,
+                            std::int64_t memberUserId);
 
         drogon::Task<drogon::HttpResponsePtr>
         listProjectMemberCandidates(drogon::HttpRequestPtr request,
