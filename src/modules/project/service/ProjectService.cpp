@@ -90,7 +90,6 @@ namespace project_tracker::modules::project::service {
                     error::ErrorCode::ProjectCompletedReadonly,
                     "修改项目基础信息失败");
             }
-
             co_return *project;
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(

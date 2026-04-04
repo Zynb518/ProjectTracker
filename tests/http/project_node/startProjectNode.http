@@ -1,0 +1,265 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableAdminStartNodeProjectName = start_node_admin_case_{{$timestamp}}
+@repeatableDelayedStartNodeProjectName = start_node_delayed_case_{{$timestamp}}
+@repeatableEmployeeStartNodeProjectName = start_node_employee_case_{{$timestamp}}
+@nodeWithTasksProjectId = 2
+@nodeWithTasksId = 2
+@completedNodeProjectId = 1
+@completedNodeId = 1
+@missingProjectId = 999999
+@missingNodeId = 999999
+@invalidProjectId = 0
+@invalidNodeId = 0
+
+### 提示：正常路径和部分异常路径会先创建临时项目与临时节点，因此可以重复回放。
+### 提示：当前使用固定 project 2 / node 2（移动端打卡 / 原型设计）验证“节点下存在子任务时不能手动开始”。
+### 提示：当前使用固定 project 1 / node 1（官网重构 / 需求分析）验证“已完成节点不能直接再次开始”。
+### 当前为 12.7 手动开始阶段节点 的 RED 用例；接口未实现前，相关请求会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建可手动开始的临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableAdminStartNodeProjectName}}",
+  "description": "用于验证管理员手动开始阶段节点接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableAdminStartNodeProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建无子任务的临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableAdminStartNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "联调准备",
+  "description": "用于验证管理员手动开始无子任务节点。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-15"
+}
+
+> {% client.global.set("repeatableAdminStartNodeId", response.body.data.id); %}
+
+### 正常路径：管理员手动开始刚创建的临时阶段节点，预期 status=2
+POST {{baseUrl}}/api/projects/{{repeatableAdminStartNodeProjectId}}/nodes/{{repeatableAdminStartNodeId}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员手动开始阶段节点成功并返回进行中状态", function() {
+  client.assert(response.status === 200, "手动开始阶段节点应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.id === client.global.get("repeatableAdminStartNodeId"), "返回的 id 应等于目标节点");
+  client.assert(response.body.data.status === 2, "未逾期节点手动开始后 status 应为 2");
+  client.assert(response.body.data.completed_at === null, "completed_at 应为 null");
+});
+%}
+
+### 正常路径：管理员创建一个计划结束日已过的临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableDelayedStartNodeProjectName}}",
+  "description": "用于验证手动开始逾期阶段节点后返回已延期状态。",
+  "planned_start_date": "2026-01-01",
+  "planned_end_date": "2026-01-31"
+}
+
+> {% client.global.set("repeatableDelayedStartNodeProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建一个计划结束日已过的临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableDelayedStartNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "补录执行",
+  "description": "用于验证逾期阶段节点开始后返回已延期。",
+  "planned_start_date": "2026-01-10",
+  "planned_end_date": "2026-01-20"
+}
+
+> {% client.global.set("repeatableDelayedStartNodeId", response.body.data.id); %}
+
+### 正常路径：管理员手动开始逾期临时阶段节点，预期 status=4
+POST {{baseUrl}}/api/projects/{{repeatableDelayedStartNodeProjectId}}/nodes/{{repeatableDelayedStartNodeId}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员手动开始逾期阶段节点成功并返回已延期状态", function() {
+  client.assert(response.status === 200, "手动开始逾期节点应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.id === client.global.get("repeatableDelayedStartNodeId"), "返回的 id 应等于目标节点");
+  client.assert(response.body.data.status === 4, "逾期节点手动开始后 status 应为 4");
+  client.assert(response.body.data.completed_at === null, "completed_at 应为 null");
+});
+%}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录手动开始阶段节点，预期 401
+POST {{baseUrl}}/api/projects/{{repeatableAdminStartNodeProjectId}}/nodes/{{repeatableAdminStartNodeId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工创建个人自用临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableEmployeeStartNodeProjectName}}",
+  "description": "用于验证项目负责人手动开始自己的阶段节点。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableEmployeeStartNodeProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工创建个人项目下的无子任务临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeStartNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "个人推进",
+  "description": "用于验证普通员工项目负责人可手动开始自己的节点。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-20"
+}
+
+> {% client.global.set("repeatableEmployeeStartNodeId", response.body.data.id); %}
+
+### 正常路径：普通员工手动开始自己项目下的阶段节点，预期 status=2
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeStartNodeProjectId}}/nodes/{{repeatableEmployeeStartNodeId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员不能手动开始普通员工创建的个人自用项目节点，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeStartNodeProjectId}}/nodes/{{repeatableEmployeeStartNodeId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工重新登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工手动开始非本人负责项目节点，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableAdminStartNodeProjectId}}/nodes/{{repeatableAdminStartNodeId}}/start
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：节点下存在子任务，不允许手动开始，预期 409
+POST {{baseUrl}}/api/projects/{{nodeWithTasksProjectId}}/nodes/{{nodeWithTasksId}}/start
+Content-Type: application/json
+
+{}
+
+### 异常路径：已完成节点不能直接再次开始，预期 409
+POST {{baseUrl}}/api/projects/{{completedNodeProjectId}}/nodes/{{completedNodeId}}/start
+Content-Type: application/json
+
+{}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{invalidProjectId}}/nodes/{{repeatableAdminStartNodeId}}/start
+Content-Type: application/json
+
+{}
+
+### 异常路径：node_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminStartNodeProjectId}}/nodes/{{invalidNodeId}}/start
+Content-Type: application/json
+
+{}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminStartNodeProjectId}}/nodes/{{repeatableAdminStartNodeId}}/start
+Content-Type: application/json
+
+[]
+
+### 异常路径：项目不存在，预期 404
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/nodes/{{repeatableAdminStartNodeId}}/start
+Content-Type: application/json
+
+{}
+
+### 异常路径：阶段节点不存在，预期 404
+POST {{baseUrl}}/api/projects/{{repeatableAdminStartNodeProjectId}}/nodes/{{missingNodeId}}/start
+Content-Type: application/json
+
+{}

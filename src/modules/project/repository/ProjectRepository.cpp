@@ -151,19 +151,29 @@ namespace project_tracker::modules::project::repository {
     ProjectRepository::updateProjectBasicInfo(
         const common::db::SqlExecutorPtr &executor,
         const dto::command::UpdateProjectBasicInfoInput &input) const {
+        // 基础信息修改后，同步按最终 planned_end_date 重算未完成项目状态：
+        // 未开始保持未开始；已开始项目只在进行中/已延期之间切换。
         static const std::string updateProjectBasicInfoSql = R"SQL(
             UPDATE project
             SET
                 name = COALESCE($2, name),
                 description = COALESCE($3, description),
-                planned_start_date = COALESCE($4, planned_start_date),
-                planned_end_date = COALESCE($5, planned_end_date),
+                planned_start_date = COALESCE($4::date, planned_start_date),
+                planned_end_date = COALESCE($5::date, planned_end_date),
+                status = CASE
+                    WHEN status = 1 THEN 1
+                    WHEN status = 3 THEN 3
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date >
+                         COALESCE($5::date, planned_end_date) THEN 4
+                    ELSE 2
+                END,
                 updated_at = NOW()
             WHERE id = $1
             RETURNING
                 id,
                 name,
                 description,
+                status,
                 to_char(planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
                 to_char(planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
                 to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
@@ -187,6 +197,7 @@ namespace project_tracker::modules::project::repository {
                 .id = row["id"].as<std::int64_t>(),
                 .name = row["name"].as<std::string>(),
                 .description = row["description"].as<std::string>(),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
                 .plannedStartDate = row["planned_start_date"].as<std::string>(),
                 .plannedEndDate = row["planned_end_date"].as<std::string>(),
                 .updatedAt = row["updated_at"].as<std::string>()

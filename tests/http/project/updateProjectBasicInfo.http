@@ -19,6 +19,7 @@ Content-Type: application/json
 }
 
 ### 正常路径：修改项目基础信息
+### 预期响应 data 中包含最新 status；若本次改动影响超期判定，应返回重算后的状态值
 PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
 Content-Type: application/json
 

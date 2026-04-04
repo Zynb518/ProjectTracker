@@ -131,6 +131,7 @@ namespace project_tracker::modules::project::controller {
             json["id"] = project.id;
             json["name"] = project.name;
             json["description"] = project.description;
+            json["status"] = domain::toInt(project.status);
             json["planned_start_date"] = project.plannedStartDate;
             json["planned_end_date"] = project.plannedEndDate;
             json["updated_at"] = project.updatedAt;
