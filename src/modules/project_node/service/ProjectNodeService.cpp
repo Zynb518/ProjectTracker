@@ -230,4 +230,72 @@ namespace project_tracker::modules::project_node::service {
                 "数据库事务创建失败");
         }
     }
+
+    drogon::Task<std::int64_t>
+    ProjectNodeService::deleteProjectNode(const dto::command::DeleteProjectNodeInput &input) const {
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+
+            const auto projectId = co_await projectNodeRepository_.findProjectIdForUpdate(
+                transaction,
+                input.projectId);
+            if (!projectId) {
+                error::throwNotFound(
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            const auto nodeCheckResult = co_await
+                projectNodeRepository_.findProjectNodeDeleteCheckResultForUpdate(
+                    transaction,
+                    input.projectId,
+                    input.nodeId);
+            if (!nodeCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::PhaseNotFound,
+                    "阶段节点不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (nodeCheckResult->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员删除阶段节点");
+            }
+
+            if (!isAdmin && nodeCheckResult->ownerUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目负责人");
+            }
+
+            if (nodeCheckResult->projectStatus == project_domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "项目已完成，不允许删除阶段节点");
+            }
+
+            if (nodeCheckResult->nodeStatus == domain::ProjectNodeStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::PhaseCompletedReadonly,
+                    "阶段节点已完成，必须先撤销完成再删除");
+            }
+
+            const bool deleted = co_await projectNodeRepository_.deleteProjectNode(
+                transaction,
+                input);
+            if (!deleted) {
+                error::throwInternalError(
+                    error::ErrorCode::InternalError,
+                    "删除阶段节点失败");
+            }
+
+            co_return input.nodeId;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
+    }
 } // namespace project_tracker::modules::project_node::service

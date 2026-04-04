@@ -21,6 +21,10 @@ namespace project_tracker::modules::project_node::service {
         drogon::Task<dto::view::ReorderedProjectNodesView>
         reorderProjectNodes(const dto::command::ReorderProjectNodesInput &input) const;
 
+        // 删除阶段节点
+        drogon::Task<std::int64_t>
+        deleteProjectNode(const dto::command::DeleteProjectNodeInput &input) const;
+
     private:
         repository::ProjectNodeRepository projectNodeRepository_;
     };

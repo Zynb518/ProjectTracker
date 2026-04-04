@@ -27,6 +27,10 @@ namespace project_tracker::modules::project_node::controller {
                           "/api/projects/{project_id}/nodes/{node_id}",
                           drogon::Patch,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::deleteProjectNode,
+                          "/api/projects/{project_id}/nodes/{node_id}",
+                          drogon::Delete,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(ProjectNodeController::reorderProjectNodes,
                           "/api/projects/{project_id}/nodes/reorder",
                           drogon::Put,
@@ -50,6 +54,11 @@ namespace project_tracker::modules::project_node::controller {
         updateProjectNodeBasicInfo(drogon::HttpRequestPtr request,
                                    std::int64_t projectId,
                                    std::int64_t nodeId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        deleteProjectNode(drogon::HttpRequestPtr request,
+                          std::int64_t projectId,
+                          std::int64_t nodeId);
 
         drogon::Task<drogon::HttpResponsePtr>
         reorderProjectNodes(drogon::HttpRequestPtr request,

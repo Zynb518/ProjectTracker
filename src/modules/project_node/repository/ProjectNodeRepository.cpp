@@ -561,6 +561,105 @@ namespace project_tracker::modules::project_node::repository {
         }
     }
 
+    drogon::Task<std::optional<ProjectNodeDeleteCheckResult>>
+    ProjectNodeRepository::findProjectNodeDeleteCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId,
+        std::int64_t nodeId) const {
+        // 查询思路：
+        // 1. 项目行已在写事务上一步锁定，这里只锁目标节点，继续带回所属项目上的权限/状态字段。
+        // 2. 同时带回节点当前 sequence_no，供后续删除后补齐顺序号使用。
+        static const std::string findProjectNodeDeleteCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status AS project_status,
+                pn.status AS node_status,
+                pn.sequence_no
+            FROM project p
+            JOIN project_node pn ON pn.project_id = p.id
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1 AND
+                pn.id = $2
+            FOR UPDATE OF pn
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectNodeDeleteCheckResultForUpdateSql,
+                projectId,
+                nodeId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectNodeDeleteCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .projectStatus = static_cast<project::domain::ProjectStatus>(
+                    row["project_status"].as<int>()),
+                .nodeStatus = static_cast<domain::ProjectNodeStatus>(
+                    row["node_status"].as<int>()),
+                .sequenceNo = row["sequence_no"].as<int>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<bool>
+    ProjectNodeRepository::deleteProjectNode(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::DeleteProjectNodeInput &input) const {
+        // 查询思路：
+        // 1. deleted_node 先删除目标节点，并取回它原来的 sequence_no。
+        // 2. shifted_nodes 再把同项目中排在它后面的节点统一前移一位。
+        // 3. 整个删除与补位都收敛在同一条 statement 里，避免中间出现顺序空洞。
+        static const std::string deleteProjectNodeSql = R"SQL(
+            WITH deleted_node AS (
+                DELETE FROM project_node pn
+                WHERE pn.project_id = $1 AND
+                    pn.id = $2
+                RETURNING
+                    pn.project_id,
+                    pn.id,
+                    pn.sequence_no
+            ),
+            shifted_nodes AS (
+                UPDATE project_node pn
+                SET
+                    sequence_no = pn.sequence_no - 1,
+                    updated_at = NOW()
+                FROM deleted_node dn
+                WHERE pn.project_id = dn.project_id AND
+                    pn.sequence_no > dn.sequence_no
+                RETURNING pn.id
+            )
+            SELECT
+                dn.id
+            FROM deleted_node dn
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                deleteProjectNodeSql,
+                input.projectId,
+                input.nodeId);
+
+            co_return !result.empty();
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<ProjectNodeReorderCheckResult>>
     ProjectNodeRepository::findProjectNodeReorderCheckResultForUpdate(
         const common::db::SqlExecutorPtr &executor,

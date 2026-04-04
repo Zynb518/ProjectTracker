@@ -450,6 +450,52 @@ namespace project_tracker::modules::project_node::controller {
     }
 
     drogon::Task<drogon::HttpResponsePtr>
+    ProjectNodeController::deleteProjectNode(drogon::HttpRequestPtr request,
+                                             std::int64_t projectId,
+                                             std::int64_t nodeId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        if (nodeId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "node_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto deletedNodeId = co_await projectNodeService_.deleteProjectNode(
+                dto::command::DeleteProjectNodeInput{
+                    .projectId = projectId,
+                    .nodeId = nodeId,
+                    .operatorUserId = *userId,
+                    .operatorUserRole = *systemRole
+                });
+
+            Json::Value data(Json::objectValue);
+            data["id"] = deletedNodeId;
+            co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
     ProjectNodeController::reorderProjectNodes(drogon::HttpRequestPtr request,
                                                std::int64_t projectId) {
         const auto &session = request->getSession();

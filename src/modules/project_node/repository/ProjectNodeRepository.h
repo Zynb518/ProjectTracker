@@ -47,6 +47,15 @@ namespace project_tracker::modules::project_node::repository {
         domain::ProjectNodeStatus nodeStatus;
     };
 
+    // 删除阶段节点前的校验信息
+    struct ProjectNodeDeleteCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+        domain::ProjectNodeStatus nodeStatus;
+        int sequenceNo;
+    };
+
     // 调整阶段节点顺序前的校验信息
     struct ProjectNodeReorderCheckResult {
         std::int64_t ownerUserId;
@@ -105,6 +114,18 @@ namespace project_tracker::modules::project_node::repository {
         drogon::Task<std::optional<dto::view::UpdatedProjectNodeBasicInfoView>>
         updateProjectNodeBasicInfo(const common::db::SqlExecutorPtr &executor,
                                    const dto::command::UpdateProjectNodeBasicInfoInput &input) const;
+
+        // 锁定阶段节点行，供删除阶段节点写事务做前置检查
+        drogon::Task<std::optional<ProjectNodeDeleteCheckResult>>
+        findProjectNodeDeleteCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t projectId,
+            std::int64_t nodeId) const;
+
+        // 删除阶段节点并补齐后续顺序号
+        drogon::Task<bool>
+        deleteProjectNode(const common::db::SqlExecutorPtr &executor,
+                          const dto::command::DeleteProjectNodeInput &input) const;
 
         // 锁定输入中的阶段节点，供调整顺序写事务做前置检查
         drogon::Task<std::optional<ProjectNodeReorderCheckResult>>

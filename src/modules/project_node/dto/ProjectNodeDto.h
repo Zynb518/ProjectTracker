@@ -1,6 +1,7 @@
 #pragma once
 
 #include "modules/project_node/dto/command/CreateProjectNodeInput.h"
+#include "modules/project_node/dto/command/DeleteProjectNodeInput.h"
 #include "modules/project_node/dto/command/ReorderProjectNodesInput.h"
 #include "modules/project_node/dto/command/UpdateProjectNodeBasicInfoInput.h"
 #include "modules/project_node/dto/view/CreatedProjectNodeView.h"

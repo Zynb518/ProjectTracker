@@ -1,0 +1,104 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@password = 123456
+@repeatableDeleteNodeProjectName = delete_node_case_{{$timestamp}}
+
+### 提示：正常路径会先创建临时项目和 3 个阶段节点，再删除中间节点并确认剩余顺序自动补齐，因此可以重复回放。
+### 当前为 12.6 删除阶段节点 的 RED 用例；接口未实现前，删除请求或后续断言会失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableDeleteNodeProjectName}}",
+  "description": "用于验证删除阶段节点后自动补齐顺序。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableDeleteNodeProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建第一个阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableDeleteNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "需求梳理",
+  "description": "用于删除节点测试的第一个节点。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2026-04-05"
+}
+
+> {% client.global.set("repeatableDeleteNodeId1", response.body.data.id); %}
+
+### 正常路径：管理员创建第二个阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableDeleteNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "原型设计",
+  "description": "用于删除节点测试的第二个节点。",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+> {% client.global.set("repeatableDeleteNodeId2", response.body.data.id); %}
+
+### 正常路径：管理员创建第三个阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableDeleteNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "开发实现",
+  "description": "用于删除节点测试的第三个节点。",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-18"
+}
+
+> {% client.global.set("repeatableDeleteNodeId3", response.body.data.id); %}
+
+### 正常路径：管理员删除中间阶段节点，预期只返回被删节点 ID
+DELETE {{baseUrl}}/api/projects/{{repeatableDeleteNodeProjectId}}/nodes/{{repeatableDeleteNodeId2}}
+
+> {%
+client.test("删除阶段节点成功并返回被删节点 ID", function() {
+  client.assert(response.status === 200, "删除阶段节点应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.id === client.global.get("repeatableDeleteNodeId2"), "返回的 id 应等于被删除节点");
+});
+%}
+
+### 正常路径：管理员获取阶段节点列表，确认剩余节点顺序自动补齐为 1..N
+GET {{baseUrl}}/api/projects/{{repeatableDeleteNodeProjectId}}/nodes
+
+> {%
+client.test("删除后剩余节点顺序自动补齐", function() {
+  client.assert(response.status === 200, "获取阶段节点列表应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.list.length === 2, "删除后应只剩 2 个节点");
+
+  const firstNode = response.body.data.list[0];
+  const secondNode = response.body.data.list[1];
+
+  client.assert(firstNode.id === client.global.get("repeatableDeleteNodeId1"), "第一个节点应保持为原第一个节点");
+  client.assert(firstNode.sequence_no === 1, "第一个节点顺序号应为 1");
+  client.assert(secondNode.id === client.global.get("repeatableDeleteNodeId3"), "第二个节点应补位为原第三个节点");
+  client.assert(secondNode.sequence_no === 2, "第二个节点顺序号应补齐为 2");
+});
+%}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
