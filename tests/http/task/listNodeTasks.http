@@ -1,0 +1,109 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@memberUsername = chen_xu
+@nonMemberUsername = wang_jie
+@password = 123456
+@projectId = 1
+@nodeId = 1
+@responsibleUserId = 4
+@completedStatus = 3
+@invalidProjectId = 0
+@invalidNodeId = 0
+@invalidResponsibleUserId = 0
+@invalidStatus = 9
+@missingProjectId = 999999
+@missingNodeId = 999999
+
+### 提示：当前种子数据中，project 1（官网重构）下的阶段节点 1 为“需求分析”，该节点下已有一个子任务“页面清单整理”。
+### 提示：该子任务负责人为 chen_xu（user_id=4），状态为 3=已完成，因此可以直接回放 status / responsible_user_id 筛选。
+### 当前为 13.1 获取节点下子任务列表 的 RED 用例；接口未实现前，相关请求会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员获取节点下子任务列表
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{nodeId}}/subtasks
+
+### 正常路径：管理员按 status 筛选节点下子任务
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{nodeId}}/subtasks?status={{completedStatus}}
+
+### 正常路径：管理员按 responsible_user_id 筛选节点下子任务
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{nodeId}}/subtasks?responsible_user_id={{responsibleUserId}}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取节点下子任务列表，预期 401
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{nodeId}}/subtasks
+
+### 正常路径：项目成员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{memberUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：项目成员获取自己参与项目中节点下的子任务列表
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{nodeId}}/subtasks
+
+### 正常路径：项目成员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：非项目成员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{nonMemberUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：非项目成员获取节点下子任务列表，预期 403
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{nodeId}}/subtasks
+
+### 正常路径：非项目成员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects/{{invalidProjectId}}/nodes/{{nodeId}}/subtasks
+
+### 异常路径：node_id 小于等于 0，预期 400
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{invalidNodeId}}/subtasks
+
+### 异常路径：status 非法，预期 400
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{nodeId}}/subtasks?status={{invalidStatus}}
+
+### 异常路径：responsible_user_id 非法，预期 400
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{nodeId}}/subtasks?responsible_user_id={{invalidResponsibleUserId}}
+
+### 异常路径：项目不存在，预期 404
+GET {{baseUrl}}/api/projects/{{missingProjectId}}/nodes/{{nodeId}}/subtasks
+
+### 异常路径：阶段节点不存在，预期 404
+GET {{baseUrl}}/api/projects/{{projectId}}/nodes/{{missingNodeId}}/subtasks

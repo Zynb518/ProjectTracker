@@ -1,0 +1,73 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@selfUsername = chen_xu
+@password = 123456
+@completedStatus = 3
+@projectId = 1
+@invalidProjectId = 0
+@invalidStatus = 9
+
+### 提示：当前种子数据中，chen_xu（user_id=4）负责 5 个子任务，分布在 5 个项目下。
+### 提示：其中 project 1（官网重构）下的“页面清单整理”为 status=3，便于直接回放 status / project_id 筛选。
+### 提示：admin 当前未负责任何子任务，因此可用于验证空列表正常路径。
+### 当前为 13.2 获取当前用户负责的子任务列表 的 RED 用例；接口未实现前，相关请求会先失败，后续据此补实现。
+
+### 正常路径：责任人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{selfUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：获取当前用户负责的全部子任务
+GET {{baseUrl}}/api/my/subtasks
+
+### 正常路径：按 status 筛选当前用户负责的子任务
+GET {{baseUrl}}/api/my/subtasks?status={{completedStatus}}
+
+### 正常路径：按 project_id 筛选当前用户负责的子任务
+GET {{baseUrl}}/api/my/subtasks?project_id={{projectId}}
+
+### 正常路径：责任人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取当前用户负责的子任务列表，预期 401
+GET {{baseUrl}}/api/my/subtasks
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员获取自己负责的子任务列表，预期空列表
+GET {{baseUrl}}/api/my/subtasks
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录责任人
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{selfUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：status 非法，预期 400
+GET {{baseUrl}}/api/my/subtasks?status={{invalidStatus}}
+
+### 异常路径：project_id 小于等于 0，预期 400
+GET {{baseUrl}}/api/my/subtasks?project_id={{invalidProjectId}}

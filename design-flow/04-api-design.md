@@ -1638,8 +1638,6 @@ null
 | --- | --- | --- |
 | `status` | 否 | 按状态筛选 |
 | `responsible_user_id` | 否 | 按负责人筛选 |
-| `page` | 否 | 默认 `1` |
-| `page_size` | 否 | 默认 `20` |
 
 **Success `data`**
 
@@ -1663,10 +1661,8 @@ null
       "created_at": "2026-03-27T15:00:00+08:00",
       "updated_at": "2026-03-28T09:30:00+08:00"
     }
-  ],
-  "total": 1,
-  "page": 1,
-  "page_size": 20
+      
+  ]
 }
 ```
 
@@ -1686,8 +1682,6 @@ null
 | --- | --- | --- |
 | `status` | 否 | 按状态筛选 |
 | `project_id` | 否 | 按项目筛选 |
-| `page` | 否 | 默认 `1` |
-| `page_size` | 否 | 默认 `10` |
 
 **Success `data`**
 
@@ -1709,10 +1703,7 @@ null
       "completed_at": null,
       "updated_at": "2026-03-28T09:30:00+08:00"
     }
-  ],
-  "total": 1,
-  "page": 1,
-  "page_size": 10
+  ]
 }
 ```
 
