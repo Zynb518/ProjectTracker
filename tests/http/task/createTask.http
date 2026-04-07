@@ -1,0 +1,453 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@ownerUsername = li_ming
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableAdminTaskProjectName = create_task_admin_case_{{$timestamp}}
+@repeatableOwnerTaskProjectName = create_task_owner_case_{{$timestamp}}
+@repeatablePersonalTaskProjectName = create_task_personal_case_{{$timestamp}}
+@candidateMemberUserId = 3
+@enabledNonMemberUserId = 2
+@completedProjectId = 3
+@completedProjectNodeId = 3
+@activeProjectWithCompletedNodeId = 1
+@completedNodeIdInActiveProject = 1
+@missingProjectId = 999999
+@missingNodeId = 999999
+@invalidProjectId = 0
+@invalidNodeId = 0
+@invalidResponsibleUserId = 0
+@invalidPriority = 9
+
+### 提示：正常路径会先创建临时项目、临时阶段节点，再创建子任务，因此可以重复回放。
+### 提示：当前种子数据中，project 3（财务报表平台）为已完成项目；project 1（官网重构）下 node 1（需求分析）为已完成节点。
+### 提示：enabledNonMemberUserId=2（li_ming）对管理员创建的临时项目默认不是成员，可用于验证 40907。
+### 当前为 13.3 创建子任务 的联调用例；接口主链路已实现后再补到这里，按顺序回放即可。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableAdminTaskProjectName}}",
+  "description": "用于验证管理员创建子任务接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableAdminCreateTaskProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "开发实现",
+  "description": "用于验证管理员在节点下创建子任务。",
+  "planned_start_date": "2026-04-05",
+  "planned_end_date": "2026-04-15"
+}
+
+> {% client.global.set("repeatableAdminCreateTaskNodeId", response.body.data.id); %}
+
+### 正常路径：管理员为临时项目添加成员 wang_jie
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{candidateMemberUserId}}
+}
+
+### 正常路径：管理员为成员 wang_jie 创建子任务
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "接口联调",
+  "description": "用于验证显式指定负责人创建子任务。",
+  "responsible_user_id": {{candidateMemberUserId}},
+  "priority": 3,
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 正常路径：管理员不传 responsible_user_id 和 priority，默认由项目负责人负责且 priority=2
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "日志排查",
+  "description": "用于验证默认负责人和默认优先级。",
+  "planned_start_date": "2026-04-11",
+  "planned_end_date": "2026-04-14"
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录创建子任务，预期 401
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "未登录子任务",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 正常路径：项目负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：项目负责人创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableOwnerTaskProjectName}}",
+  "description": "用于验证项目负责人创建子任务接口。",
+  "planned_start_date": "2026-05-01",
+  "planned_end_date": "2026-05-31"
+}
+
+> {% client.global.set("repeatableOwnerCreateTaskProjectId", response.body.data.id); %}
+
+### 正常路径：项目负责人创建临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableOwnerCreateTaskProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "需求梳理",
+  "description": "用于验证项目负责人创建子任务。",
+  "planned_start_date": "2026-05-05",
+  "planned_end_date": "2026-05-20"
+}
+
+> {% client.global.set("repeatableOwnerCreateTaskNodeId", response.body.data.id); %}
+
+### 正常路径：项目负责人为自己的项目创建子任务
+POST {{baseUrl}}/api/projects/{{repeatableOwnerCreateTaskProjectId}}/nodes/{{repeatableOwnerCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "页面文案确认",
+  "description": "用于验证非管理员项目负责人创建子任务。",
+  "planned_start_date": "2026-05-06",
+  "planned_end_date": "2026-05-12"
+}
+
+### 正常路径：项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工创建临时个人项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatablePersonalTaskProjectName}}",
+  "description": "用于验证个人自用项目的子任务权限。",
+  "planned_start_date": "2026-06-01",
+  "planned_end_date": "2026-06-30"
+}
+
+> {% client.global.set("repeatablePersonalCreateTaskProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工为个人项目创建临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatablePersonalCreateTaskProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "个人待办",
+  "description": "用于验证管理员不能介入个人自用项目的子任务创建。",
+  "planned_start_date": "2026-06-05",
+  "planned_end_date": "2026-06-15"
+}
+
+> {% client.global.set("repeatablePersonalCreateTaskNodeId", response.body.data.id); %}
+
+### 异常路径：普通员工为非本人负责项目创建子任务，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "越权子任务",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员为普通员工个人自用项目创建子任务，预期 403
+POST {{baseUrl}}/api/projects/{{repeatablePersonalCreateTaskProjectId}}/nodes/{{repeatablePersonalCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "管理员越权子任务",
+  "planned_start_date": "2026-06-06",
+  "planned_end_date": "2026-06-10"
+}
+
+### 异常路径：项目已完成，不允许创建子任务，预期 409（40904）
+POST {{baseUrl}}/api/projects/{{completedProjectId}}/nodes/{{completedProjectNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "已完成项目子任务",
+  "planned_start_date": "2026-01-10",
+  "planned_end_date": "2026-01-12"
+}
+
+### 异常路径：阶段节点已完成，不允许创建子任务，预期 409（40905）
+POST {{baseUrl}}/api/projects/{{activeProjectWithCompletedNodeId}}/nodes/{{completedNodeIdInActiveProject}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "已完成节点子任务",
+  "planned_start_date": "2026-03-02",
+  "planned_end_date": "2026-03-04"
+}
+
+### 异常路径：子任务负责人不是当前项目成员，预期 409（40907）
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法负责人子任务",
+  "responsible_user_id": {{enabledNonMemberUserId}},
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：planned_start_date 晚于 planned_end_date，预期 409（40909）
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法日期顺序子任务",
+  "planned_start_date": "2026-04-12",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：子任务时间区间超出所属节点范围，预期 409（40909）
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "越界日期子任务",
+  "planned_start_date": "2026-04-04",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{invalidProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法项目ID子任务",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：node_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{invalidNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法节点ID子任务",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+[
+  {
+    "name": "invalid_body_case"
+  }
+]
+
+### 异常路径：缺少 name，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：name 不是字符串，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": 123,
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：name 为空字符串，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：description 不是字符串，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法说明子任务",
+  "description": 123,
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：responsible_user_id 不是整数，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法负责人类型",
+  "responsible_user_id": "3",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：responsible_user_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法负责人ID",
+  "responsible_user_id": {{invalidResponsibleUserId}},
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：priority 不是整数，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法优先级类型",
+  "priority": "2",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：priority 非法，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法优先级值",
+  "priority": {{invalidPriority}},
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：planned_start_date 缺失，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "缺少开始日期子任务",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：planned_start_date 格式错误，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法开始日期格式",
+  "planned_start_date": "2026/04/06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：planned_end_date 缺失，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "缺少结束日期子任务",
+  "planned_start_date": "2026-04-06"
+}
+
+### 异常路径：planned_end_date 格式错误，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "非法结束日期格式",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026/04/10"
+}
+
+### 异常路径：项目不存在，预期 404
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/nodes/{{repeatableAdminCreateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "缺失项目子任务",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+### 异常路径：阶段节点不存在，预期 404
+POST {{baseUrl}}/api/projects/{{repeatableAdminCreateTaskProjectId}}/nodes/{{missingNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "缺失节点子任务",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}

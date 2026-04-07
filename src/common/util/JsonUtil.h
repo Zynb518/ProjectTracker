@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstdint>
 #include <optional>
 #include <string>
 
@@ -111,6 +112,25 @@ inline bool readOptionalInt(const Json::Value &json,
     }
 
     value = field.asInt();
+    return true;
+}
+
+// 读取可选 64 位整数字段
+inline bool readOptionalInt64(const Json::Value &json,
+                              const std::string &key,
+                              std::optional<std::int64_t> &value) {
+    if (!json.isObject() || !json.isMember(key)) {
+        value = std::nullopt;
+        return true;
+    }
+
+    const Json::Value &field = json[key];
+    if (!field.isInt64()) {
+        value = std::nullopt;
+        return false;
+    }
+
+    value = field.asInt64();
     return true;
 }
 

@@ -22,6 +22,7 @@ add_executable(
     modules/project_template/repository/ProjectTemplateRepository.cpp
     modules/task/controller/TaskController.cpp
     modules/task/repository/TaskRepository.cpp
+    modules/task/service/TaskService.cpp
     modules/user/controller/UserController.cpp
     modules/user/repository/UserRepository.cpp
     modules/user/service/UserService.cpp

@@ -122,6 +122,7 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 - 登录态过滤器放在 `src/filters/`，当前已有 `LoginRequiredFilter`。
 - 新增受保护接口时，优先先挂 filter，再补业务实现，避免 controller 里先散落未登录判断。
 - 手工联调用例放在 `tests/http/`。
+- 默认不要把 `.http` 当作接口实现前置步骤；除非用户明确要求先写 RED 用例，否则优先先把当前接口主链路写完并闭合（如 `Controller -> Service -> Repository` 或 `Controller -> Repository`），再补 `.http`，不要在半条链路阶段提前写用例。
 - `.http` 文件按接口粒度拆分，不按整模块长期混放；例如 `listUsers.http` 这种命名优于宽泛的 `users.http`。
 - JetBrains / CLion 的 `.http` 文件优先保持最简单形式，默认信任 IDE 自动保存和回放 Cookie，不手写 `Set-Cookie` 解析脚本，除非确实需要。
 - `.http` 用例的顺序优先写成“正常路径在前，异常路径在后”，便于人工顺序点击验证。
