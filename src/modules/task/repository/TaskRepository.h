@@ -104,6 +104,22 @@ namespace project_tracker::modules::task::repository {
         std::optional<TaskDeleteFailureReason> failureReason;
     };
 
+    // 手动开始子任务前的项目级校验信息
+    struct TaskStartProjectCheckResult {
+        std::int64_t projectId;
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+    };
+
+    // 手动开始子任务前的子任务级校验信息
+    struct TaskStartTaskCheckResult {
+        std::int64_t nodeId;
+        std::int64_t responsibleUserId;
+        project_node::domain::ProjectNodeStatus nodeStatus;
+        domain::TaskStatus taskStatus;
+    };
+
     class TaskRepository {
     public:
         // 查询节点下子任务列表
@@ -142,6 +158,31 @@ namespace project_tracker::modules::task::repository {
         drogon::Task<TaskDeleteResult>
         deleteTask(const common::db::SqlExecutorPtr &executor,
                    const dto::command::DeleteTaskInput &input) const;
+
+        // 锁定所属项目行，供手动开始子任务写事务做项目级前置检查
+        drogon::Task<std::optional<TaskStartProjectCheckResult>>
+        findTaskStartProjectCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t subTaskId) const;
+
+        // 锁定目标子任务行，供手动开始子任务写事务做子任务级前置检查
+        drogon::Task<std::optional<TaskStartTaskCheckResult>>
+        findTaskStartTaskCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t subTaskId) const;
+
+        // 按手动开始动作更新子任务当前值
+        drogon::Task<std::optional<dto::view::UpdatedTaskStatusView>>
+        updateTaskStatusForStart(const common::db::SqlExecutorPtr &executor,
+                                 std::int64_t subTaskId) const;
+
+        // 追加一条手动开始子任务的进度记录
+        drogon::Task<dto::view::TaskProgressRecordView>
+        insertTaskProgressRecordForStart(const common::db::SqlExecutorPtr &executor,
+                                         std::int64_t subTaskId,
+                                         std::int64_t operatorUserId,
+                                         const std::string &progressNote,
+                                         domain::TaskStatus status) const;
 
         // 锁定项目行，供创建子任务写事务做项目级前置检查
         drogon::Task<std::optional<TaskCreateProjectCheckResult>>

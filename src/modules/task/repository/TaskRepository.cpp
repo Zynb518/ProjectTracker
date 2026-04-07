@@ -473,6 +473,98 @@ namespace project_tracker::modules::task::repository {
         }
     }
 
+    drogon::Task<std::optional<TaskStartProjectCheckResult>>
+    TaskRepository::findTaskStartProjectCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t subTaskId) const {
+        // 查询思路：
+        // 1. 通过 sub_task -> project_node -> project 定位所属项目。
+        // 2. 这一段只锁项目行，供 service 先做项目级权限与冻结判断。
+        static const std::string findTaskStartProjectCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.id AS project_id,
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status AS project_status
+            FROM project p
+            JOIN project_node pn ON pn.project_id = p.id
+            JOIN sub_task st ON st.node_id = pn.id
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE st.id = $1
+            FOR UPDATE OF p
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findTaskStartProjectCheckResultForUpdateSql,
+                subTaskId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return TaskStartProjectCheckResult{
+                .projectId = row["project_id"].as<std::int64_t>(),
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .projectStatus = static_cast<project_domain::ProjectStatus>(
+                    row["project_status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<TaskStartTaskCheckResult>>
+    TaskRepository::findTaskStartTaskCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t subTaskId) const {
+        // 查询思路：
+        // 1. 项目行已在写事务上一步锁定，这里只锁目标子任务行。
+        // 2. 同时带回负责人、所属节点状态与子任务当前状态，供 service 做权限与冻结校验。
+        static const std::string findTaskStartTaskCheckResultForUpdateSql = R"SQL(
+            SELECT
+                pn.id AS node_id,
+                st.responsible_user_id,
+                pn.status AS node_status,
+                st.status AS task_status
+            FROM sub_task st
+            JOIN project_node pn ON pn.id = st.node_id
+            WHERE st.id = $1
+            FOR UPDATE OF st
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findTaskStartTaskCheckResultForUpdateSql,
+                subTaskId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return TaskStartTaskCheckResult{
+                .nodeId = row["node_id"].as<std::int64_t>(),
+                .responsibleUserId = row["responsible_user_id"].as<std::int64_t>(),
+                .nodeStatus = static_cast<project_node_domain::ProjectNodeStatus>(
+                    row["node_status"].as<int>()),
+                .taskStatus = static_cast<domain::TaskStatus>(
+                    row["task_status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<TaskBasicInfoUpdateTaskCheckResult>>
     TaskRepository::findTaskBasicInfoUpdateTaskCheckResultForUpdate(
         const common::db::SqlExecutorPtr &executor,
@@ -506,6 +598,112 @@ namespace project_tracker::modules::task::repository {
                     row["node_status"].as<int>()),
                 .taskStatus = static_cast<domain::TaskStatus>(
                     row["task_status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::UpdatedTaskStatusView>>
+    TaskRepository::updateTaskStatusForStart(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t subTaskId) const {
+        // -- 按北京时间取“今天”，再和 DATE 类型的 planned_end_date 比较是否已延期。
+        static const std::string updateTaskStatusForStartSql = R"SQL(
+            UPDATE sub_task st
+            SET
+                status = CASE
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > st.planned_end_date THEN 4
+                    ELSE 2
+                END,
+                progress_percent = 0,
+                completed_at = NULL,
+                updated_at = NOW()
+            WHERE st.id = $1 AND
+                st.status = 1
+            RETURNING
+                st.id,
+                st.status,
+                st.progress_percent,
+                to_char(st.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                to_char(st.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateTaskStatusForStartSql,
+                subTaskId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::UpdatedTaskStatusView{
+                .id = row["id"].as<std::int64_t>(),
+                .status = static_cast<domain::TaskStatus>(row["status"].as<int>()),
+                .progressPercent = row["progress_percent"].as<int>(),
+                .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<dto::view::TaskProgressRecordView>
+    TaskRepository::insertTaskProgressRecordForStart(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t subTaskId,
+        std::int64_t operatorUserId,
+        const std::string &progressNote,
+        domain::TaskStatus status) const {
+        static const std::string insertTaskProgressRecordForStartSql = R"SQL(
+            INSERT INTO sub_task_progress (
+                sub_task_id,
+                operator_user_id,
+                progress_note,
+                progress_percent,
+                status
+            )
+            VALUES ($1, $2, $3, 0, $4)
+            RETURNING
+                id,
+                sub_task_id,
+                operator_user_id,
+                progress_note,
+                progress_percent,
+                status,
+                to_char(created_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS created_at
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                insertTaskProgressRecordForStartSql,
+                subTaskId,
+                operatorUserId,
+                progressNote,
+                domain::toInt(status));
+
+            const auto &row = result.front();
+            co_return dto::view::TaskProgressRecordView{
+                .id = row["id"].as<std::int64_t>(),
+                .subTaskId = row["sub_task_id"].as<std::int64_t>(),
+                .operatorUserId = row["operator_user_id"].as<std::int64_t>(),
+                .progressNote = row["progress_note"].as<std::string>(),
+                .progressPercent = row["progress_percent"].as<int>(),
+                .status = static_cast<domain::TaskStatus>(row["status"].as<int>()),
+                .createdAt = row["created_at"].as<std::string>()
             };
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(

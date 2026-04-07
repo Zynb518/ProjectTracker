@@ -180,6 +180,11 @@ namespace project_tracker::modules::project_node::repository {
                                         std::int64_t projectId,
                                         std::int64_t nodeId) const;
 
+        // 子任务已出现开始信号时，同步把未开始阶段节点推进到已开始态
+        drogon::Task<std::optional<dto::view::UpdatedProjectNodeStatusView>>
+        updateProjectNodeStatusForTaskSignal(const common::db::SqlExecutorPtr &executor,
+                                             std::int64_t nodeId) const;
+
         // 锁定阶段节点行，供手动完成阶段节点写事务做前置检查
         drogon::Task<std::optional<ProjectNodeCompleteCheckResult>>
         findProjectNodeCompleteCheckResultForUpdate(

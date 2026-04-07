@@ -204,6 +204,119 @@ namespace project_tracker::modules::task::service {
         }
     }
 
+    drogon::Task<dto::view::StartedTaskView>
+    TaskService::startTask(const dto::command::StartTaskInput &input) const {
+        std::shared_ptr<drogon::orm::Transaction> transaction;
+        bool hasWrittenBeforeFinish = false;
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            transaction = co_await dbClient->newTransactionCoro();
+
+            const auto projectCheckResult = co_await
+                taskRepository_.findTaskStartProjectCheckResultForUpdate(
+                    transaction,
+                    input.subTaskId);
+            if (!projectCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            const auto taskCheckResult = co_await
+                taskRepository_.findTaskStartTaskCheckResultForUpdate(
+                    transaction,
+                    input.subTaskId);
+            if (!taskCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (projectCheckResult->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员开始子任务");
+            }
+
+            if (!isAdmin &&
+                projectCheckResult->ownerUserId != input.operatorUserId &&
+                taskCheckResult->responsibleUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者既不是项目负责人也不是子任务负责人");
+            }
+
+            if (projectCheckResult->projectStatus == project_domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "项目已完成，必须先撤销完成");
+            }
+
+            if (taskCheckResult->nodeStatus == project_node_domain::ProjectNodeStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::PhaseCompletedReadonly,
+                    "阶段节点已完成，必须先撤销完成");
+            }
+
+            if (taskCheckResult->taskStatus == domain::TaskStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::SubTaskCompletedReadonly,
+                    "子任务已完成，必须先撤销完成");
+            }
+
+            const auto task = co_await taskRepository_.updateTaskStatusForStart(
+                transaction,
+                input.subTaskId);
+            if (!task) {
+                error::throwConflict(
+                    error::ErrorCode::StartConditionNotMet,
+                    "子任务当前不满足手动开始条件");
+            }
+            hasWrittenBeforeFinish = true;
+
+            const std::string progressNote = input.progressNote.empty()
+                                                 ? "开始处理该任务"
+                                                 : input.progressNote;
+            const auto progressRecord = co_await taskRepository_.insertTaskProgressRecordForStart(
+                transaction,
+                input.subTaskId,
+                input.operatorUserId,
+                progressNote,
+                task->status);
+
+            if (taskCheckResult->nodeStatus == project_node_domain::ProjectNodeStatus::NotStarted) {
+                co_await projectNodeRepository_.updateProjectNodeStatusForTaskSignal(
+                    transaction,
+                    taskCheckResult->nodeId);
+            }
+
+            if (projectCheckResult->projectStatus == project_domain::ProjectStatus::NotStarted) {
+                co_await projectRepository_.updateProjectStatusForNodeSignal(
+                    transaction,
+                    projectCheckResult->projectId);
+            }
+
+            co_return dto::view::StartedTaskView{
+                .subtask = *task,
+                .progressRecord = progressRecord
+            };
+        } catch (const error::BusinessException &) {
+            if (hasWrittenBeforeFinish && transaction) {
+                transaction->rollback();
+            }
+            throw;
+        } catch (const drogon::orm::DrogonDbException &) {
+            if (hasWrittenBeforeFinish && transaction) {
+                transaction->rollback();
+            }
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
+    }
+
     drogon::Task<std::int64_t>
     TaskService::deleteTask(const dto::command::DeleteTaskInput &input) const {
         const auto dbClient = drogon::app().getDbClient();

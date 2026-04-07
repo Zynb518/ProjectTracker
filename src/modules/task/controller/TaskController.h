@@ -31,6 +31,10 @@ namespace project_tracker::modules::task::controller {
                           "/api/subtasks/{subtask_id}",
                           drogon::Patch,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(TaskController::startTask,
+                          "/api/subtasks/{subtask_id}/start",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(TaskController::deleteTask,
                           "/api/subtasks/{subtask_id}",
                           drogon::Delete,
@@ -57,6 +61,10 @@ namespace project_tracker::modules::task::controller {
         drogon::Task<drogon::HttpResponsePtr>
         updateTaskBasicInfo(drogon::HttpRequestPtr request,
                             std::int64_t subTaskId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        startTask(drogon::HttpRequestPtr request,
+                  std::int64_t subTaskId);
 
         drogon::Task<drogon::HttpResponsePtr>
         deleteTask(drogon::HttpRequestPtr request,

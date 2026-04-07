@@ -132,6 +132,43 @@ namespace project_tracker::modules::task::controller {
             return json;
         }
 
+        Json::Value buildUpdatedTaskStatusJson(const dto::view::UpdatedTaskStatusView &task) {
+            Json::Value json(Json::objectValue);
+            json["id"] = task.id;
+            json["status"] = domain::toInt(task.status);
+            json["progress_percent"] = task.progressPercent;
+            if (task.completedAt) {
+                json["completed_at"] = *task.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+            json["updated_at"] = task.updatedAt;
+
+            return json;
+        }
+
+        Json::Value buildTaskProgressRecordJson(
+            const dto::view::TaskProgressRecordView &progressRecord) {
+            Json::Value json(Json::objectValue);
+            json["id"] = progressRecord.id;
+            json["sub_task_id"] = progressRecord.subTaskId;
+            json["operator_user_id"] = progressRecord.operatorUserId;
+            json["progress_note"] = progressRecord.progressNote;
+            json["progress_percent"] = progressRecord.progressPercent;
+            json["status"] = domain::toInt(progressRecord.status);
+            json["created_at"] = progressRecord.createdAt;
+
+            return json;
+        }
+
+        Json::Value buildStartedTaskJson(const dto::view::StartedTaskView &task) {
+            Json::Value json(Json::objectValue);
+            json["subtask"] = buildUpdatedTaskStatusJson(task.subtask);
+            json["progress_record"] = buildTaskProgressRecordJson(task.progressRecord);
+
+            return json;
+        }
+
         bool isValidTaskStatus(int status) {
             return status == domain::toInt(domain::TaskStatus::NotStarted) ||
                    status == domain::toInt(domain::TaskStatus::InProgress) ||
@@ -624,6 +661,56 @@ namespace project_tracker::modules::task::controller {
         try {
             const auto task = co_await taskService_.updateTaskBasicInfo(input);
             co_return api::ok(buildUpdatedTaskBasicInfoJson(task));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    TaskController::startTask(drogon::HttpRequestPtr request,
+                              std::int64_t subTaskId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (subTaskId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "subtask_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        dto::command::StartTaskInput input{
+            .subTaskId = subTaskId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+
+        if (!util::readOptionalString(*json, "progress_note", input.progressNote)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "progress_note 必须是字符串");
+        }
+
+        try {
+            const auto task = co_await taskService_.startTask(input);
+            co_return api::ok(buildStartedTaskJson(task));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

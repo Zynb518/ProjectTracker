@@ -641,6 +641,58 @@ namespace project_tracker::modules::project_node::repository {
         }
     }
 
+    drogon::Task<std::optional<dto::view::UpdatedProjectNodeStatusView>>
+    ProjectNodeRepository::updateProjectNodeStatusForTaskSignal(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t nodeId) const {
+        // -- 节点行已在调用方事务中锁定；这里只把仍为未开始的节点推进到节点自己的已开始态。
+        static const std::string updateProjectNodeStatusForTaskSignalSql = R"SQL(
+            UPDATE project_node pn
+            SET
+                status = CASE
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > pn.planned_end_date THEN 4
+                    ELSE 2
+                END,
+                completed_at = NULL,
+                updated_at = NOW()
+            WHERE pn.id = $1 AND
+                pn.status = 1
+            RETURNING
+                pn.id,
+                pn.status,
+                to_char(pn.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD\"T\"HH24:MI:SS') || '+08:00' AS completed_at,
+                to_char(pn.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD\"T\"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateProjectNodeStatusForTaskSignalSql,
+                nodeId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::UpdatedProjectNodeStatusView{
+                .id = row["id"].as<std::int64_t>(),
+                .status = static_cast<domain::ProjectNodeStatus>(row["status"].as<int>()),
+                .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<ProjectNodeCompleteCheckResult>>
     ProjectNodeRepository::findProjectNodeCompleteCheckResultForUpdate(
         const common::db::SqlExecutorPtr &executor,
