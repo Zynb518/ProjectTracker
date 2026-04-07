@@ -90,6 +90,20 @@ namespace project_tracker::modules::task::repository {
         std::optional<TaskBasicInfoUpdateFailureReason> failureReason;
     };
 
+    enum class TaskDeleteFailureReason {
+        NotFound,
+        Forbidden,
+        ProjectCompleted,
+        NodeCompleted,
+        TaskCompleted
+    };
+
+    // 删除子任务结果
+    struct TaskDeleteResult {
+        std::optional<std::int64_t> deletedTaskId;
+        std::optional<TaskDeleteFailureReason> failureReason;
+    };
+
     class TaskRepository {
     public:
         // 查询节点下子任务列表
@@ -123,6 +137,11 @@ namespace project_tracker::modules::task::repository {
         drogon::Task<TaskBasicInfoUpdateResult>
         updateTaskBasicInfo(const common::db::SqlExecutorPtr &executor,
                             const dto::command::UpdateTaskBasicInfoInput &input) const;
+
+        // 原子删除子任务，并返回失败原因
+        drogon::Task<TaskDeleteResult>
+        deleteTask(const common::db::SqlExecutorPtr &executor,
+                   const dto::command::DeleteTaskInput &input) const;
 
         // 锁定项目行，供创建子任务写事务做项目级前置检查
         drogon::Task<std::optional<TaskCreateProjectCheckResult>>

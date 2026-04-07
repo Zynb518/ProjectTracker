@@ -658,6 +658,112 @@ namespace project_tracker::modules::task::repository {
         }
     }
 
+    drogon::Task<TaskDeleteResult>
+    TaskRepository::deleteTask(const common::db::SqlExecutorPtr &executor,
+                               const dto::command::DeleteTaskInput &input) const {
+        // 查询思路：
+        // 1. target_context 先定位子任务所属项目、节点和权限判断所需字段。
+        // 2. deleted_task 只在权限和冻结条件都满足时执行真正删除。
+        // 3. 最终统一返回 deleted_task_id 或 failure_reason，供 service 映射 HTTP 语义。
+        static const std::string deleteTaskSql = R"SQL(
+            WITH target_context AS (
+                SELECT
+                    st.id AS sub_task_id,
+                    p.owner_user_id,
+                    creator_user.system_role AS creator_user_role,
+                    p.status AS project_status,
+                    pn.status AS node_status,
+                    st.status AS task_status
+                FROM sub_task st
+                JOIN project_node pn ON pn.id = st.node_id
+                JOIN project p ON p.id = pn.project_id
+                JOIN sys_user creator_user ON creator_user.id = p.created_by
+                WHERE st.id = $1
+            ),
+            deleted_task AS (
+                DELETE FROM sub_task st
+                USING target_context tc
+                WHERE st.id = tc.sub_task_id AND
+                    (
+                        ($3 = TRUE AND tc.creator_user_role <> $4) OR
+                        ($3 = FALSE AND tc.owner_user_id = $2)
+                    ) AND
+                    tc.project_status <> $5 AND
+                    tc.node_status <> $6 AND
+                    tc.task_status <> $7
+                RETURNING st.id
+            )
+            SELECT
+                CASE
+                    WHEN tc.sub_task_id IS NULL THEN 'not_found'
+                    WHEN $3 = TRUE AND tc.creator_user_role = $4 THEN 'forbidden'
+                    WHEN $3 = FALSE AND tc.owner_user_id <> $2 THEN 'forbidden'
+                    WHEN tc.project_status = $5 THEN 'project_completed'
+                    WHEN tc.node_status = $6 THEN 'node_completed'
+                    WHEN tc.task_status = $7 THEN 'task_completed'
+                    ELSE NULL
+                END AS failure_reason,
+                dt.id AS deleted_task_id
+            FROM (SELECT 1) anchor
+            LEFT JOIN target_context tc ON TRUE
+            LEFT JOIN deleted_task dt ON TRUE
+            LIMIT 1
+        )SQL";
+
+        const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                deleteTaskSql,
+                input.subTaskId,
+                input.operatorUserId,
+                isAdmin,
+                user_domain::toInt(user_domain::SystemRole::Employee),
+                project_domain::toInt(project_domain::ProjectStatus::Completed),
+                project_node_domain::toInt(project_node_domain::ProjectNodeStatus::Completed),
+                domain::toInt(domain::TaskStatus::Completed));
+
+            if (result.empty()) {
+                co_return TaskDeleteResult{
+                    .deletedTaskId = std::nullopt,
+                    .failureReason = std::nullopt
+                };
+            }
+
+            const auto &row = result.front();
+
+            std::optional<TaskDeleteFailureReason> failureReason;
+            if (!row["failure_reason"].isNull()) {
+                const auto failureReasonText = row["failure_reason"].as<std::string>();
+                if (failureReasonText == "not_found") {
+                    failureReason = TaskDeleteFailureReason::NotFound;
+                } else if (failureReasonText == "forbidden") {
+                    failureReason = TaskDeleteFailureReason::Forbidden;
+                } else if (failureReasonText == "project_completed") {
+                    failureReason = TaskDeleteFailureReason::ProjectCompleted;
+                } else if (failureReasonText == "node_completed") {
+                    failureReason = TaskDeleteFailureReason::NodeCompleted;
+                } else if (failureReasonText == "task_completed") {
+                    failureReason = TaskDeleteFailureReason::TaskCompleted;
+                }
+            }
+
+            std::optional<std::int64_t> deletedTaskId;
+            if (!row["deleted_task_id"].isNull()) {
+                deletedTaskId = row["deleted_task_id"].as<std::int64_t>();
+            }
+
+            co_return TaskDeleteResult{
+                .deletedTaskId = deletedTaskId,
+                .failureReason = failureReason
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<TaskCreateNodeCheckResult>>
     TaskRepository::findTaskCreateNodeCheckResultForUpdate(
         const common::db::SqlExecutorPtr &executor,

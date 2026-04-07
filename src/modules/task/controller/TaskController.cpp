@@ -628,4 +628,41 @@ namespace project_tracker::modules::task::controller {
             co_return api::fromException(exception);
         }
     }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    TaskController::deleteTask(drogon::HttpRequestPtr request,
+                               std::int64_t subTaskId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (subTaskId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "subtask_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto deletedTaskId = co_await taskService_.deleteTask(
+                dto::command::DeleteTaskInput{
+                    .subTaskId = subTaskId,
+                    .operatorUserId = *userId,
+                    .operatorUserRole = *systemRole
+                });
+
+            Json::Value data(Json::objectValue);
+            data["id"] = deletedTaskId;
+            co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
 } // namespace project_tracker::modules::task::controller

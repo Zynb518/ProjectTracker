@@ -1,0 +1,94 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@password = 123456
+@repeatableProjectName = delete_task_case_{{$timestamp}}
+@missingSubTaskId = 999999
+@invalidSubTaskId = 0
+
+### 提示：正常路径会先创建临时项目、临时阶段节点、临时子任务，再删除该子任务并确认详情查询返回 404，因此可以重复回放。
+### 提示：当前为 13.6 删除子任务 的先行失败用例；接口未实现前，DELETE 请求或后续断言会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableProjectName}}",
+  "description": "用于验证删除子任务接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableDeleteTaskProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableDeleteTaskProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "开发实现",
+  "description": "用于验证删除子任务。",
+  "planned_start_date": "2026-04-05",
+  "planned_end_date": "2026-04-20"
+}
+
+> {% client.global.set("repeatableDeleteTaskNodeId", response.body.data.id); %}
+
+### 正常路径：管理员创建临时子任务
+POST {{baseUrl}}/api/projects/{{repeatableDeleteTaskProjectId}}/nodes/{{repeatableDeleteTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "接口联调",
+  "description": "用于验证删除前的临时子任务。",
+  "priority": 2,
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+> {% client.global.set("repeatableDeleteTaskId", response.body.data.id); %}
+
+### 正常路径：管理员删除临时子任务
+DELETE {{baseUrl}}/api/subtasks/{{repeatableDeleteTaskId}}
+
+> {%
+client.test("删除子任务成功并返回被删子任务 ID", function() {
+  client.assert(response.status === 200, "删除子任务应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.id === client.global.get("repeatableDeleteTaskId"), "返回的 id 应等于被删除子任务");
+});
+%}
+
+### 正常路径：管理员获取刚删除的子任务详情，预期 404
+GET {{baseUrl}}/api/subtasks/{{repeatableDeleteTaskId}}
+
+> {%
+client.test("删除后获取子任务详情返回 404", function() {
+  client.assert(response.status === 404, "删除后的子任务详情应返回 404");
+  client.assert(response.body.code === 40406, "响应 code 应为 40406");
+});
+%}
+
+### 异常路径：subtask_id 小于等于 0，预期 400
+DELETE {{baseUrl}}/api/subtasks/{{invalidSubTaskId}}
+
+### 异常路径：子任务不存在，预期 404
+DELETE {{baseUrl}}/api/subtasks/{{missingSubTaskId}}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录删除子任务，预期 401
+DELETE {{baseUrl}}/api/subtasks/{{missingSubTaskId}}

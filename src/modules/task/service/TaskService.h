@@ -16,6 +16,10 @@ namespace project_tracker::modules::task::service {
         drogon::Task<dto::view::UpdatedTaskBasicInfoView>
         updateTaskBasicInfo(const dto::command::UpdateTaskBasicInfoInput &input) const;
 
+        // 删除子任务
+        drogon::Task<std::int64_t>
+        deleteTask(const dto::command::DeleteTaskInput &input) const;
+
     private:
         repository::TaskRepository taskRepository_;
     };

@@ -203,4 +203,48 @@ namespace project_tracker::modules::task::service {
                 "数据库事务创建失败");
         }
     }
+
+    drogon::Task<std::int64_t>
+    TaskService::deleteTask(const dto::command::DeleteTaskInput &input) const {
+        const auto dbClient = drogon::app().getDbClient();
+        const auto deleteResult = co_await taskRepository_.deleteTask(dbClient, input);
+
+        if (deleteResult.deletedTaskId) {
+            co_return *deleteResult.deletedTaskId;
+        }
+
+        if (deleteResult.failureReason == repository::TaskDeleteFailureReason::NotFound) {
+            error::throwNotFound(
+                error::ErrorCode::SubTaskNotFound,
+                "子任务不存在");
+        }
+
+        if (deleteResult.failureReason == repository::TaskDeleteFailureReason::Forbidden) {
+            error::throwForbidden(
+                error::ErrorCode::Forbidden,
+                "当前操作者无权限删除子任务");
+        }
+
+        if (deleteResult.failureReason == repository::TaskDeleteFailureReason::ProjectCompleted) {
+            error::throwConflict(
+                error::ErrorCode::ProjectCompletedReadonly,
+                "项目已完成，不允许删除子任务");
+        }
+
+        if (deleteResult.failureReason == repository::TaskDeleteFailureReason::NodeCompleted) {
+            error::throwConflict(
+                error::ErrorCode::PhaseCompletedReadonly,
+                "阶段节点已完成，不允许删除子任务");
+        }
+
+        if (deleteResult.failureReason == repository::TaskDeleteFailureReason::TaskCompleted) {
+            error::throwConflict(
+                error::ErrorCode::SubTaskCompletedReadonly,
+                "子任务已完成，必须先撤销完成再删除");
+        }
+
+        error::throwInternalError(
+            error::ErrorCode::InternalError,
+            "删除子任务失败");
+    }
 } // namespace project_tracker::modules::task::service
