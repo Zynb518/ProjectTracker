@@ -27,6 +27,10 @@ namespace project_tracker::modules::task::controller {
                           "/api/subtasks/{subtask_id}",
                           drogon::Get,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(TaskController::updateTaskBasicInfo,
+                          "/api/subtasks/{subtask_id}",
+                          drogon::Patch,
+                          filters::LoginRequiredFilter::classTypeName());
         METHOD_LIST_END
 
         drogon::Task<drogon::HttpResponsePtr>
@@ -45,6 +49,10 @@ namespace project_tracker::modules::task::controller {
         drogon::Task<drogon::HttpResponsePtr>
         getTaskDetail(drogon::HttpRequestPtr request,
                       std::int64_t subTaskId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        updateTaskBasicInfo(drogon::HttpRequestPtr request,
+                            std::int64_t subTaskId);
 
     private:
         // 简单读接口直接访问 repository。

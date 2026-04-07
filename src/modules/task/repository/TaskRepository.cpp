@@ -428,6 +428,236 @@ namespace project_tracker::modules::task::repository {
         }
     }
 
+    drogon::Task<std::optional<TaskBasicInfoUpdateProjectCheckResult>>
+    TaskRepository::findTaskBasicInfoUpdateProjectCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t subTaskId) const {
+        // 查询思路：
+        // 1. 通过 sub_task -> project_node -> project 定位所属项目。
+        // 2. 这一段只锁项目行，供 service 先做项目级权限与冻结判断。
+        static const std::string findTaskBasicInfoUpdateProjectCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status AS project_status
+            FROM project p
+            JOIN project_node pn ON pn.project_id = p.id
+            JOIN sub_task st ON st.node_id = pn.id
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE st.id = $1
+            FOR UPDATE OF p
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findTaskBasicInfoUpdateProjectCheckResultForUpdateSql,
+                subTaskId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return TaskBasicInfoUpdateProjectCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .projectStatus = static_cast<project_domain::ProjectStatus>(
+                    row["project_status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<TaskBasicInfoUpdateTaskCheckResult>>
+    TaskRepository::findTaskBasicInfoUpdateTaskCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t subTaskId) const {
+        // 查询思路：
+        // 1. 项目行已在写事务上一步锁定，这里只锁目标子任务行。
+        // 2. 同时带回所属节点状态与子任务当前状态，供 service 做冻结校验。
+        static const std::string findTaskBasicInfoUpdateTaskCheckResultForUpdateSql = R"SQL(
+            SELECT
+                pn.status AS node_status,
+                st.status AS task_status
+            FROM sub_task st
+            JOIN project_node pn ON pn.id = st.node_id
+            WHERE st.id = $1
+            FOR UPDATE OF st
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findTaskBasicInfoUpdateTaskCheckResultForUpdateSql,
+                subTaskId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return TaskBasicInfoUpdateTaskCheckResult{
+                .nodeStatus = static_cast<project_node_domain::ProjectNodeStatus>(
+                    row["node_status"].as<int>()),
+                .taskStatus = static_cast<domain::TaskStatus>(
+                    row["task_status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<TaskBasicInfoUpdateResult>
+    TaskRepository::updateTaskBasicInfo(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::UpdateTaskBasicInfoInput &input) const {
+        // 查询思路：
+        // 1. target_context 先算出本次更新后的有效字段，并带上所属节点日期范围与所属项目ID。
+        // 2. validation_context 统一判断“日期区间是否合法、是否仍被节点覆盖、负责人是否仍属于项目成员”。
+        // 3. 最终只在 failure_reason 为空时执行 UPDATE，并把失败原因一并回传给 service 做错误映射。
+        static const std::string updateTaskBasicInfoSql = R"SQL(
+            WITH target_context AS (
+                SELECT
+                    st.id,
+                    COALESCE($2, st.name) AS next_name,
+                    COALESCE($3, st.description) AS next_description,
+                    COALESCE($4::bigint, st.responsible_user_id) AS next_responsible_user_id,
+                    COALESCE($5::integer, st.priority) AS next_priority,
+                    COALESCE($6::date, st.planned_start_date) AS next_planned_start_date,
+                    COALESCE($7::date, st.planned_end_date) AS next_planned_end_date,
+                    pn.project_id,
+                    pn.planned_start_date AS node_planned_start_date,
+                    pn.planned_end_date AS node_planned_end_date
+                FROM sub_task st
+                JOIN project_node pn ON pn.id = st.node_id
+                WHERE st.id = $1
+            ),
+            validation_context AS (
+                SELECT
+                    tc.id,
+                    CASE
+                        WHEN tc.next_planned_start_date > tc.next_planned_end_date THEN
+                            'invalid_date_range'
+                        WHEN tc.next_planned_start_date < tc.node_planned_start_date OR
+                             tc.next_planned_end_date > tc.node_planned_end_date THEN
+                            'invalid_date_range'
+                        WHEN NOT EXISTS (
+                            SELECT 1
+                            FROM project_member pm
+                            WHERE pm.project_id = tc.project_id AND
+                                pm.user_id = tc.next_responsible_user_id
+                        ) THEN
+                            'responsible_user_invalid'
+                        ELSE NULL
+                    END AS failure_reason
+                FROM target_context tc
+            ),
+            updated_task AS (
+                UPDATE sub_task st
+                SET
+                    name = tc.next_name,
+                    description = tc.next_description,
+                    responsible_user_id = tc.next_responsible_user_id,
+                    priority = tc.next_priority,
+                    planned_start_date = tc.next_planned_start_date,
+                    planned_end_date = tc.next_planned_end_date,
+                    updated_at = NOW()
+                FROM target_context tc
+                JOIN validation_context vc ON vc.id = tc.id
+                WHERE st.id = tc.id AND
+                    vc.failure_reason IS NULL
+                RETURNING
+                    st.id,
+                    st.name,
+                    st.description,
+                    st.responsible_user_id,
+                    st.priority,
+                    to_char(st.planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                    to_char(st.planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
+                    to_char(st.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+            )
+            SELECT
+                vc.failure_reason,
+                ut.id,
+                ut.name,
+                ut.description,
+                ut.responsible_user_id,
+                ut.priority,
+                ut.planned_start_date,
+                ut.planned_end_date,
+                ut.updated_at
+            FROM validation_context vc
+            LEFT JOIN updated_task ut ON ut.id = vc.id
+        )SQL";
+
+        const std::optional<int> priorityValue = input.priority
+                                                     ? std::make_optional(domain::toInt(*input.priority))
+                                                     : std::nullopt;
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateTaskBasicInfoSql,
+                input.subTaskId,
+                input.name,
+                input.description,
+                input.responsibleUserId,
+                priorityValue,
+                input.plannedStartDate,
+                input.plannedEndDate);
+
+            if (result.empty()) {
+                co_return TaskBasicInfoUpdateResult{
+                    .task = std::nullopt,
+                    .failureReason = std::nullopt
+                };
+            }
+
+            const auto &row = result.front();
+
+            std::optional<TaskBasicInfoUpdateFailureReason> failureReason;
+            if (!row["failure_reason"].isNull()) {
+                const auto failureReasonText = row["failure_reason"].as<std::string>();
+                if (failureReasonText == "invalid_date_range") {
+                    failureReason = TaskBasicInfoUpdateFailureReason::InvalidDateRange;
+                } else if (failureReasonText == "responsible_user_invalid") {
+                    failureReason = TaskBasicInfoUpdateFailureReason::ResponsibleUserInvalid;
+                }
+            }
+
+            if (row["id"].isNull()) {
+                co_return TaskBasicInfoUpdateResult{
+                    .task = std::nullopt,
+                    .failureReason = failureReason
+                };
+            }
+
+            co_return TaskBasicInfoUpdateResult{
+                .task = dto::view::UpdatedTaskBasicInfoView{
+                    .id = row["id"].as<std::int64_t>(),
+                    .name = row["name"].as<std::string>(),
+                    .description = row["description"].as<std::string>(),
+                    .responsibleUserId = row["responsible_user_id"].as<std::int64_t>(),
+                    .priority = static_cast<domain::TaskPriority>(row["priority"].as<int>()),
+                    .plannedStartDate = row["planned_start_date"].as<std::string>(),
+                    .plannedEndDate = row["planned_end_date"].as<std::string>(),
+                    .updatedAt = row["updated_at"].as<std::string>()
+                },
+                .failureReason = std::nullopt
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<TaskCreateNodeCheckResult>>
     TaskRepository::findTaskCreateNodeCheckResultForUpdate(
         const common::db::SqlExecutorPtr &executor,

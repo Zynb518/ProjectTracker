@@ -117,6 +117,21 @@ namespace project_tracker::modules::task::controller {
             return json;
         }
 
+        Json::Value buildUpdatedTaskBasicInfoJson(
+            const dto::view::UpdatedTaskBasicInfoView &task) {
+            Json::Value json(Json::objectValue);
+            json["id"] = task.id;
+            json["name"] = task.name;
+            json["description"] = task.description;
+            json["responsible_user_id"] = task.responsibleUserId;
+            json["priority"] = domain::toInt(task.priority);
+            json["planned_start_date"] = task.plannedStartDate;
+            json["planned_end_date"] = task.plannedEndDate;
+            json["updated_at"] = task.updatedAt;
+
+            return json;
+        }
+
         bool isValidTaskStatus(int status) {
             return status == domain::toInt(domain::TaskStatus::NotStarted) ||
                    status == domain::toInt(domain::TaskStatus::InProgress) ||
@@ -469,6 +484,146 @@ namespace project_tracker::modules::task::controller {
             }
 
             co_return api::ok(buildTaskDetailJson(*result->detail));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    TaskController::updateTaskBasicInfo(drogon::HttpRequestPtr request,
+                                        std::int64_t subTaskId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (subTaskId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "subtask_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        dto::command::UpdateTaskBasicInfoInput input{
+            .subTaskId = subTaskId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+
+        if (!util::readOptionalString(*json, "name", input.name)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "name 必须是字符串");
+        }
+        if (input.name && input.name->empty()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "name 不能为空字符串");
+        }
+
+        if (!util::readOptionalString(*json, "description", input.description)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "description 必须是字符串");
+        }
+
+        if (!util::readOptionalInt64(*json, "responsible_user_id", input.responsibleUserId)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "responsible_user_id 必须是整数");
+        }
+        if (input.responsibleUserId && *input.responsibleUserId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "responsible_user_id 必须是大于 0 的整数");
+        }
+
+        std::optional<int> priorityValue;
+        if (!util::readOptionalInt(*json, "priority", priorityValue)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "priority 必须是整数");
+        }
+        if (priorityValue && !isValidTaskPriority(*priorityValue)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "priority 只能是 1、2 或 3");
+        }
+        if (priorityValue) {
+            input.priority = static_cast<domain::TaskPriority>(*priorityValue);
+        }
+
+        if (!util::readOptionalString(*json, "planned_start_date", input.plannedStartDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_start_date 必须是字符串");
+        }
+        if (input.plannedStartDate && input.plannedStartDate->empty()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_start_date 不能为空字符串");
+        }
+        if (input.plannedStartDate && !isValidDateString(*input.plannedStartDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_start_date 必须是 YYYY-MM-DD 格式");
+        }
+
+        if (!util::readOptionalString(*json, "planned_end_date", input.plannedEndDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_end_date 必须是字符串");
+        }
+        if (input.plannedEndDate && input.plannedEndDate->empty()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_end_date 不能为空字符串");
+        }
+        if (input.plannedEndDate && !isValidDateString(*input.plannedEndDate)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "planned_end_date 必须是 YYYY-MM-DD 格式");
+        }
+
+        if (!input.name && !input.description &&
+            !input.responsibleUserId && !input.priority &&
+            !input.plannedStartDate && !input.plannedEndDate) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "至少需要提供一个可修改字段");
+        }
+
+        try {
+            const auto task = co_await taskService_.updateTaskBasicInfo(input);
+            co_return api::ok(buildUpdatedTaskBasicInfoJson(task));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

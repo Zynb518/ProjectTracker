@@ -1,0 +1,75 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@password = 123456
+@repeatableProjectName = update_task_basic_info_case_{{$timestamp}}
+
+### 提示：正常路径会先创建临时项目、临时阶段节点、临时子任务，再修改该子任务基础信息，因此可以重复回放。
+### 提示：当前为 13.5 修改子任务基础信息 的先行失败用例；接口未实现前，PATCH 请求会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableProjectName}}",
+  "description": "用于验证修改子任务基础信息接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableUpdateTaskProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableUpdateTaskProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "开发实现",
+  "description": "用于验证子任务基础信息修改。",
+  "planned_start_date": "2026-04-05",
+  "planned_end_date": "2026-04-20"
+}
+
+> {% client.global.set("repeatableUpdateTaskNodeId", response.body.data.id); %}
+
+### 正常路径：管理员创建临时子任务
+POST {{baseUrl}}/api/projects/{{repeatableUpdateTaskProjectId}}/nodes/{{repeatableUpdateTaskNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "接口联调",
+  "description": "用于验证修改前的初始描述。",
+  "priority": 2,
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2026-04-10"
+}
+
+> {% client.global.set("repeatableUpdateTaskId", response.body.data.id); %}
+
+### 正常路径：管理员修改子任务基础信息
+### 预期响应 data 中包含最新 description，便于前端直接回填编辑表单
+PATCH {{baseUrl}}/api/subtasks/{{repeatableUpdateTaskId}}
+Content-Type: application/json
+
+{
+  "name": "接口联调与回归验证",
+  "description": "用于验证修改子任务基础信息接口成功返回最新描述。",
+  "priority": 3,
+  "planned_start_date": "2026-04-07",
+  "planned_end_date": "2026-04-12"
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}

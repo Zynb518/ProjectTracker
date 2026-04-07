@@ -99,4 +99,108 @@ namespace project_tracker::modules::task::service {
                 "数据库事务创建失败");
         }
     }
+
+    drogon::Task<dto::view::UpdatedTaskBasicInfoView>
+    TaskService::updateTaskBasicInfo(
+        const dto::command::UpdateTaskBasicInfoInput &input) const {
+        if (!input.name && !input.description &&
+            !input.responsibleUserId && !input.priority &&
+            !input.plannedStartDate && !input.plannedEndDate) {
+            error::throwBadRequest(
+                error::ErrorCode::InvalidParameter,
+                "至少需要提供一个可修改字段");
+        }
+
+        if (input.plannedStartDate && input.plannedEndDate &&
+            *input.plannedStartDate > *input.plannedEndDate) {
+            error::throwConflict(
+                error::ErrorCode::InvalidDateRange,
+                "planned_start_date 不能晚于 planned_end_date");
+        }
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+
+            const auto projectCheckResult = co_await
+                taskRepository_.findTaskBasicInfoUpdateProjectCheckResultForUpdate(
+                    transaction,
+                    input.subTaskId);
+            if (!projectCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (projectCheckResult->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员修改子任务");
+            }
+
+            if (!isAdmin && projectCheckResult->ownerUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目负责人");
+            }
+
+            if (projectCheckResult->projectStatus == project_domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "项目已完成，不允许修改子任务");
+            }
+
+            const auto taskCheckResult = co_await
+                taskRepository_.findTaskBasicInfoUpdateTaskCheckResultForUpdate(
+                    transaction,
+                    input.subTaskId);
+            if (!taskCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            if (taskCheckResult->nodeStatus == project_node_domain::ProjectNodeStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::PhaseCompletedReadonly,
+                    "阶段节点已完成，不允许修改子任务");
+            }
+
+            if (taskCheckResult->taskStatus == domain::TaskStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::SubTaskCompletedReadonly,
+                    "子任务已完成，不允许修改基础信息");
+            }
+
+            const auto updateResult = co_await taskRepository_.updateTaskBasicInfo(
+                transaction,
+                input);
+            if (!updateResult.task) {
+                if (updateResult.failureReason ==
+                    repository::TaskBasicInfoUpdateFailureReason::ResponsibleUserInvalid) {
+                    error::throwConflict(
+                        error::ErrorCode::SubTaskResponsibleUserInvalid,
+                        "子任务负责人不属于当前项目成员");
+                }
+
+                if (updateResult.failureReason ==
+                    repository::TaskBasicInfoUpdateFailureReason::InvalidDateRange) {
+                    error::throwConflict(
+                        error::ErrorCode::InvalidDateRange,
+                        "子任务时间区间不合法或不在所属节点时间范围内");
+                }
+
+                error::throwInternalError(
+                    error::ErrorCode::InternalError,
+                    "修改子任务基础信息失败");
+            }
+
+            co_return *updateResult.task;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
+    }
 } // namespace project_tracker::modules::task::service

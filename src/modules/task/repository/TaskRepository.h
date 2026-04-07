@@ -66,6 +66,30 @@ namespace project_tracker::modules::task::repository {
         std::string nodePlannedEndDate;
     };
 
+    // 修改子任务基础信息前的项目级校验信息
+    struct TaskBasicInfoUpdateProjectCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+    };
+
+    // 修改子任务基础信息前的子任务级校验信息
+    struct TaskBasicInfoUpdateTaskCheckResult {
+        project_node::domain::ProjectNodeStatus nodeStatus;
+        domain::TaskStatus taskStatus;
+    };
+
+    enum class TaskBasicInfoUpdateFailureReason {
+        InvalidDateRange,
+        ResponsibleUserInvalid
+    };
+
+    // 修改子任务基础信息结果
+    struct TaskBasicInfoUpdateResult {
+        std::optional<dto::view::UpdatedTaskBasicInfoView> task;
+        std::optional<TaskBasicInfoUpdateFailureReason> failureReason;
+    };
+
     class TaskRepository {
     public:
         // 查询节点下子任务列表
@@ -82,6 +106,23 @@ namespace project_tracker::modules::task::repository {
         drogon::Task<std::optional<TaskDetailResult>>
         findTaskDetail(const common::db::SqlExecutorPtr &executor,
                        const TaskDetailQuery &query) const;
+
+        // 锁定所属项目行，供修改子任务基础信息写事务做项目级前置检查
+        drogon::Task<std::optional<TaskBasicInfoUpdateProjectCheckResult>>
+        findTaskBasicInfoUpdateProjectCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t subTaskId) const;
+
+        // 锁定目标子任务行，供修改子任务基础信息写事务做子任务级前置检查
+        drogon::Task<std::optional<TaskBasicInfoUpdateTaskCheckResult>>
+        findTaskBasicInfoUpdateTaskCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t subTaskId) const;
+
+        // 修改子任务基础信息
+        drogon::Task<TaskBasicInfoUpdateResult>
+        updateTaskBasicInfo(const common::db::SqlExecutorPtr &executor,
+                            const dto::command::UpdateTaskBasicInfoInput &input) const;
 
         // 锁定项目行，供创建子任务写事务做项目级前置检查
         drogon::Task<std::optional<TaskCreateProjectCheckResult>>

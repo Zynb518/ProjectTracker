@@ -1832,7 +1832,7 @@ null
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
 | `name` | 否 | 子任务名称 |
-| `description` | 否 | 子任务描述 |
+| `description` | 否 | 子任务描述；传空字符串表示清空描述 |
 | `responsible_user_id` | 否 | 新责任人，必须属于当前项目成员 |
 | `priority` | 否 | 优先级 |
 | `planned_start_date` | 否 | 子任务计划开始日期 |
@@ -1844,6 +1844,7 @@ null
 {
   "id": 3001,
   "name": "完成登录与登出接口开发",
+  "description": "完成账号密码登录与退出登录功能",
   "responsible_user_id": 18,
   "priority": 3,
   "planned_start_date": "2026-03-27",
