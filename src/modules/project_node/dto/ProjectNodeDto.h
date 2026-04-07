@@ -1,10 +1,12 @@
 #pragma once
 
+#include "modules/project_node/dto/command/ApplyProjectNodeTemplateInput.h"
 #include "modules/project_node/dto/command/CreateProjectNodeInput.h"
 #include "modules/project_node/dto/command/DeleteProjectNodeInput.h"
 #include "modules/project_node/dto/command/ProjectNodeStatusActionInput.h"
 #include "modules/project_node/dto/command/ReorderProjectNodesInput.h"
 #include "modules/project_node/dto/command/UpdateProjectNodeBasicInfoInput.h"
+#include "modules/project_node/dto/view/AppliedProjectNodeTemplateView.h"
 #include "modules/project_node/dto/view/CreatedProjectNodeView.h"
 #include "modules/project_node/dto/view/ProjectNodeDetailView.h"
 #include "modules/project_node/dto/view/ProjectNodeListItemView.h"

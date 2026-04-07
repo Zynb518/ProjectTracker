@@ -116,6 +116,26 @@ namespace project_tracker::modules::project_node::controller {
             return json;
         }
 
+        Json::Value buildAppliedProjectNodeTemplateJson(
+            const dto::view::AppliedProjectNodeTemplateView &result) {
+            Json::Value json(Json::objectValue);
+            json["project_id"] = result.projectId;
+            json["template_id"] = result.templateId;
+            json["generated_nodes"] = Json::Value(Json::arrayValue);
+
+            for (const auto &node : result.generatedNodes) {
+                Json::Value nodeJson(Json::objectValue);
+                nodeJson["id"] = node.id;
+                nodeJson["name"] = node.name;
+                nodeJson["sequence_no"] = node.sequenceNo;
+                nodeJson["planned_start_date"] = node.plannedStartDate;
+                nodeJson["planned_end_date"] = node.plannedEndDate;
+                json["generated_nodes"].append(nodeJson);
+            }
+
+            return json;
+        }
+
         Json::Value buildReorderedProjectNodesJson(
             const dto::view::ReorderedProjectNodesView &result) {
             Json::Value json(Json::objectValue);
@@ -217,6 +237,121 @@ namespace project_tracker::modules::project_node::controller {
         try {
             const auto node = co_await projectNodeService_.createProjectNode(input);
             co_return api::ok(buildCreatedProjectNodeJson(node));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectNodeController::applyProjectNodeTemplate(drogon::HttpRequestPtr request,
+                                                    std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        dto::command::ApplyProjectNodeTemplateInput input{
+            .projectId = projectId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+
+        if (!util::readRequiredInt64(*json, "template_id", input.templateId) ||
+            input.templateId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "template_id 必须是大于 0 的整数");
+        }
+
+        if (!json->isMember("nodes") || !(*json)["nodes"].isArray()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "nodes 必须是数组");
+        }
+
+        const Json::Value &nodesJson = (*json)["nodes"];
+        if (nodesJson.empty()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "nodes 不能为空数组");
+        }
+
+        input.nodes.reserve(nodesJson.size());
+
+        for (Json::ArrayIndex index = 0; index < nodesJson.size(); ++index) {
+            const Json::Value &nodeJson = nodesJson[index];
+            if (!nodeJson.isObject()) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes 中的每一项都必须是 JSON 对象");
+            }
+
+            dto::command::ApplyProjectNodeTemplateItem nodeInput{};
+            if (!util::readRequiredInt64(nodeJson, "template_node_id", nodeInput.templateNodeId) ||
+                nodeInput.templateNodeId <= 0) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].template_node_id 必须是大于 0 的整数");
+            }
+
+            if (!util::readRequiredString(nodeJson, "planned_start_date", nodeInput.plannedStartDate)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].planned_start_date 必须是非空字符串");
+            }
+            if (!isValidDateString(nodeInput.plannedStartDate)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].planned_start_date 必须是 YYYY-MM-DD 格式");
+            }
+
+            if (!util::readRequiredString(nodeJson, "planned_end_date", nodeInput.plannedEndDate)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].planned_end_date 必须是非空字符串");
+            }
+            if (!isValidDateString(nodeInput.plannedEndDate)) {
+                co_return api::fail(
+                    drogon::k400BadRequest,
+                    error::ErrorCode::InvalidParameter,
+                    "nodes[].planned_end_date 必须是 YYYY-MM-DD 格式");
+            }
+
+            input.nodes.push_back(std::move(nodeInput));
+        }
+
+        try {
+            const auto result = co_await projectNodeService_.applyProjectNodeTemplate(input);
+            co_return api::ok(buildAppliedProjectNodeTemplateJson(result));
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

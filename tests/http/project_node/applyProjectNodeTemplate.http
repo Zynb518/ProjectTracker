@@ -1,0 +1,189 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@password = 123456
+@existingTemplateId = 1
+@disabledTemplateId = 5
+@missingTemplateId = 999999
+@invalidTemplateId = 0
+@completedProjectId = 1
+@repeatableApplyTemplateProjectName = apply_template_case_{{$timestamp}}
+@repeatableApplyTemplateValidationProjectName = apply_template_validation_case_{{$timestamp}}
+
+### 提示：当前种子里的标准研发模板只有 1 个模板节点，本用例先覆盖“按模板节点映射生成”的基础链路。
+### 提示：虽然当前种子模板只有 1 个节点，但服务端生成顺序仍应以模板表里的 sequence_no 为准，而不是请求体数组顺序。
+### 当前为 12.10 基于模板批量生成阶段节点 的 RED 用例；接口未实现前，相关请求会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：查询模板详情并记录模板节点 ID
+GET {{baseUrl}}/api/project-templates/{{existingTemplateId}}
+
+> {% client.global.set("applyTemplateNodeId", response.body.data.nodes[0].id); %}
+
+### 正常路径：管理员创建临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableApplyTemplateProjectName}}",
+  "description": "用于验证基于模板批量生成阶段节点接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableApplyTemplateProjectId", response.body.data.id); %}
+
+### 正常路径：按模板映射批量生成阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableApplyTemplateProjectId}}/nodes/apply-template
+Content-Type: application/json
+
+{
+  "template_id": {{existingTemplateId}},
+  "nodes": [
+    {
+      "template_node_id": {{applyTemplateNodeId}},
+      "planned_start_date": "2026-04-05",
+      "planned_end_date": "2026-04-10"
+    }
+  ]
+}
+
+### 异常路径：同一项目重复套用模板，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableApplyTemplateProjectId}}/nodes/apply-template
+Content-Type: application/json
+
+{
+  "template_id": {{existingTemplateId}},
+  "nodes": [
+    {
+      "template_node_id": {{applyTemplateNodeId}},
+      "planned_start_date": "2026-04-05",
+      "planned_end_date": "2026-04-10"
+    }
+  ]
+}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录套用模板，预期 401
+POST {{baseUrl}}/api/projects/{{repeatableApplyTemplateProjectId}}/nodes/apply-template
+Content-Type: application/json
+
+{
+  "template_id": {{existingTemplateId}},
+  "nodes": [
+    {
+      "template_node_id": {{applyTemplateNodeId}},
+      "planned_start_date": "2026-04-05",
+      "planned_end_date": "2026-04-10"
+    }
+  ]
+}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员创建第二个临时项目，用于模板参数校验
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableApplyTemplateValidationProjectName}}",
+  "description": "用于验证 apply-template 的模板参数异常路径。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {% client.global.set("repeatableApplyTemplateValidationProjectId", response.body.data.id); %}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/0/nodes/apply-template
+Content-Type: application/json
+
+{
+  "template_id": {{existingTemplateId}},
+  "nodes": [
+    {
+      "template_node_id": {{applyTemplateNodeId}},
+      "planned_start_date": "2026-04-05",
+      "planned_end_date": "2026-04-10"
+    }
+  ]
+}
+
+### 异常路径：template_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableApplyTemplateValidationProjectId}}/nodes/apply-template
+Content-Type: application/json
+
+{
+  "template_id": {{invalidTemplateId}},
+  "nodes": [
+    {
+      "template_node_id": {{applyTemplateNodeId}},
+      "planned_start_date": "2026-04-05",
+      "planned_end_date": "2026-04-10"
+    }
+  ]
+}
+
+### 异常路径：模板不存在，预期 404
+POST {{baseUrl}}/api/projects/{{repeatableApplyTemplateValidationProjectId}}/nodes/apply-template
+Content-Type: application/json
+
+{
+  "template_id": {{missingTemplateId}},
+  "nodes": [
+    {
+      "template_node_id": {{applyTemplateNodeId}},
+      "planned_start_date": "2026-04-05",
+      "planned_end_date": "2026-04-10"
+    }
+  ]
+}
+
+### 异常路径：停用模板不允许继续套用，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableApplyTemplateValidationProjectId}}/nodes/apply-template
+Content-Type: application/json
+
+{
+  "template_id": {{disabledTemplateId}},
+  "nodes": [
+    {
+      "template_node_id": {{applyTemplateNodeId}},
+      "planned_start_date": "2026-04-05",
+      "planned_end_date": "2026-04-10"
+    }
+  ]
+}
+
+### 异常路径：项目已完成，预期 409
+POST {{baseUrl}}/api/projects/{{completedProjectId}}/nodes/apply-template
+Content-Type: application/json
+
+{
+  "template_id": {{existingTemplateId}},
+  "nodes": [
+    {
+      "template_node_id": {{applyTemplateNodeId}},
+      "planned_start_date": "2026-04-05",
+      "planned_end_date": "2026-04-10"
+    }
+  ]
+}

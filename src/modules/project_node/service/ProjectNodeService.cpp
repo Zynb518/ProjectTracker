@@ -9,7 +9,110 @@
 namespace project_tracker::modules::project_node::service {
     namespace error = project_tracker::common::error;
     namespace project_domain = modules::project::domain;
+    namespace project_template_domain = modules::project_template::domain;
     namespace user_domain = modules::user::domain;
+
+    drogon::Task<dto::view::AppliedProjectNodeTemplateView>
+    ProjectNodeService::applyProjectNodeTemplate(
+        const dto::command::ApplyProjectNodeTemplateInput &input) const {
+        if (input.nodes.empty()) {
+            error::throwBadRequest(
+                error::ErrorCode::InvalidParameter,
+                "nodes 至少需要包含一个模板节点映射");
+        }
+
+        for (const auto &node : input.nodes) {
+            if (node.plannedStartDate > node.plannedEndDate) {
+                error::throwConflict(
+                    error::ErrorCode::InvalidDateRange,
+                    "阶段节点时间区间不合法或不在所属项目时间范围内");
+            }
+        }
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+
+            const auto checkResult = co_await
+                projectNodeRepository_.findProjectNodeApplyTemplateCheckResultForUpdate(
+                    transaction,
+                    input);
+            if (!checkResult) {
+                error::throwNotFound(
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (checkResult->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员基于模板生成阶段节点");
+            }
+
+            if (!isAdmin && checkResult->ownerUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目负责人");
+            }
+
+            if (checkResult->projectStatus == project_domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "项目已完成，不允许基于模板生成阶段节点");
+            }
+
+            if (checkResult->projectNodeCount > 0) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectTemplateAlreadyApplied,
+                    "项目已存在阶段节点，不能再次整套应用模板");
+            }
+
+            if (!checkResult->templateStatus) {
+                error::throwNotFound(
+                    error::ErrorCode::ProjectTemplateNotFound,
+                    "项目模板不存在");
+            }
+
+            if (*checkResult->templateStatus == project_template_domain::ProjectTemplateStatus::Disabled) {
+                error::throwConflict(
+                    error::ErrorCode::TemplateNodeMappingInvalid,
+                    "模板已停用，不能继续套用");
+            }
+
+            if (checkResult->inputNodeCount != checkResult->distinctInputNodeCount ||
+                checkResult->inputNodeCount != checkResult->templateNodeCount ||
+                checkResult->matchedTemplateNodeCount != checkResult->templateNodeCount) {
+                error::throwConflict(
+                    error::ErrorCode::TemplateNodeMappingInvalid,
+                    "nodes 必须完整覆盖模板中的全部节点，且不能包含重复或无效的 template_node_id");
+            }
+
+            for (const auto &node : input.nodes) {
+                if (node.plannedStartDate < checkResult->projectPlannedStartDate ||
+                    node.plannedEndDate > checkResult->projectPlannedEndDate) {
+                    error::throwConflict(
+                        error::ErrorCode::InvalidDateRange,
+                        "阶段节点时间区间不合法或不在所属项目时间范围内");
+                }
+            }
+
+            const auto result = co_await projectNodeRepository_.insertProjectNodesFromTemplate(
+                transaction,
+                input);
+            if (!result) {
+                error::throwConflict(
+                    error::ErrorCode::TemplateNodeMappingInvalid,
+                    "基于模板生成阶段节点失败，模板映射或模板状态可能已变化");
+            }
+
+            co_return *result;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
+    }
 
     drogon::Task<dto::view::CreatedProjectNodeView>
     ProjectNodeService::createProjectNode(const dto::command::CreateProjectNodeInput &input) const {

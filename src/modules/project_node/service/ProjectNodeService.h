@@ -9,6 +9,11 @@
 namespace project_tracker::modules::project_node::service {
     class ProjectNodeService {
     public:
+        // 基于模板批量生成阶段节点
+        drogon::Task<dto::view::AppliedProjectNodeTemplateView>
+        applyProjectNodeTemplate(
+            const dto::command::ApplyProjectNodeTemplateInput &input) const;
+
         // 创建阶段节点
         drogon::Task<dto::view::CreatedProjectNodeView>
         createProjectNode(const dto::command::CreateProjectNodeInput &input) const;

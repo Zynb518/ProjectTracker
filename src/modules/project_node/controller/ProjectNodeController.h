@@ -15,6 +15,10 @@ namespace project_tracker::modules::project_node::controller {
                           "/api/projects/{project_id}/nodes",
                           drogon::Post,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::applyProjectNodeTemplate,
+                          "/api/projects/{project_id}/nodes/apply-template",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(ProjectNodeController::listProjectNodes,
                           "/api/projects/{project_id}/nodes",
                           drogon::Get,
@@ -52,6 +56,10 @@ namespace project_tracker::modules::project_node::controller {
         drogon::Task<drogon::HttpResponsePtr>
         createProjectNode(drogon::HttpRequestPtr request,
                           std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        applyProjectNodeTemplate(drogon::HttpRequestPtr request,
+                                 std::int64_t projectId);
 
         drogon::Task<drogon::HttpResponsePtr>
         listProjectNodes(drogon::HttpRequestPtr request,

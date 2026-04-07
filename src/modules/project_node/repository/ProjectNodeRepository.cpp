@@ -3,6 +3,7 @@
 #include <string>
 
 #include <drogon/orm/Exception.h>
+#include <json/json.h>
 
 #include "common/error/ErrorCode.h"
 #include "common/error/Throw.h"
@@ -10,6 +11,25 @@
 namespace project_tracker::modules::project_node::repository {
     namespace error = project_tracker::common::error;
     namespace user_domain = modules::user::domain;
+
+    namespace {
+        std::string buildApplyTemplateNodesJson(
+            const dto::command::ApplyProjectNodeTemplateInput &input) {
+            Json::Value nodesJson(Json::arrayValue);
+
+            for (const auto &node : input.nodes) {
+                Json::Value nodeJson(Json::objectValue);
+                nodeJson["template_node_id"] = node.templateNodeId;
+                nodeJson["planned_start_date"] = node.plannedStartDate;
+                nodeJson["planned_end_date"] = node.plannedEndDate;
+                nodesJson.append(nodeJson);
+            }
+
+            Json::StreamWriterBuilder writerBuilder;
+            writerBuilder["indentation"] = "";
+            return Json::writeString(writerBuilder, nodesJson);
+        }
+    } // namespace
 
     drogon::Task<std::optional<ProjectNodeListResult>>
     ProjectNodeRepository::listProjectNodes(const common::db::SqlExecutorPtr &executor,
@@ -837,6 +857,284 @@ namespace project_tracker::modules::project_node::repository {
                 .completedAt = completedAt,
                 .updatedAt = row["updated_at"].as<std::string>()
             };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<ProjectNodeApplyTemplateCheckResult>>
+    ProjectNodeRepository::findProjectNodeApplyTemplateCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::ApplyProjectNodeTemplateInput &input) const {
+        // 查询思路：
+        // 1. 先锁项目行，和创建/删除/重排这类依赖项目状态的写操作串行化。
+        // 2. 再把请求体里的模板节点映射转成临时输入表，统一统计输入条数、去重后条数。
+        // 3. 最后带回模板状态、模板节点总数、命中节点数，供 service 做“模板是否完整覆盖”的细分判断。
+        static const std::string findProjectNodeApplyTemplateCheckResultForUpdateSql = R"SQL(
+            WITH raw_input_nodes AS (
+                SELECT
+                    entry.template_node_id,
+                    entry.planned_start_date,
+                    entry.planned_end_date
+                FROM jsonb_to_recordset($2::jsonb) AS entry(
+                    template_node_id BIGINT,
+                    planned_start_date TEXT,
+                    planned_end_date TEXT
+                )
+            ),
+            project_context AS (
+                SELECT
+                    p.id AS project_id,
+                    p.owner_user_id,
+                    creator_user.system_role AS creator_user_role,
+                    p.status AS project_status,
+                    to_char(p.planned_start_date, 'YYYY-MM-DD') AS project_planned_start_date,
+                    to_char(p.planned_end_date, 'YYYY-MM-DD') AS project_planned_end_date
+                FROM project p
+                JOIN sys_user creator_user ON creator_user.id = p.created_by
+                WHERE p.id = $1
+                FOR UPDATE OF p
+                LIMIT 1
+            ),
+            project_node_stats AS (
+                SELECT
+                    COUNT(pn.id) AS project_node_count
+                FROM project_context pc
+                LEFT JOIN project_node pn ON pn.project_id = pc.project_id
+            ),
+            input_node_stats AS (
+                SELECT
+                    COUNT(*) AS input_node_count,
+                    COUNT(DISTINCT raw_input_nodes.template_node_id) AS distinct_input_node_count
+                FROM raw_input_nodes
+            ),
+            template_context AS (
+                SELECT
+                    pt.id AS template_id,
+                    pt.status AS template_status
+                FROM project_template pt
+                WHERE pt.id = $3
+                LIMIT 1
+            ),
+            template_node_stats AS (
+                SELECT
+                    COUNT(ptn.id) AS template_node_count,
+                    COUNT(input_nodes.template_node_id) AS matched_template_node_count
+                FROM template_context tc
+                LEFT JOIN project_template_node ptn ON ptn.template_id = tc.template_id
+                LEFT JOIN (
+                    SELECT DISTINCT raw_input_nodes.template_node_id
+                    FROM raw_input_nodes
+                ) AS input_nodes ON input_nodes.template_node_id = ptn.id
+            )
+            SELECT
+                pc.owner_user_id,
+                pc.creator_user_role,
+                pc.project_status,
+                pc.project_planned_start_date,
+                pc.project_planned_end_date,
+                pns.project_node_count,
+                tc.template_status,
+                ins.input_node_count,
+                ins.distinct_input_node_count,
+                COALESCE(tns.template_node_count, 0) AS template_node_count,
+                COALESCE(tns.matched_template_node_count, 0) AS matched_template_node_count
+            FROM project_context pc
+            CROSS JOIN project_node_stats pns
+            CROSS JOIN input_node_stats ins
+            LEFT JOIN template_context tc ON TRUE
+            LEFT JOIN template_node_stats tns ON TRUE
+        )SQL";
+
+        const auto inputNodesJson = buildApplyTemplateNodesJson(input);
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectNodeApplyTemplateCheckResultForUpdateSql,
+                input.projectId,
+                inputNodesJson,
+                input.templateId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            std::optional<project_template::domain::ProjectTemplateStatus> templateStatus;
+            if (!row["template_status"].isNull()) {
+                templateStatus = static_cast<project_template::domain::ProjectTemplateStatus>(
+                    row["template_status"].as<int>());
+            }
+
+            co_return ProjectNodeApplyTemplateCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .projectStatus = static_cast<project::domain::ProjectStatus>(
+                    row["project_status"].as<int>()),
+                .projectPlannedStartDate = row["project_planned_start_date"].as<std::string>(),
+                .projectPlannedEndDate = row["project_planned_end_date"].as<std::string>(),
+                .projectNodeCount = row["project_node_count"].as<std::int64_t>(),
+                .templateStatus = templateStatus,
+                .inputNodeCount = row["input_node_count"].as<std::int64_t>(),
+                .distinctInputNodeCount = row["distinct_input_node_count"].as<std::int64_t>(),
+                .templateNodeCount = row["template_node_count"].as<std::int64_t>(),
+                .matchedTemplateNodeCount = row["matched_template_node_count"].as<std::int64_t>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::AppliedProjectNodeTemplateView>>
+    ProjectNodeRepository::insertProjectNodesFromTemplate(
+        const common::db::SqlExecutorPtr &executor,
+        const dto::command::ApplyProjectNodeTemplateInput &input) const {
+        // 查询思路：
+        // 1. raw_input_nodes 先接住 controller 传下来的模板节点日期映射，避免在 SQL 里手拼 VALUES。
+        // 2. validated_context 把“项目当前无节点、模板仍启用、映射完整且无重复、日期仍在项目范围内”压成最终写保护条件。
+        // 3. inserted_nodes 再从模板表直接复制 name/description/sequence_no，保证顺序只来源于模板定义。
+        static const std::string insertProjectNodesFromTemplateSql = R"SQL(
+            WITH raw_input_nodes AS (
+                SELECT
+                    entry.template_node_id,
+                    entry.planned_start_date::date AS planned_start_date,
+                    entry.planned_end_date::date AS planned_end_date
+                FROM jsonb_to_recordset($4::jsonb) AS entry(
+                    template_node_id BIGINT,
+                    planned_start_date TEXT,
+                    planned_end_date TEXT
+                )
+            ),
+            project_context AS (
+                SELECT
+                    p.id AS project_id,
+                    p.planned_start_date AS project_planned_start_date,
+                    p.planned_end_date AS project_planned_end_date
+                FROM project p
+                WHERE p.id = $1
+                LIMIT 1
+            ),
+            input_node_stats AS (
+                SELECT
+                    COUNT(*) AS input_node_count,
+                    COUNT(DISTINCT raw_input_nodes.template_node_id) AS distinct_input_node_count
+                FROM raw_input_nodes
+            ),
+            template_node_stats AS (
+                SELECT
+                    COUNT(ptn.id) AS template_node_count,
+                    COUNT(input_nodes.template_node_id) AS matched_template_node_count
+                FROM project_template_node ptn
+                LEFT JOIN (
+                    SELECT DISTINCT raw_input_nodes.template_node_id
+                    FROM raw_input_nodes
+                ) AS input_nodes ON input_nodes.template_node_id = ptn.id
+                WHERE ptn.template_id = $2
+            ),
+            validated_context AS (
+                SELECT
+                    pc.project_id
+                FROM project_context pc
+                JOIN project_template pt ON pt.id = $2
+                CROSS JOIN input_node_stats ins
+                CROSS JOIN template_node_stats tns
+                WHERE pt.status = 1 AND
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM project_node pn
+                        WHERE pn.project_id = pc.project_id
+                    ) AND
+                    ins.input_node_count = ins.distinct_input_node_count AND
+                    ins.input_node_count = tns.template_node_count AND
+                    tns.matched_template_node_count = tns.template_node_count AND
+                    NOT EXISTS (
+                        SELECT 1
+                        FROM raw_input_nodes rin
+                        WHERE rin.planned_start_date > rin.planned_end_date OR
+                            rin.planned_start_date < pc.project_planned_start_date OR
+                            rin.planned_end_date > pc.project_planned_end_date
+                    )
+            ),
+            inserted_nodes AS (
+                INSERT INTO project_node (
+                    project_id,
+                    name,
+                    description,
+                    sequence_no,
+                    status,
+                    planned_start_date,
+                    planned_end_date,
+                    created_by
+                )
+                SELECT
+                    vc.project_id,
+                    ptn.name,
+                    ptn.description,
+                    ptn.sequence_no,
+                    1,
+                    rin.planned_start_date,
+                    rin.planned_end_date,
+                    $3
+                FROM validated_context vc
+                JOIN project_template_node ptn ON ptn.template_id = $2
+                JOIN raw_input_nodes rin ON rin.template_node_id = ptn.id
+                ORDER BY ptn.sequence_no ASC, ptn.id ASC
+                RETURNING
+                    id,
+                    project_id,
+                    name,
+                    sequence_no,
+                    to_char(planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                    to_char(planned_end_date, 'YYYY-MM-DD') AS planned_end_date
+            )
+            SELECT
+                inserted_nodes.id,
+                inserted_nodes.project_id,
+                inserted_nodes.name,
+                inserted_nodes.sequence_no,
+                inserted_nodes.planned_start_date,
+                inserted_nodes.planned_end_date
+            FROM inserted_nodes
+            ORDER BY inserted_nodes.sequence_no ASC, inserted_nodes.id ASC
+        )SQL";
+
+        const auto inputNodesJson = buildApplyTemplateNodesJson(input);
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                insertProjectNodesFromTemplateSql,
+                input.projectId,
+                input.templateId,
+                input.operatorUserId,
+                inputNodesJson);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            dto::view::AppliedProjectNodeTemplateView view{
+                .projectId = result.front()["project_id"].as<std::int64_t>(),
+                .templateId = input.templateId,
+                .generatedNodes = {}
+            };
+            view.generatedNodes.reserve(result.size());
+
+            for (const auto &row : result) {
+                view.generatedNodes.push_back(dto::view::AppliedProjectNodeTemplateItemView{
+                    .id = row["id"].as<std::int64_t>(),
+                    .name = row["name"].as<std::string>(),
+                    .sequenceNo = row["sequence_no"].as<int>(),
+                    .plannedStartDate = row["planned_start_date"].as<std::string>(),
+                    .plannedEndDate = row["planned_end_date"].as<std::string>()
+                });
+            }
+
+            co_return view;
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(
                 error::ErrorCode::InternalError,
