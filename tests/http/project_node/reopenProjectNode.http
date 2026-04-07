@@ -1,0 +1,290 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableAdminReopenNodeProjectName = reopen_node_admin_case_{{$timestamp}}
+@repeatableNotCompletedNodeProjectName = reopen_node_not_completed_case_{{$timestamp}}
+@repeatableEmployeeReopenNodeProjectName = reopen_node_employee_case_{{$timestamp}}
+@repeatableCompletedProjectName = reopen_node_project_completed_case_{{$timestamp}}
+@missingProjectId = 999999
+@missingNodeId = 999999
+@invalidProjectId = 0
+@invalidNodeId = 0
+
+### 提示：正常路径和部分异常路径会先创建临时项目与临时节点，因此可以重复回放。
+### 提示：当前按已确认口径实现：若所属项目仍为已完成，必须先撤销项目完成，再处理节点撤销完成。
+### 提示：当前按已确认口径实现：无子任务节点即便未显式 start、只要曾被 complete，reopen 后也回到 status=2。
+### 当前为 12.9 撤销阶段节点完成 的 RED 用例；接口未实现前，相关请求会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建待撤销完成的临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableAdminReopenNodeProjectName}}",
+  "description": "用于验证管理员可撤销已完成阶段节点。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableAdminReopenNodeProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建待撤销完成的临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableAdminReopenNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "发布收尾",
+  "description": "用于验证撤销阶段节点完成接口。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-20"
+}
+
+> {% client.global.set("repeatableAdminReopenNodeId", response.body.data.id); %}
+
+### 正常路径：管理员先完成刚创建的临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableAdminReopenNodeProjectId}}/nodes/{{repeatableAdminReopenNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员撤销刚完成的临时阶段节点，当前实现预期 status=2
+POST {{baseUrl}}/api/projects/{{repeatableAdminReopenNodeProjectId}}/nodes/{{repeatableAdminReopenNodeId}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员撤销阶段节点完成成功并返回进行中状态", function() {
+  client.assert(response.status === 200, "撤销阶段节点完成应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.id === client.global.get("repeatableAdminReopenNodeId"), "返回的 id 应等于目标节点");
+  client.assert(response.body.data.status === 2, "撤销完成后 status 应回到 2");
+  client.assert(response.body.data.completed_at === null, "撤销完成后 completed_at 应为 null");
+});
+%}
+
+### 正常路径：管理员创建一个未完成的临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableNotCompletedNodeProjectName}}",
+  "description": "用于验证未完成节点不能撤销完成。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableNotCompletedNodeProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建一个未完成的临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableNotCompletedNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "未完成节点",
+  "description": "用于验证未完成节点不能执行撤销完成。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-20"
+}
+
+> {% client.global.set("repeatableNotCompletedNodeId", response.body.data.id); %}
+
+### 正常路径：管理员创建一个“项目已完成”的临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableCompletedProjectName}}",
+  "description": "用于验证必须先撤销项目完成再处理节点。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableCompletedProjectIdForNodeReopen", response.body.data.id); %}
+
+### 正常路径：管理员在该项目下创建临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableCompletedProjectIdForNodeReopen}}/nodes
+Content-Type: application/json
+
+{
+  "name": "完成后待撤销",
+  "description": "用于验证项目已完成时节点撤销完成应被拦截。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-20"
+}
+
+> {% client.global.set("repeatableCompletedProjectNodeIdForReopen", response.body.data.id); %}
+
+### 正常路径：管理员先完成该阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableCompletedProjectIdForNodeReopen}}/nodes/{{repeatableCompletedProjectNodeIdForReopen}}/complete
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员再完成整个项目
+POST {{baseUrl}}/api/projects/{{repeatableCompletedProjectIdForNodeReopen}}/complete
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录撤销阶段节点完成，预期 401
+POST {{baseUrl}}/api/projects/{{repeatableAdminReopenNodeProjectId}}/nodes/{{repeatableAdminReopenNodeId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工创建个人自用临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableEmployeeReopenNodeProjectName}}",
+  "description": "用于验证项目负责人可撤销自己的阶段节点完成。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableEmployeeReopenNodeProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工创建个人项目下的临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeReopenNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "个人返工",
+  "description": "用于验证普通员工项目负责人可撤销自己的节点完成。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-20"
+}
+
+> {% client.global.set("repeatableEmployeeReopenNodeId", response.body.data.id); %}
+
+### 正常路径：普通员工先完成自己的阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeReopenNodeProjectId}}/nodes/{{repeatableEmployeeReopenNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员不能撤销普通员工创建的个人自用项目节点完成状态，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeReopenNodeProjectId}}/nodes/{{repeatableEmployeeReopenNodeId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：当前项目仍为已完成，必须先撤销项目完成，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableCompletedProjectIdForNodeReopen}}/nodes/{{repeatableCompletedProjectNodeIdForReopen}}/reopen
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工撤销非本人负责项目节点完成状态，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableAdminReopenNodeProjectId}}/nodes/{{repeatableAdminReopenNodeId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：当前不是已完成状态，不能撤销完成，预期 409
+POST {{baseUrl}}/api/projects/{{repeatableNotCompletedNodeProjectId}}/nodes/{{repeatableNotCompletedNodeId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{invalidProjectId}}/nodes/{{repeatableAdminReopenNodeId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：node_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminReopenNodeProjectId}}/nodes/{{invalidNodeId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminReopenNodeProjectId}}/nodes/{{repeatableAdminReopenNodeId}}/reopen
+Content-Type: application/json
+
+[]
+
+### 异常路径：项目不存在，预期 404
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/nodes/{{repeatableAdminReopenNodeId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：阶段节点不存在，预期 404
+POST {{baseUrl}}/api/projects/{{repeatableAdminReopenNodeProjectId}}/nodes/{{missingNodeId}}/reopen
+Content-Type: application/json
+
+{}

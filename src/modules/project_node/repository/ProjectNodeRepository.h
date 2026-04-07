@@ -63,6 +63,14 @@ namespace project_tracker::modules::project_node::repository {
         domain::ProjectNodeStatus nodeStatus;
     };
 
+    // 撤销阶段节点完成前的校验信息
+    struct ProjectNodeReopenCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+        domain::ProjectNodeStatus nodeStatus;
+    };
+
     // 删除阶段节点前的校验信息
     struct ProjectNodeDeleteCheckResult {
         std::int64_t ownerUserId;
@@ -156,6 +164,19 @@ namespace project_tracker::modules::project_node::repository {
         updateProjectNodeStatusForComplete(const common::db::SqlExecutorPtr &executor,
                                            std::int64_t projectId,
                                            std::int64_t nodeId) const;
+
+        // 锁定阶段节点行，供撤销阶段节点完成写事务做前置检查
+        drogon::Task<std::optional<ProjectNodeReopenCheckResult>>
+        findProjectNodeReopenCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t projectId,
+            std::int64_t nodeId) const;
+
+        // 按撤销完成动作更新阶段节点状态
+        drogon::Task<std::optional<dto::view::UpdatedProjectNodeStatusView>>
+        updateProjectNodeStatusForReopen(const common::db::SqlExecutorPtr &executor,
+                                         std::int64_t projectId,
+                                         std::int64_t nodeId) const;
 
         // 锁定阶段节点行，供删除阶段节点写事务做前置检查
         drogon::Task<std::optional<ProjectNodeDeleteCheckResult>>

@@ -35,6 +35,10 @@ namespace project_tracker::modules::project_node::controller {
                           "/api/projects/{project_id}/nodes/{node_id}/complete",
                           drogon::Post,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::reopenProjectNode,
+                          "/api/projects/{project_id}/nodes/{node_id}/reopen",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(ProjectNodeController::deleteProjectNode,
                           "/api/projects/{project_id}/nodes/{node_id}",
                           drogon::Delete,
@@ -72,6 +76,11 @@ namespace project_tracker::modules::project_node::controller {
         completeProjectNode(drogon::HttpRequestPtr request,
                             std::int64_t projectId,
                             std::int64_t nodeId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        reopenProjectNode(drogon::HttpRequestPtr request,
+                          std::int64_t projectId,
+                          std::int64_t nodeId);
 
         drogon::Task<drogon::HttpResponsePtr>
         deleteProjectNode(drogon::HttpRequestPtr request,

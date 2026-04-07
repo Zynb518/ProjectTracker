@@ -738,6 +738,112 @@ namespace project_tracker::modules::project_node::repository {
         }
     }
 
+    drogon::Task<std::optional<ProjectNodeReopenCheckResult>>
+    ProjectNodeRepository::findProjectNodeReopenCheckResultForUpdate(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId,
+        std::int64_t nodeId) const {
+        // 查询思路：
+        // 1. 项目行已在写事务上一步锁定，这里只锁目标节点，继续带回所属项目上的权限/状态字段。
+        // 2. 同时带回项目负责人、项目创建人角色，供 service 做权限判断。
+        static const std::string findProjectNodeReopenCheckResultForUpdateSql = R"SQL(
+            SELECT
+                p.owner_user_id,
+                creator_user.system_role AS creator_user_role,
+                p.status AS project_status,
+                pn.status AS node_status
+            FROM project p
+            JOIN project_node pn ON pn.project_id = p.id
+            JOIN sys_user creator_user ON creator_user.id = p.created_by
+            WHERE p.id = $1 AND
+                pn.id = $2
+            FOR UPDATE OF pn
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectNodeReopenCheckResultForUpdateSql,
+                projectId,
+                nodeId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+            co_return ProjectNodeReopenCheckResult{
+                .ownerUserId = row["owner_user_id"].as<std::int64_t>(),
+                .creatorUserRole = static_cast<user_domain::SystemRole>(
+                    row["creator_user_role"].as<int>()),
+                .projectStatus = static_cast<project::domain::ProjectStatus>(
+                    row["project_status"].as<int>()),
+                .nodeStatus = static_cast<domain::ProjectNodeStatus>(
+                    row["node_status"].as<int>())
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::UpdatedProjectNodeStatusView>>
+    ProjectNodeRepository::updateProjectNodeStatusForReopen(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId,
+        std::int64_t nodeId) const {
+        // 按北京时间先判断是否已延期；当前 schema 没有阶段级开始信号历史，
+        // 这里对已完成节点按“已存在开始信号”回退到进行中/已延期。
+        static const std::string updateProjectNodeStatusForReopenSql = R"SQL(
+            UPDATE project_node pn
+            SET
+                status = CASE
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > pn.planned_end_date THEN 4
+                    ELSE 2
+                END,
+                completed_at = NULL,
+                updated_at = NOW()
+            WHERE pn.project_id = $1 AND
+                pn.id = $2 AND
+                pn.status = 3
+            RETURNING
+                pn.id,
+                pn.status,
+                to_char(pn.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD\"T\"HH24:MI:SS') || '+08:00' AS completed_at,
+                to_char(pn.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD\"T\"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateProjectNodeStatusForReopenSql,
+                projectId,
+                nodeId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::UpdatedProjectNodeStatusView{
+                .id = row["id"].as<std::int64_t>(),
+                .status = static_cast<domain::ProjectNodeStatus>(row["status"].as<int>()),
+                .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<std::optional<ProjectNodeBasicInfoUpdateCheckResult>>
     ProjectNodeRepository::findProjectNodeBasicInfoUpdateCheckResultForUpdate(
         const common::db::SqlExecutorPtr &executor,

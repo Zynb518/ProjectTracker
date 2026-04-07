@@ -569,6 +569,58 @@ namespace project_tracker::modules::project_node::controller {
     }
 
     drogon::Task<drogon::HttpResponsePtr>
+    ProjectNodeController::reopenProjectNode(drogon::HttpRequestPtr request,
+                                             std::int64_t projectId,
+                                             std::int64_t nodeId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        if (nodeId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "node_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        try {
+            const auto node = co_await projectNodeService_.reopenProjectNode(
+                dto::command::ProjectNodeStatusActionInput{
+                    .projectId = projectId,
+                    .nodeId = nodeId,
+                    .operatorUserId = *userId,
+                    .operatorUserRole = *systemRole
+                });
+
+            co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
     ProjectNodeController::deleteProjectNode(drogon::HttpRequestPtr request,
                                              std::int64_t projectId,
                                              std::int64_t nodeId) {

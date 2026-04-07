@@ -26,6 +26,10 @@ namespace project_tracker::modules::project_node::service {
         drogon::Task<dto::view::UpdatedProjectNodeStatusView>
         completeProjectNode(const dto::command::ProjectNodeStatusActionInput &input) const;
 
+        // 撤销阶段节点完成
+        drogon::Task<dto::view::UpdatedProjectNodeStatusView>
+        reopenProjectNode(const dto::command::ProjectNodeStatusActionInput &input) const;
+
         // 调整阶段节点顺序
         drogon::Task<dto::view::ReorderedProjectNodesView>
         reorderProjectNodes(const dto::command::ReorderProjectNodesInput &input) const;

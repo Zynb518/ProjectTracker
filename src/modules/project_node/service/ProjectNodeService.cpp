@@ -305,6 +305,76 @@ namespace project_tracker::modules::project_node::service {
         }
     }
 
+    drogon::Task<dto::view::UpdatedProjectNodeStatusView>
+    ProjectNodeService::reopenProjectNode(
+        const dto::command::ProjectNodeStatusActionInput &input) const {
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+
+            const auto projectId = co_await projectNodeRepository_.findProjectIdForUpdate(
+                transaction,
+                input.projectId);
+            if (!projectId) {
+                error::throwNotFound(
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            const auto nodeCheckResult = co_await
+                projectNodeRepository_.findProjectNodeReopenCheckResultForUpdate(
+                    transaction,
+                    input.projectId,
+                    input.nodeId);
+            if (!nodeCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::PhaseNotFound,
+                    "阶段节点不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (nodeCheckResult->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员撤销阶段节点完成");
+            }
+
+            if (!isAdmin && nodeCheckResult->ownerUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目负责人");
+            }
+
+            if (nodeCheckResult->projectStatus == project_domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "项目已完成，必须先撤销项目完成再处理节点");
+            }
+
+            if (nodeCheckResult->nodeStatus != domain::ProjectNodeStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ReopenFailed,
+                    "阶段节点当前不是已完成状态，不能撤销完成");
+            }
+
+            const auto node = co_await projectNodeRepository_.updateProjectNodeStatusForReopen(
+                transaction,
+                input.projectId,
+                input.nodeId);
+            if (!node) {
+                error::throwConflict(
+                    error::ErrorCode::ReopenFailed,
+                    "撤销阶段节点完成失败");
+            }
+
+            co_return *node;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
+    }
+
     drogon::Task<dto::view::ReorderedProjectNodesView>
     ProjectNodeService::reorderProjectNodes(
         const dto::command::ReorderProjectNodesInput &input) const {
