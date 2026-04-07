@@ -27,6 +27,14 @@ namespace project_tracker::modules::project_node::controller {
                           "/api/projects/{project_id}/nodes/{node_id}",
                           drogon::Patch,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::startProjectNode,
+                          "/api/projects/{project_id}/nodes/{node_id}/start",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::completeProjectNode,
+                          "/api/projects/{project_id}/nodes/{node_id}/complete",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(ProjectNodeController::deleteProjectNode,
                           "/api/projects/{project_id}/nodes/{node_id}",
                           drogon::Delete,
@@ -54,6 +62,16 @@ namespace project_tracker::modules::project_node::controller {
         updateProjectNodeBasicInfo(drogon::HttpRequestPtr request,
                                    std::int64_t projectId,
                                    std::int64_t nodeId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        startProjectNode(drogon::HttpRequestPtr request,
+                         std::int64_t projectId,
+                         std::int64_t nodeId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        completeProjectNode(drogon::HttpRequestPtr request,
+                            std::int64_t projectId,
+                            std::int64_t nodeId);
 
         drogon::Task<drogon::HttpResponsePtr>
         deleteProjectNode(drogon::HttpRequestPtr request,

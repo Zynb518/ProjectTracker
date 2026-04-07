@@ -8,6 +8,7 @@
 @invalidProjectId = 0
 
 ### 提示：正常修改会写入数据库；如需对照初始种子数据，请先重置 db/seeds/001_demo_data.sql
+### 提示：当前固定使用 project 1（官网重构）验证“项目时间区间必须覆盖其下全部阶段节点时间区间”。
 
 ### 正常路径：管理员登录
 POST {{baseUrl}}/api/auth/login
@@ -138,6 +139,15 @@ Content-Type: application/json
 
 {
   "planned_start_date": "2026-05-11",
+  "planned_end_date": "2026-05-10"
+}
+
+### 异常路径：项目时间区间不能覆盖现有阶段节点，预期 409
+PATCH {{baseUrl}}/api/projects/{{targetProjectId}}
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-03-02",
   "planned_end_date": "2026-05-10"
 }
 

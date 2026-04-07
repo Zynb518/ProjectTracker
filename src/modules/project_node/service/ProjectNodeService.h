@@ -2,6 +2,7 @@
 
 #include <drogon/utils/coroutine.h>
 
+#include "modules/project/repository/ProjectRepository.h"
 #include "modules/project_node/dto/ProjectNodeDto.h"
 #include "modules/project_node/repository/ProjectNodeRepository.h"
 
@@ -17,6 +18,14 @@ namespace project_tracker::modules::project_node::service {
         updateProjectNodeBasicInfo(
             const dto::command::UpdateProjectNodeBasicInfoInput &input) const;
 
+        // 手动开始阶段节点
+        drogon::Task<dto::view::UpdatedProjectNodeStatusView>
+        startProjectNode(const dto::command::ProjectNodeStatusActionInput &input) const;
+
+        // 手动完成阶段节点
+        drogon::Task<dto::view::UpdatedProjectNodeStatusView>
+        completeProjectNode(const dto::command::ProjectNodeStatusActionInput &input) const;
+
         // 调整阶段节点顺序
         drogon::Task<dto::view::ReorderedProjectNodesView>
         reorderProjectNodes(const dto::command::ReorderProjectNodesInput &input) const;
@@ -26,6 +35,7 @@ namespace project_tracker::modules::project_node::service {
         deleteProjectNode(const dto::command::DeleteProjectNodeInput &input) const;
 
     private:
+        project::repository::ProjectRepository projectRepository_;
         repository::ProjectNodeRepository projectNodeRepository_;
     };
 } // namespace project_tracker::modules::project_node::service

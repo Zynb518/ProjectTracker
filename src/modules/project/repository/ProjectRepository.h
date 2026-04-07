@@ -147,6 +147,11 @@ namespace project_tracker::modules::project::repository {
         updateProjectStatusForStart(const common::db::SqlExecutorPtr &executor,
                                     std::int64_t projectId) const;
 
+        // 阶段节点已出现开始信号时，同步把未开始项目推进到已开始态
+        drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
+        updateProjectStatusForNodeSignal(const common::db::SqlExecutorPtr &executor,
+                                         std::int64_t projectId) const;
+
         // 锁定项目行，供手动完成项目写事务做前置检查
         drogon::Task<std::optional<ProjectCompleteCheckResult>>
         findProjectCompleteCheckResultForUpdate(const common::db::SqlExecutorPtr &executor,

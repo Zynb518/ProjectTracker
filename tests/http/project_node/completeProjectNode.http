@@ -1,0 +1,270 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableAdminCompleteNodeProjectName = complete_node_admin_case_{{$timestamp}}
+@repeatableEmployeeCompleteNodeProjectName = complete_node_employee_case_{{$timestamp}}
+@nodeWithUnfinishedTasksProjectId = 2
+@nodeWithUnfinishedTasksId = 2
+@completedNodeProjectId = 1
+@completedNodeId = 1
+@completedProjectId = 3
+@completedProjectNodeId = 3
+@missingProjectId = 999999
+@missingNodeId = 999999
+@invalidProjectId = 0
+@invalidNodeId = 0
+
+### 提示：正常路径和部分异常路径会先创建临时项目与临时节点，因此可以重复回放。
+### 提示：当前使用固定 project 2 / node 2（移动端打卡 / 原型设计）验证“存在未完成子任务时不能手动完成”。
+### 提示：当前使用固定 project 1 / node 1（官网重构 / 需求分析）验证“已完成节点不能重复完成”。
+### 提示：当前使用固定 project 3 / node 3（财务报表平台 / 数据建模）验证“已完成项目下节点不允许直接完成”。
+### 当前为 12.8 手动完成阶段节点 的 RED 用例；接口未实现前，相关请求会先失败，后续据此补实现。
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：管理员创建可手动完成的临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableAdminCompleteNodeProjectName}}",
+  "description": "用于验证管理员手动完成无子任务阶段节点。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableAdminCompleteNodeProjectId", response.body.data.id); %}
+
+### 正常路径：管理员创建无子任务的临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableAdminCompleteNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "联调验收",
+  "description": "用于验证管理员可直接完成无子任务节点。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-15"
+}
+
+> {% client.global.set("repeatableAdminCompleteNodeId", response.body.data.id); %}
+
+### 正常路径：管理员手动完成刚创建的临时阶段节点，预期 status=3
+POST {{baseUrl}}/api/projects/{{repeatableAdminCompleteNodeProjectId}}/nodes/{{repeatableAdminCompleteNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员手动完成阶段节点成功并返回已完成状态", function() {
+  client.assert(response.status === 200, "手动完成阶段节点应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.id === client.global.get("repeatableAdminCompleteNodeId"), "返回的 id 应等于目标节点");
+  client.assert(response.body.data.status === 3, "手动完成后 status 应为 3");
+  client.assert(response.body.data.completed_at !== null, "completed_at 应返回完成时间");
+});
+%}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录手动完成阶段节点，预期 401
+POST {{baseUrl}}/api/projects/{{repeatableAdminCompleteNodeProjectId}}/nodes/{{repeatableAdminCompleteNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工创建个人自用临时项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableEmployeeCompleteNodeProjectName}}",
+  "description": "用于验证项目负责人可手动完成自己的阶段节点。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableEmployeeCompleteNodeProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工创建个人项目下的无子任务临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeCompleteNodeProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "个人收尾",
+  "description": "用于验证普通员工项目负责人可完成自己的节点。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-20"
+}
+
+> {% client.global.set("repeatableEmployeeCompleteNodeId", response.body.data.id); %}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：管理员不能手动完成普通员工创建的个人自用项目节点，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeCompleteNodeProjectId}}/nodes/{{repeatableEmployeeCompleteNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工重新登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工手动完成自己项目下的阶段节点，预期 status=3
+POST {{baseUrl}}/api/projects/{{repeatableEmployeeCompleteNodeProjectId}}/nodes/{{repeatableEmployeeCompleteNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("普通员工项目负责人可手动完成自己的阶段节点", function() {
+  client.assert(response.status === 200, "项目负责人手动完成自己的节点应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.id === client.global.get("repeatableEmployeeCompleteNodeId"), "返回的 id 应等于目标节点");
+  client.assert(response.body.data.status === 3, "手动完成后 status 应为 3");
+});
+%}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：存在未完成子任务时，不允许手动完成，预期 409
+POST {{baseUrl}}/api/projects/{{nodeWithUnfinishedTasksProjectId}}/nodes/{{nodeWithUnfinishedTasksId}}/complete
+Content-Type: application/json
+
+{}
+
+### 异常路径：已完成节点不能重复完成，预期 409
+POST {{baseUrl}}/api/projects/{{completedNodeProjectId}}/nodes/{{completedNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 异常路径：已完成项目下的节点不允许直接完成，预期 409
+POST {{baseUrl}}/api/projects/{{completedProjectId}}/nodes/{{completedProjectNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通员工手动完成非本人负责项目节点，预期 403
+POST {{baseUrl}}/api/projects/{{repeatableAdminCompleteNodeProjectId}}/nodes/{{repeatableAdminCompleteNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：project_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{invalidProjectId}}/nodes/{{repeatableAdminCompleteNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 异常路径：node_id 小于等于 0，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCompleteNodeProjectId}}/nodes/{{invalidNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{repeatableAdminCompleteNodeProjectId}}/nodes/{{repeatableAdminCompleteNodeId}}/complete
+Content-Type: application/json
+
+[]
+
+### 异常路径：项目不存在，预期 404
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/nodes/{{repeatableAdminCompleteNodeId}}/complete
+Content-Type: application/json
+
+{}
+
+### 异常路径：阶段节点不存在，预期 404
+POST {{baseUrl}}/api/projects/{{repeatableAdminCompleteNodeProjectId}}/nodes/{{missingNodeId}}/complete
+Content-Type: application/json
+
+{}

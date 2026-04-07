@@ -87,8 +87,8 @@ namespace project_tracker::modules::project::service {
             const auto project = co_await projectRepository_.updateProjectBasicInfo(transaction, input);
             if (!project) {
                 error::throwConflict(
-                    error::ErrorCode::ProjectCompletedReadonly,
-                    "修改项目基础信息失败");
+                    error::ErrorCode::InvalidDateRange,
+                    "项目时间区间不合法或不能覆盖全部阶段节点");
             }
             co_return *project;
         } catch (const drogon::orm::DrogonDbException &) {

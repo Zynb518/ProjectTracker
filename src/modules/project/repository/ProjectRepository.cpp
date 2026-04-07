@@ -151,32 +151,64 @@ namespace project_tracker::modules::project::repository {
     ProjectRepository::updateProjectBasicInfo(
         const common::db::SqlExecutorPtr &executor,
         const dto::command::UpdateProjectBasicInfoInput &input) const {
-        // 基础信息修改后，同步按最终 planned_end_date 重算未完成项目状态：
-        // 未开始保持未开始；已开始项目只在进行中/已延期之间切换。
+        // 查询思路：
+        // 1. target_context 先算出项目本次更新后的有效名称、说明、起止日期。
+        // 2. node_range 单独聚合当前项目下全部节点的最小开始日期和最大结束日期。
+        // 3. 最后只在“项目日期合法，且仍能覆盖全部阶段节点”时执行更新；
+        //    同时按最终 planned_end_date 重算未完成项目状态：未开始保持未开始，已开始项目只在进行中/已延期之间切换。
         static const std::string updateProjectBasicInfoSql = R"SQL(
-            UPDATE project
+            WITH target_context AS (
+                SELECT
+                    p.id,
+                    COALESCE($2, p.name) AS next_name,
+                    COALESCE($3, p.description) AS next_description,
+                    COALESCE($4::date, p.planned_start_date) AS next_planned_start_date,
+                    COALESCE($5::date, p.planned_end_date) AS next_planned_end_date
+                FROM project p
+                WHERE p.id = $1
+            ),
+            node_range AS (
+                SELECT
+                    pn.project_id,
+                    MIN(pn.planned_start_date) AS min_planned_start_date,
+                    MAX(pn.planned_end_date) AS max_planned_end_date
+                FROM project_node pn
+                WHERE pn.project_id = $1
+                GROUP BY pn.project_id
+            )
+            UPDATE project p
             SET
-                name = COALESCE($2, name),
-                description = COALESCE($3, description),
-                planned_start_date = COALESCE($4::date, planned_start_date),
-                planned_end_date = COALESCE($5::date, planned_end_date),
+                name = tc.next_name,
+                description = tc.next_description,
+                planned_start_date = tc.next_planned_start_date,
+                planned_end_date = tc.next_planned_end_date,
                 status = CASE
-                    WHEN status = 1 THEN 1
-                    WHEN status = 3 THEN 3
+                    WHEN p.status = 1 THEN 1
+                    WHEN p.status = 3 THEN 3
                     WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date >
-                         COALESCE($5::date, planned_end_date) THEN 4
+                         tc.next_planned_end_date THEN 4
                     ELSE 2
                 END,
                 updated_at = NOW()
-            WHERE id = $1
+            FROM target_context tc
+            LEFT JOIN node_range nr ON nr.project_id = tc.id
+            WHERE p.id = tc.id AND
+                tc.next_planned_start_date <= tc.next_planned_end_date AND
+                (
+                    nr.project_id IS NULL OR
+                    (
+                        tc.next_planned_start_date <= nr.min_planned_start_date AND
+                        tc.next_planned_end_date >= nr.max_planned_end_date
+                    )
+                )
             RETURNING
-                id,
-                name,
-                description,
-                status,
-                to_char(planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
-                to_char(planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
-                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+                p.id,
+                p.name,
+                p.description,
+                p.status,
+                to_char(p.planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                to_char(p.planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
+                to_char(p.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
         )SQL";
 
         try {
@@ -347,6 +379,58 @@ namespace project_tracker::modules::project::repository {
         try {
             const auto result = co_await executor->execSqlCoro(
                 updateProjectStatusForStartSql,
+                projectId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::UpdatedProjectStatusView{
+                .id = row["id"].as<std::int64_t>(),
+                .status = static_cast<domain::ProjectStatus>(row["status"].as<int>()),
+                .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::UpdatedProjectStatusView>>
+    ProjectRepository::updateProjectStatusForNodeSignal(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t projectId) const {
+        // -- 项目行已在调用方事务中锁定；这里只把仍为未开始的项目推进到项目自己的已开始态。
+        static const std::string updateProjectStatusForNodeSignalSql = R"SQL(
+            UPDATE project
+            SET
+                status = CASE
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > planned_end_date THEN 4
+                    ELSE 2
+                END,
+                completed_at = NULL,
+                updated_at = NOW()
+            WHERE id = $1 AND
+                status = 1
+            RETURNING
+                id,
+                status,
+                to_char(completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                to_char(updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateProjectStatusForNodeSignalSql,
                 projectId);
 
             if (result.empty()) {

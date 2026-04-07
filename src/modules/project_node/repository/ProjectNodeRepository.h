@@ -47,6 +47,22 @@ namespace project_tracker::modules::project_node::repository {
         domain::ProjectNodeStatus nodeStatus;
     };
 
+    // 手动开始阶段节点前的校验信息
+    struct ProjectNodeStartCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+        domain::ProjectNodeStatus nodeStatus;
+    };
+
+    // 手动完成阶段节点前的校验信息
+    struct ProjectNodeCompleteCheckResult {
+        std::int64_t ownerUserId;
+        user::domain::SystemRole creatorUserRole;
+        project::domain::ProjectStatus projectStatus;
+        domain::ProjectNodeStatus nodeStatus;
+    };
+
     // 删除阶段节点前的校验信息
     struct ProjectNodeDeleteCheckResult {
         std::int64_t ownerUserId;
@@ -114,6 +130,32 @@ namespace project_tracker::modules::project_node::repository {
         drogon::Task<std::optional<dto::view::UpdatedProjectNodeBasicInfoView>>
         updateProjectNodeBasicInfo(const common::db::SqlExecutorPtr &executor,
                                    const dto::command::UpdateProjectNodeBasicInfoInput &input) const;
+
+        // 锁定阶段节点行，供手动开始阶段节点写事务做前置检查
+        drogon::Task<std::optional<ProjectNodeStartCheckResult>>
+        findProjectNodeStartCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t projectId,
+            std::int64_t nodeId) const;
+
+        // 按手动开始动作更新阶段节点状态
+        drogon::Task<std::optional<dto::view::UpdatedProjectNodeStatusView>>
+        updateProjectNodeStatusForStart(const common::db::SqlExecutorPtr &executor,
+                                        std::int64_t projectId,
+                                        std::int64_t nodeId) const;
+
+        // 锁定阶段节点行，供手动完成阶段节点写事务做前置检查
+        drogon::Task<std::optional<ProjectNodeCompleteCheckResult>>
+        findProjectNodeCompleteCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t projectId,
+            std::int64_t nodeId) const;
+
+        // 按手动完成动作更新阶段节点状态
+        drogon::Task<std::optional<dto::view::UpdatedProjectNodeStatusView>>
+        updateProjectNodeStatusForComplete(const common::db::SqlExecutorPtr &executor,
+                                           std::int64_t projectId,
+                                           std::int64_t nodeId) const;
 
         // 锁定阶段节点行，供删除阶段节点写事务做前置检查
         drogon::Task<std::optional<ProjectNodeDeleteCheckResult>>
