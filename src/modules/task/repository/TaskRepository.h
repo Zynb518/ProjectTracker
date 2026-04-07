@@ -120,6 +120,12 @@ namespace project_tracker::modules::task::repository {
         domain::TaskStatus taskStatus;
     };
 
+    // 撤销子任务完成时，从历史中恢复出的最近一条未完成快照
+    struct TaskReopenRestoreSnapshot {
+        std::optional<domain::TaskStatus> latestUnfinishedStatus;
+        std::optional<int> latestUnfinishedProgressPercent;
+    };
+
     class TaskRepository {
     public:
         // 查询节点下子任务列表
@@ -183,6 +189,18 @@ namespace project_tracker::modules::task::repository {
                                          std::int64_t operatorUserId,
                                          const std::string &progressNote,
                                          domain::TaskStatus status) const;
+
+        // 查询最近一条未完成进度记录，供撤销子任务完成时恢复当前值
+        drogon::Task<TaskReopenRestoreSnapshot>
+        findTaskReopenRestoreSnapshot(const common::db::SqlExecutorPtr &executor,
+                                      std::int64_t subTaskId) const;
+
+        // 按撤销完成动作更新子任务当前值
+        drogon::Task<std::optional<dto::view::UpdatedTaskStatusView>>
+        updateTaskStatusForReopen(const common::db::SqlExecutorPtr &executor,
+                                  std::int64_t subTaskId,
+                                  domain::TaskStatus status,
+                                  int progressPercent) const;
 
         // 锁定项目行，供创建子任务写事务做项目级前置检查
         drogon::Task<std::optional<TaskCreateProjectCheckResult>>

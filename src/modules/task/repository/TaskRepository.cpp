@@ -712,6 +712,130 @@ namespace project_tracker::modules::task::repository {
         }
     }
 
+    drogon::Task<TaskReopenRestoreSnapshot>
+    TaskRepository::findTaskReopenRestoreSnapshot(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t subTaskId) const {
+        // 查询思路：
+        // 1. 这里不额外锁历史表，依赖写链路先锁同一条 sub_task 再写当前值/历史值。
+        // 2. 只取最近一条未完成历史，供 service 恢复 progress_percent 与基础状态。
+        static const std::string findTaskReopenRestoreSnapshotSql = R"SQL(
+            WITH latest_unfinished_progress AS (
+                SELECT
+                    stp.status,
+                    stp.progress_percent
+                FROM sub_task_progress stp
+                WHERE stp.sub_task_id = $1 AND
+                    stp.status <> $2
+                ORDER BY stp.created_at DESC, stp.id DESC
+                LIMIT 1
+            )
+            SELECT
+                lup.status,
+                lup.progress_percent
+            FROM (SELECT 1) anchor
+            LEFT JOIN latest_unfinished_progress lup ON TRUE
+            LIMIT 1
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findTaskReopenRestoreSnapshotSql,
+                subTaskId,
+                domain::toInt(domain::TaskStatus::Completed));
+
+            if (result.empty()) {
+                co_return TaskReopenRestoreSnapshot{
+                    .latestUnfinishedStatus = std::nullopt,
+                    .latestUnfinishedProgressPercent = std::nullopt
+                };
+            }
+
+            const auto &row = result.front();
+
+            std::optional<domain::TaskStatus> latestUnfinishedStatus;
+            if (!row["status"].isNull()) {
+                latestUnfinishedStatus = static_cast<domain::TaskStatus>(row["status"].as<int>());
+            }
+
+            std::optional<int> latestUnfinishedProgressPercent;
+            if (!row["progress_percent"].isNull()) {
+                latestUnfinishedProgressPercent = row["progress_percent"].as<int>();
+            }
+
+            co_return TaskReopenRestoreSnapshot{
+                .latestUnfinishedStatus = latestUnfinishedStatus,
+                .latestUnfinishedProgressPercent = latestUnfinishedProgressPercent
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<dto::view::UpdatedTaskStatusView>>
+    TaskRepository::updateTaskStatusForReopen(
+        const common::db::SqlExecutorPtr &executor,
+        std::int64_t subTaskId,
+        domain::TaskStatus status,
+        int progressPercent) const {
+        // -- 先恢复最近一条未完成历史；如果当前按北京时间已经逾期，则最终状态强制落到已延期。
+        static const std::string updateTaskStatusForReopenSql = R"SQL(
+            UPDATE sub_task st
+            SET
+                status = CASE
+                    WHEN $2 = $4 THEN $4
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > st.planned_end_date THEN $4
+                    ELSE $2
+                END,
+                progress_percent = $3,
+                completed_at = NULL,
+                updated_at = NOW()
+            WHERE st.id = $1 AND
+                st.status = $5
+            RETURNING
+                st.id,
+                st.status,
+                st.progress_percent,
+                to_char(st.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                to_char(st.updated_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS updated_at
+        )SQL";
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                updateTaskStatusForReopenSql,
+                subTaskId,
+                domain::toInt(status),
+                progressPercent,
+                domain::toInt(domain::TaskStatus::Delayed),
+                domain::toInt(domain::TaskStatus::Completed));
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            const auto &row = result.front();
+
+            std::optional<std::string> completedAt;
+            if (!row["completed_at"].isNull()) {
+                completedAt = row["completed_at"].as<std::string>();
+            }
+
+            co_return dto::view::UpdatedTaskStatusView{
+                .id = row["id"].as<std::int64_t>(),
+                .status = static_cast<domain::TaskStatus>(row["status"].as<int>()),
+                .progressPercent = row["progress_percent"].as<int>(),
+                .completedAt = completedAt,
+                .updatedAt = row["updated_at"].as<std::string>()
+            };
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
     drogon::Task<TaskBasicInfoUpdateResult>
     TaskRepository::updateTaskBasicInfo(
         const common::db::SqlExecutorPtr &executor,

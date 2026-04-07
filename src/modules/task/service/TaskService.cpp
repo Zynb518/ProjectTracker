@@ -317,6 +317,93 @@ namespace project_tracker::modules::task::service {
         }
     }
 
+    drogon::Task<dto::view::UpdatedTaskStatusView>
+    TaskService::reopenTask(const dto::command::TaskStatusActionInput &input) const {
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            auto transaction = co_await dbClient->newTransactionCoro();
+
+            const auto projectCheckResult = co_await
+                taskRepository_.findTaskStartProjectCheckResultForUpdate(
+                    transaction,
+                    input.subTaskId);
+            if (!projectCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            const auto taskCheckResult = co_await
+                taskRepository_.findTaskStartTaskCheckResultForUpdate(
+                    transaction,
+                    input.subTaskId);
+            if (!taskCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (projectCheckResult->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员撤销子任务完成");
+            }
+
+            if (!isAdmin &&
+                projectCheckResult->ownerUserId != input.operatorUserId &&
+                taskCheckResult->responsibleUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者既不是项目负责人也不是子任务负责人");
+            }
+
+            if (projectCheckResult->projectStatus == project_domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "项目已完成，必须先撤销项目完成");
+            }
+
+            if (taskCheckResult->nodeStatus == project_node_domain::ProjectNodeStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::PhaseCompletedReadonly,
+                    "阶段节点已完成，必须先撤销完成");
+            }
+
+            if (taskCheckResult->taskStatus != domain::TaskStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ReopenFailed,
+                    "子任务当前不是已完成状态，不能撤销完成");
+            }
+
+            const auto restoreSnapshot = co_await taskRepository_.findTaskReopenRestoreSnapshot(
+                transaction,
+                input.subTaskId);
+
+            const auto restoreStatus = restoreSnapshot.latestUnfinishedStatus.value_or(
+                domain::TaskStatus::NotStarted);
+            const int restoreProgressPercent =
+                restoreSnapshot.latestUnfinishedProgressPercent.value_or(0);
+
+            const auto task = co_await taskRepository_.updateTaskStatusForReopen(
+                transaction,
+                input.subTaskId,
+                restoreStatus,
+                restoreProgressPercent);
+            if (!task) {
+                error::throwConflict(
+                    error::ErrorCode::ReopenFailed,
+                    "撤销子任务完成失败");
+            }
+
+            co_return *task;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
+    }
+
     drogon::Task<std::int64_t>
     TaskService::deleteTask(const dto::command::DeleteTaskInput &input) const {
         const auto dbClient = drogon::app().getDbClient();

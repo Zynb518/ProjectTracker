@@ -388,6 +388,26 @@ INSERT INTO sub_task (
         (SELECT id FROM sys_user WHERE username = 'li_ming'),
         '2026-03-12 10:00:00+08:00',
         '2026-03-24 16:00:00+08:00'
+    ),
+    (
+        (
+            SELECT pn.id
+            FROM project_node pn
+            JOIN project p ON p.id = pn.project_id
+            WHERE p.name = '人事流程优化' AND pn.name = '流程梳理'
+        ),
+        '审批节点回归确认',
+        '用于验证撤销子任务完成时可恢复到最近一条未完成进度。',
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        3,
+        100,
+        2,
+        '2026-03-13',
+        '2026-04-20',
+        '2026-03-26 18:20:00+08:00',
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        '2026-03-13 10:20:00+08:00',
+        '2026-03-26 18:20:00+08:00'
     );
 
 INSERT INTO sub_task_progress (
@@ -437,6 +457,22 @@ INSERT INTO sub_task_progress (
         40,
         2,
         '2026-03-24 16:00:00+08:00'
+    ),
+    (
+        (SELECT id FROM sub_task WHERE name = '审批节点回归确认'),
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        '已完成审批节点回归确认的大部分核对工作。',
+        60,
+        2,
+        '2026-03-25 15:30:00+08:00'
+    ),
+    (
+        (SELECT id FROM sub_task WHERE name = '审批节点回归确认'),
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        '审批节点回归确认已全部完成。',
+        100,
+        3,
+        '2026-03-26 18:20:00+08:00'
     );
 
 INSERT INTO project_template (

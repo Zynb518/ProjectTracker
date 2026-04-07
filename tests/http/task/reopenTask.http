@@ -1,0 +1,101 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@projectOwnerUsername = li_ming
+@password = 123456
+@reopenableCompletedTaskId = 6
+@completedNodeTaskId = 1
+@completedProjectTaskId = 3
+@notCompletedTaskId = 5
+@missingTaskId = 999999
+@invalidTaskId = 0
+
+### 提示：`reopenableCompletedTaskId=6` 依赖 db/seeds/001_demo_data.sql 中新增的固定演示数据。
+### 提示：正常路径执行成功后，该固定子任务会被恢复为未完成状态；若要重复回放成功用例，需要先重新执行种子脚本。
+### 提示：`completedNodeTaskId=1` 用于验证“所属节点已完成时不允许撤销子任务完成”。
+### 提示：`completedProjectTaskId=3` 用于验证“所属项目已完成时必须先撤销项目完成”。
+### 提示：`notCompletedTaskId=5` 用于验证“当前不是已完成状态时不能撤销完成”。
+### 当前为 13.8 撤销子任务完成 的 RED 用例；接口未实现前，请求会先失败，后续据此补实现。
+
+### 正常路径：项目负责人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{projectOwnerUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/subtasks/{{reopenableCompletedTaskId}}/reopen
+Content-Type: application/json
+
+[]
+
+### 正常路径：项目负责人撤销已完成子任务，预期恢复到最近一条未完成历史
+POST {{baseUrl}}/api/subtasks/{{reopenableCompletedTaskId}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.global.set("reopenableCompletedTaskId", Number(client.global.get("reopenableCompletedTaskId")));
+client.test("项目负责人撤销子任务完成成功并恢复最近未完成历史", function() {
+  client.assert(response.status === 200, "撤销子任务完成应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.id === client.global.get("reopenableCompletedTaskId"), "返回的 id 应等于目标子任务");
+  client.assert(response.body.data.status === 2, "撤销完成后应恢复为最近未完成历史的 status=2");
+  client.assert(response.body.data.progress_percent === 60, "撤销完成后应恢复为最近未完成历史的 progress_percent=60");
+  client.assert(response.body.data.completed_at === null, "撤销完成后 completed_at 应为 null");
+});
+%}
+
+### 正常路径：项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录撤销子任务完成，预期 401
+POST {{baseUrl}}/api/subtasks/{{reopenableCompletedTaskId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：subtask_id 非法，预期 400
+POST {{baseUrl}}/api/subtasks/{{invalidTaskId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：目标子任务不存在，预期 404
+POST {{baseUrl}}/api/subtasks/{{missingTaskId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：目标子任务当前不是已完成状态，预期 409
+POST {{baseUrl}}/api/subtasks/{{notCompletedTaskId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：所属项目仍为已完成状态，预期 409
+POST {{baseUrl}}/api/subtasks/{{completedProjectTaskId}}/reopen
+Content-Type: application/json
+
+{}
+
+### 异常路径：所属节点仍为已完成状态，预期 409
+POST {{baseUrl}}/api/subtasks/{{completedNodeTaskId}}/reopen
+Content-Type: application/json
+
+{}
