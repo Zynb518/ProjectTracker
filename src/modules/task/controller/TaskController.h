@@ -35,6 +35,14 @@ namespace project_tracker::modules::task::controller {
                           "/api/subtasks/{subtask_id}/start",
                           drogon::Post,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(TaskController::submitTaskProgress,
+                          "/api/subtasks/{subtask_id}/progress",
+                          drogon::Post,
+                          filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(TaskController::listTaskProgressRecords,
+                          "/api/subtasks/{subtask_id}/progress",
+                          drogon::Get,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(TaskController::reopenTask,
                           "/api/subtasks/{subtask_id}/reopen",
                           drogon::Post,
@@ -69,6 +77,14 @@ namespace project_tracker::modules::task::controller {
         drogon::Task<drogon::HttpResponsePtr>
         startTask(drogon::HttpRequestPtr request,
                   std::int64_t subTaskId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        submitTaskProgress(drogon::HttpRequestPtr request,
+                           std::int64_t subTaskId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        listTaskProgressRecords(drogon::HttpRequestPtr request,
+                                std::int64_t subTaskId);
 
         drogon::Task<drogon::HttpResponsePtr>
         reopenTask(drogon::HttpRequestPtr request,

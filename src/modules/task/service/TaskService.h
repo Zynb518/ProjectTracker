@@ -22,6 +22,10 @@ namespace project_tracker::modules::task::service {
         drogon::Task<dto::view::StartedTaskView>
         startTask(const dto::command::StartTaskInput &input) const;
 
+        // 提交子任务进度
+        drogon::Task<dto::view::StartedTaskView>
+        submitTaskProgress(const dto::command::SubmitTaskProgressInput &input) const;
+
         // 撤销子任务完成
         drogon::Task<dto::view::UpdatedTaskStatusView>
         reopenTask(const dto::command::TaskStatusActionInput &input) const;

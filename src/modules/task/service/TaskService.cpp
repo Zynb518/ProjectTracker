@@ -317,6 +317,143 @@ namespace project_tracker::modules::task::service {
         }
     }
 
+    drogon::Task<dto::view::StartedTaskView>
+    TaskService::submitTaskProgress(
+        const dto::command::SubmitTaskProgressInput &input) const {
+        if (input.status == domain::TaskStatus::Completed) {
+            if (input.progressPercent != 100) {
+                error::throwConflict(
+                    error::ErrorCode::StatusProgressMismatch,
+                    "status=3 时 progress_percent 必须为 100");
+            }
+        } else if (input.progressPercent >= 100) {
+            error::throwConflict(
+                error::ErrorCode::StatusProgressMismatch,
+                "status!=3 时 progress_percent 必须小于 100");
+        }
+
+        std::shared_ptr<drogon::orm::Transaction> transaction;
+        bool hasWrittenBeforeFinish = false;
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            transaction = co_await dbClient->newTransactionCoro();
+
+            const auto projectCheckResult = co_await
+                taskRepository_.findTaskStartProjectCheckResultForUpdate(
+                    transaction,
+                    input.subTaskId);
+            if (!projectCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            const auto taskCheckResult = co_await
+                taskRepository_.findTaskSubmitProgressTaskCheckResultForUpdate(
+                    transaction,
+                    input.subTaskId);
+            if (!taskCheckResult) {
+                error::throwNotFound(
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
+            if (projectCheckResult->creatorUserRole == user_domain::SystemRole::Employee && isAdmin) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "普通员工创建的个人自用项目不允许管理员提交子任务进度");
+            }
+
+            if (taskCheckResult->responsibleUserId != input.operatorUserId) {
+                error::throwForbidden(
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是子任务负责人");
+            }
+
+            if (projectCheckResult->projectStatus == project_domain::ProjectStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::ProjectCompletedReadonly,
+                    "项目已完成，必须先撤销完成");
+            }
+
+            if (taskCheckResult->nodeStatus == project_node_domain::ProjectNodeStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::PhaseCompletedReadonly,
+                    "阶段节点已完成，必须先撤销完成");
+            }
+
+            if (taskCheckResult->taskStatus == domain::TaskStatus::Completed) {
+                error::throwConflict(
+                    error::ErrorCode::SubTaskCompletedReadonly,
+                    "子任务已完成，必须先撤销完成");
+            }
+
+            if (taskCheckResult->hasStartedSignal && input.status == domain::TaskStatus::NotStarted) {
+                error::throwConflict(
+                    error::ErrorCode::StatusProgressMismatch,
+                    "开始信号已成立后，status 不能再回退为 1");
+            }
+
+            if (!taskCheckResult->hasStartedSignal &&
+                input.status == domain::TaskStatus::NotStarted &&
+                input.progressPercent > 0) {
+                error::throwConflict(
+                    error::ErrorCode::StatusProgressMismatch,
+                    "首次提交 progress_percent 大于 0 时，status 不能为 1");
+            }
+
+            const auto task = co_await taskRepository_.updateTaskStatusForSubmitProgress(
+                transaction,
+                input,
+                taskCheckResult->hasStartedSignal);
+            if (!task) {
+                error::throwInternalError(
+                    error::ErrorCode::InternalError,
+                    "提交子任务进度失败");
+            }
+            hasWrittenBeforeFinish = true;
+
+            const auto progressRecord = co_await
+                taskRepository_.insertTaskProgressRecordForSubmitProgress(
+                    transaction,
+                    input,
+                    task->status);
+
+            if (task->status != domain::TaskStatus::NotStarted &&
+                taskCheckResult->nodeStatus == project_node_domain::ProjectNodeStatus::NotStarted) {
+                co_await projectNodeRepository_.updateProjectNodeStatusForTaskSignal(
+                    transaction,
+                    taskCheckResult->nodeId);
+            }
+
+            if (task->status != domain::TaskStatus::NotStarted &&
+                projectCheckResult->projectStatus == project_domain::ProjectStatus::NotStarted) {
+                co_await projectRepository_.updateProjectStatusForNodeSignal(
+                    transaction,
+                    projectCheckResult->projectId);
+            }
+
+            co_return dto::view::StartedTaskView{
+                .subtask = *task,
+                .progressRecord = progressRecord
+            };
+        } catch (const error::BusinessException &) {
+            if (hasWrittenBeforeFinish && transaction) {
+                transaction->rollback();
+            }
+            throw;
+        } catch (const drogon::orm::DrogonDbException &) {
+            if (hasWrittenBeforeFinish && transaction) {
+                transaction->rollback();
+            }
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库事务创建失败");
+        }
+    }
+
     drogon::Task<dto::view::UpdatedTaskStatusView>
     TaskService::reopenTask(const dto::command::TaskStatusActionInput &input) const {
         try {

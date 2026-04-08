@@ -161,6 +161,21 @@ namespace project_tracker::modules::task::controller {
             return json;
         }
 
+        Json::Value buildTaskProgressListItemJson(
+            const dto::view::TaskProgressListItemView &progressRecord) {
+            Json::Value json(Json::objectValue);
+            json["id"] = progressRecord.id;
+            json["sub_task_id"] = progressRecord.subTaskId;
+            json["operator_user_id"] = progressRecord.operatorUserId;
+            json["operator_real_name"] = progressRecord.operatorRealName;
+            json["progress_note"] = progressRecord.progressNote;
+            json["progress_percent"] = progressRecord.progressPercent;
+            json["status"] = domain::toInt(progressRecord.status);
+            json["created_at"] = progressRecord.createdAt;
+
+            return json;
+        }
+
         Json::Value buildStartedTaskJson(const dto::view::StartedTaskView &task) {
             Json::Value json(Json::objectValue);
             json["subtask"] = buildUpdatedTaskStatusJson(task.subtask);
@@ -711,6 +726,144 @@ namespace project_tracker::modules::task::controller {
         try {
             const auto task = co_await taskService_.startTask(input);
             co_return api::ok(buildStartedTaskJson(task));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    TaskController::submitTaskProgress(drogon::HttpRequestPtr request,
+                                       std::int64_t subTaskId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (subTaskId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "subtask_id 必须是大于 0 的整数");
+        }
+
+        const auto &json = request->getJsonObject();
+        if (!json || !json->isObject()) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "请求体必须是 JSON 对象");
+        }
+
+        dto::command::SubmitTaskProgressInput input{
+            .subTaskId = subTaskId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole,
+            .status = domain::TaskStatus::NotStarted,
+            .progressPercent = 0
+        };
+
+        int statusValue = 0;
+        if (!util::readRequiredInt(*json, "status", statusValue)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "status 必须是整数");
+        }
+        if (!isValidTaskStatus(statusValue)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "status 只能是 1、2、3 或 4");
+        }
+        input.status = static_cast<domain::TaskStatus>(statusValue);
+
+        if (!util::readRequiredInt(*json, "progress_percent", input.progressPercent)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "progress_percent 必须是整数");
+        }
+        if (input.progressPercent < 0 || input.progressPercent > 100 ||
+            input.progressPercent % 10 != 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "progress_percent 必须在 0 到 100 之间，且为 10 的倍数");
+        }
+
+        if (!util::readOptionalString(*json, "progress_note", input.progressNote)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "progress_note 必须是字符串");
+        }
+
+        try {
+            const auto task = co_await taskService_.submitTaskProgress(input);
+            co_return api::ok(buildStartedTaskJson(task));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    TaskController::listTaskProgressRecords(drogon::HttpRequestPtr request,
+                                            std::int64_t subTaskId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (subTaskId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "subtask_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await taskRepository_.listTaskProgressRecords(
+                dbClient,
+                repository::TaskProgressRecordListQuery{
+                    .subTaskId = subTaskId,
+                    .currentUserId = *userId,
+                    .currentUserRole = *systemRole
+                });
+
+            if (!result) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::SubTaskNotFound,
+                    "子任务不存在");
+            }
+
+            if (!result->hasPermission) {
+                co_return api::fail(
+                    drogon::k403Forbidden,
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目成员");
+            }
+
+            Json::Value data(Json::objectValue);
+            data["list"] = Json::Value(Json::arrayValue);
+            for (const auto &progressRecord : result->list) {
+                data["list"].append(buildTaskProgressListItemJson(progressRecord));
+            }
+
+            co_return api::ok(data);
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

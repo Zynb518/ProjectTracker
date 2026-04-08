@@ -1,0 +1,154 @@
+@baseUrl = http://127.0.0.1:8080
+@employeeUsername = chen_xu
+@password = 123456
+@repeatableSubmitProgressProjectName = submit_progress_case_{{$timestamp}}
+@completedTaskId = 3
+@missingTaskId = 999999
+@invalidTaskId = 0
+
+### 提示：正常路径会先创建临时项目、临时阶段节点、临时子任务，因此可以重复回放。
+### 提示：当前固定 completedTaskId=3 用于验证“已完成子任务不能直接提交进度”。
+
+### 正常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：普通员工创建临时个人项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableSubmitProgressProjectName}}",
+  "description": "用于验证提交子任务进度接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableSubmitProgressProjectId", response.body.data.id); %}
+
+### 正常路径：普通员工创建临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableSubmitProgressProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "进度推进",
+  "description": "用于验证提交子任务进度。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-20"
+}
+
+> {% client.global.set("repeatableSubmitProgressNodeId", response.body.data.id); %}
+
+### 正常路径：普通员工创建自己负责的临时子任务
+POST {{baseUrl}}/api/projects/{{repeatableSubmitProgressProjectId}}/nodes/{{repeatableSubmitProgressNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "提交进度联调",
+  "description": "用于验证提交子任务进度。",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2099-12-10"
+}
+
+> {% client.global.set("repeatableSubmitProgressTaskId", response.body.data.id); %}
+
+### 正常路径：负责人首次提交进度，省略 progress_note 时应写入空字符串
+POST {{baseUrl}}/api/subtasks/{{repeatableSubmitProgressTaskId}}/progress
+Content-Type: application/json
+
+{
+  "status": 2,
+  "progress_percent": 60
+}
+
+> {%
+client.test("负责人提交子任务进度成功并同步写入当前值与历史记录", function() {
+  client.assert(response.status === 200, "提交子任务进度应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.subtask.id === client.global.get("repeatableSubmitProgressTaskId"), "返回的 subtask.id 应等于目标子任务");
+  client.assert(response.body.data.subtask.status === 2, "首次提交 60% 进度后 status 应为 2");
+  client.assert(response.body.data.subtask.progress_percent === 60, "subtask.progress_percent 应为 60");
+  client.assert(response.body.data.subtask.completed_at === null, "未完成时 completed_at 应为 null");
+  client.assert(response.body.data.progress_record.sub_task_id === client.global.get("repeatableSubmitProgressTaskId"), "progress_record.sub_task_id 应等于目标子任务");
+  client.assert(response.body.data.progress_record.operator_user_id > 0, "operator_user_id 应为正整数");
+  client.assert(response.body.data.progress_record.progress_note === "", "省略 progress_note 时应落为空字符串");
+  client.assert(response.body.data.progress_record.progress_percent === 60, "progress_record.progress_percent 应为 60");
+  client.assert(response.body.data.progress_record.status === 2, "progress_record.status 应为 2");
+});
+%}
+
+### 异常路径：开始信号已成立后，再回退为未开始，预期 409
+POST {{baseUrl}}/api/subtasks/{{repeatableSubmitProgressTaskId}}/progress
+Content-Type: application/json
+
+{
+  "status": 1,
+  "progress_percent": 0,
+  "progress_note": "错误回退"
+}
+
+### 异常路径：status!=3 时 progress_percent=100，预期 409
+POST {{baseUrl}}/api/subtasks/{{repeatableSubmitProgressTaskId}}/progress
+Content-Type: application/json
+
+{
+  "status": 2,
+  "progress_percent": 100
+}
+
+### 正常路径：普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录提交子任务进度，预期 401
+POST {{baseUrl}}/api/subtasks/{{repeatableSubmitProgressTaskId}}/progress
+Content-Type: application/json
+
+{
+  "status": 2,
+  "progress_percent": 80
+}
+
+### 正常路径：重新登录普通员工
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：subtask_id 非法，预期 400
+POST {{baseUrl}}/api/subtasks/{{invalidTaskId}}/progress
+Content-Type: application/json
+
+{
+  "status": 2,
+  "progress_percent": 20
+}
+
+### 异常路径：目标子任务不存在，预期 404
+POST {{baseUrl}}/api/subtasks/{{missingTaskId}}/progress
+Content-Type: application/json
+
+{
+  "status": 2,
+  "progress_percent": 20
+}
+
+### 异常路径：已完成子任务不能直接提交进度，预期 409
+POST {{baseUrl}}/api/subtasks/{{completedTaskId}}/progress
+Content-Type: application/json
+
+{
+  "status": 3,
+  "progress_percent": 100,
+  "progress_note": "尝试重复提交完成"
+}

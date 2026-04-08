@@ -39,6 +39,20 @@ namespace project_tracker::modules::task::repository {
         std::optional<std::int64_t> projectId;
     };
 
+    // 子任务进度记录列表查询条件
+    struct TaskProgressRecordListQuery {
+        std::int64_t subTaskId;
+        std::int64_t currentUserId;
+        user::domain::SystemRole currentUserRole;
+    };
+
+
+    // 子任务进度记录单查询结果
+    struct TaskProgressRecordListResult {
+        bool hasPermission;
+        std::vector<dto::view::TaskProgressListItemView> list;
+    };
+
     // 子任务详情查询条件
     struct TaskDetailQuery {
         std::int64_t subTaskId;
@@ -120,6 +134,15 @@ namespace project_tracker::modules::task::repository {
         domain::TaskStatus taskStatus;
     };
 
+    // 提交子任务进度前的子任务级校验信息
+    struct TaskSubmitProgressTaskCheckResult {
+        std::int64_t nodeId;
+        std::int64_t responsibleUserId;
+        project_node::domain::ProjectNodeStatus nodeStatus;
+        domain::TaskStatus taskStatus;
+        bool hasStartedSignal;
+    };
+
     // 撤销子任务完成时，从历史中恢复出的最近一条未完成快照
     struct TaskReopenRestoreSnapshot {
         std::optional<domain::TaskStatus> latestUnfinishedStatus;
@@ -137,6 +160,11 @@ namespace project_tracker::modules::task::repository {
         drogon::Task<std::vector<dto::view::MyTaskListItemView>>
         listMyTasks(const common::db::SqlExecutorPtr &executor,
                     const MyTaskListQuery &query) const;
+
+        // 查询子任务进度记录列表
+        drogon::Task<std::optional<TaskProgressRecordListResult>>
+        listTaskProgressRecords(const common::db::SqlExecutorPtr &executor,
+                                const TaskProgressRecordListQuery &query) const;
 
         // 查询子任务详情
         drogon::Task<std::optional<TaskDetailResult>>
@@ -176,6 +204,26 @@ namespace project_tracker::modules::task::repository {
         findTaskStartTaskCheckResultForUpdate(
             const common::db::SqlExecutorPtr &executor,
             std::int64_t subTaskId) const;
+
+        // 锁定目标子任务行，供提交子任务进度写事务做子任务级前置检查
+        drogon::Task<std::optional<TaskSubmitProgressTaskCheckResult>>
+        findTaskSubmitProgressTaskCheckResultForUpdate(
+            const common::db::SqlExecutorPtr &executor,
+            std::int64_t subTaskId) const;
+
+        // 按提交进度动作更新子任务当前值
+        drogon::Task<std::optional<dto::view::UpdatedTaskStatusView>>
+        updateTaskStatusForSubmitProgress(
+            const common::db::SqlExecutorPtr &executor,
+            const dto::command::SubmitTaskProgressInput &input,
+            bool hasStartedSignal) const;
+
+        // 追加一条提交子任务进度的历史记录
+        drogon::Task<dto::view::TaskProgressRecordView>
+        insertTaskProgressRecordForSubmitProgress(
+            const common::db::SqlExecutorPtr &executor,
+            const dto::command::SubmitTaskProgressInput &input,
+            domain::TaskStatus persistedStatus) const;
 
         // 按手动开始动作更新子任务当前值
         drogon::Task<std::optional<dto::view::UpdatedTaskStatusView>>

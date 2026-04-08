@@ -1,0 +1,139 @@
+:root,
+html.light {
+  color-scheme: light;
+  --app-bg: #f4f7fc;
+  --app-bg-elevated: rgba(255, 255, 255, 0.7);
+  --panel-bg: #ffffff;
+  --panel-bg-soft: rgba(255, 255, 255, 0.76);
+  --glass-bg: rgba(255, 255, 255, 0.85);
+  --glass-bg-strong: rgba(255, 255, 255, 0.92);
+  --sidebar-bg: rgba(255, 255, 255, 0.85);
+  --text-main: #1f2a48;
+  --text-soft: #5c6f87;
+  --text-muted: #9ca3af;
+  --text-inverse: #f8fbff;
+  --border-soft: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(10, 102, 255, 0.16);
+  --accent-start: #0a66ff;
+  --accent-end: #00c2ff;
+  --accent-line: rgba(10, 102, 255, 0.34);
+  --accent-success: #00d27f;
+  --accent-warning: #ff9f43;
+  --accent-danger: #ff5f73;
+  --accent-neutral: #94a3b8;
+  --gradient-primary: linear-gradient(135deg, #0a66ff 0%, #00c2ff 100%);
+  --gradient-primary-soft: linear-gradient(135deg, rgba(10, 102, 255, 0.24), rgba(0, 194, 255, 0.2));
+  --gradient-surface: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(244, 247, 252, 0.86));
+  --grid-line: rgba(10, 102, 255, 0.06);
+  --shadow-panel: 0 8px 20px rgba(15, 23, 42, 0.08);
+  --shadow-panel-hover: 0 18px 32px rgba(10, 102, 255, 0.12);
+  --shadow-glass: 0 24px 48px rgba(15, 23, 42, 0.12);
+  --backdrop-blur: blur(16px);
+}
+
+html.dark {
+  color-scheme: dark;
+  --app-bg: #0a0e17;
+  --app-bg-elevated: rgba(17, 24, 39, 0.72);
+  --panel-bg: #111827;
+  --panel-bg-soft: rgba(17, 24, 39, 0.8);
+  --glass-bg: rgba(17, 24, 39, 0.85);
+  --glass-bg-strong: rgba(17, 24, 39, 0.92);
+  --sidebar-bg: rgba(17, 24, 39, 0.85);
+  --text-main: #e5e9f0;
+  --text-soft: #8b9bb4;
+  --text-muted: #4b5563;
+  --text-inverse: #f8fbff;
+  --border-soft: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(0, 194, 255, 0.24);
+  --accent-start: #0a66ff;
+  --accent-end: #00c2ff;
+  --accent-line: rgba(0, 194, 255, 0.4);
+  --accent-success: #00d27f;
+  --accent-warning: #ff9f43;
+  --accent-danger: #ff7a90;
+  --accent-neutral: #6b7280;
+  --gradient-primary: linear-gradient(135deg, #0a66ff 0%, #00c2ff 100%);
+  --gradient-primary-soft: linear-gradient(135deg, rgba(10, 102, 255, 0.24), rgba(0, 194, 255, 0.18));
+  --gradient-surface: linear-gradient(180deg, rgba(20, 28, 47, 0.92), rgba(12, 18, 32, 0.9));
+  --grid-line: rgba(255, 255, 255, 0.04);
+  --shadow-panel: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 8px 20px rgba(0, 0, 0, 0.3);
+  --shadow-panel-hover: 0 0 0 1px rgba(0, 194, 255, 0.16), 0 20px 38px rgba(0, 0, 0, 0.36);
+  --shadow-glass: 0 24px 54px rgba(0, 0, 0, 0.36);
+  --backdrop-blur: blur(16px);
+}
+
+html,
+body {
+  background: var(--app-bg);
+}
+
+body {
+  position: relative;
+  color: var(--text-main);
+  transition:
+    background-color 300ms ease-out,
+    color 300ms ease-out;
+}
+
+body::before,
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -2;
+}
+
+body::before {
+  background-image:
+    linear-gradient(var(--grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.6), transparent 92%);
+}
+
+body::after {
+  z-index: -1;
+  background:
+    radial-gradient(circle at 88% 84%, rgba(0, 194, 255, 0.22), transparent 20%),
+    radial-gradient(circle at 14% 10%, rgba(10, 102, 255, 0.18), transparent 26%);
+  filter: blur(8px);
+}
+
+#app {
+  color: var(--text-main);
+}
+
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: var(--backdrop-blur);
+}
+
+.surface-panel {
+  background: var(--gradient-surface);
+  border: 1px solid var(--border-soft);
+  box-shadow: var(--shadow-panel);
+}
+
+.loading-panel {
+  position: relative;
+  overflow: hidden;
+}
+
+.loading-panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.22), transparent);
+  transform: translateX(-100%);
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
