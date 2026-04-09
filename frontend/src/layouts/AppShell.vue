@@ -167,7 +167,9 @@ async function handleLogout() {
   height: 46px;
   border-radius: 14px;
   background: var(--gradient-primary);
-  box-shadow: 0 12px 24px rgba(10, 102, 255, 0.24);
+  box-shadow:
+    0 12px 24px color-mix(in srgb, var(--accent-start) 24%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent-end) 18%, transparent);
 }
 
 .app-shell__brand-mark::after {
@@ -175,14 +177,15 @@ async function handleLogout() {
   position: absolute;
   inset: 1px;
   border-radius: 13px;
-  border: 1px solid rgba(255, 255, 255, 0.24);
+  border: 1px solid color-mix(in srgb, var(--text-inverse) 24%, transparent);
 }
 
 .app-shell__brand-mark span {
   position: absolute;
   inset: 11px;
   border-radius: 10px;
-  border: 1.5px solid rgba(255, 255, 255, 0.84);
+  border: 1.5px solid color-mix(in srgb, var(--text-inverse) 82%, transparent);
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent-start) 16%, transparent);
 }
 
 .app-shell__brand h1 {
@@ -220,7 +223,7 @@ async function handleLogout() {
   color: color-mix(in srgb, var(--text-main) 78%, var(--text-soft));
   background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg-soft) 92%, transparent), color-mix(in srgb, var(--glass-bg) 84%, transparent));
   border: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 18%, transparent);
 }
 
 .app-shell__link:hover,
@@ -239,7 +242,9 @@ async function handleLogout() {
   height: 34px;
   border-radius: 12px;
   background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 88%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 88%, transparent),
+    0 10px 18px color-mix(in srgb, var(--accent-start) 5%, transparent);
 }
 
 .app-shell__link-icon svg {
@@ -276,9 +281,10 @@ async function handleLogout() {
   border-radius: 18px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.14), transparent 46%);
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 18%, transparent), transparent 46%),
+    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--accent-tertiary) 14%, transparent), transparent 40%);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 8%, transparent),
     0 18px 30px rgba(3, 10, 24, 0.12);
 }
 
@@ -292,7 +298,9 @@ async function handleLogout() {
   color: var(--text-inverse);
   font-size: 1rem;
   font-weight: 700;
-  box-shadow: 0 12px 24px rgba(10, 102, 255, 0.2);
+  box-shadow:
+    0 12px 24px color-mix(in srgb, var(--accent-start) 22%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent-end) 16%, transparent);
 }
 
 .app-shell__account-copy {
@@ -309,7 +317,7 @@ async function handleLogout() {
 .app-shell__account-copy span {
   justify-self: start;
   padding: 6px 10px;
-  border: 1px solid rgba(0, 194, 255, 0.2);
+  border: 1px solid color-mix(in srgb, var(--accent-start) 26%, var(--accent-tertiary) 14%);
   border-radius: 999px;
   background: var(--gradient-primary-soft);
   color: var(--text-main);
@@ -340,7 +348,8 @@ async function handleLogout() {
   padding: 12px 14px;
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 94%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at right top, rgba(255, 159, 67, 0.14), transparent 52%);
+    radial-gradient(circle at right top, color-mix(in srgb, var(--accent-warning) 18%, transparent), transparent 52%),
+    radial-gradient(circle at left center, color-mix(in srgb, var(--accent-tertiary) 10%, transparent), transparent 44%);
   color: color-mix(in srgb, var(--text-main) 92%, var(--text-soft));
   font: inherit;
   font-weight: 600;
@@ -357,11 +366,45 @@ async function handleLogout() {
   border-color: color-mix(in srgb, var(--accent-warning) 36%, transparent);
   box-shadow:
     0 14px 30px rgba(3, 10, 24, 0.18),
-    0 0 0 1px rgba(255, 159, 67, 0.12);
+    0 0 0 1px color-mix(in srgb, var(--accent-warning) 14%, transparent);
 }
 
 .app-shell__workspace {
   min-width: 0;
+}
+
+:global(html.dark) .app-shell__sidebar {
+  box-shadow:
+    var(--shadow-glass),
+    inset 0 1px 0 rgba(224, 224, 255, 0.05),
+    0 0 34px rgba(157, 0, 255, 0.14);
+}
+
+:global(html.dark) .app-shell__brand-copy,
+:global(html.dark) .app-shell__account-note {
+  color: color-mix(in srgb, var(--text-main) 82%, var(--text-soft));
+}
+
+:global(html.dark) .app-shell__link {
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.05);
+}
+
+:global(html.dark) .app-shell__link:hover,
+:global(html.dark) .router-link-active.app-shell__link {
+  box-shadow:
+    var(--shadow-panel-hover),
+    inset 0 1px 0 rgba(224, 224, 255, 0.06);
+}
+
+:global(html.dark) .app-shell__link-icon {
+  color: color-mix(in srgb, var(--text-main) 88%, var(--accent-start) 12%);
+}
+
+:global(html.dark) .app-shell__account-card,
+:global(html.dark) .app-shell__logout {
+  box-shadow:
+    var(--shadow-panel),
+    inset 0 1px 0 rgba(224, 224, 255, 0.05);
 }
 
 @media (max-width: 1100px) {

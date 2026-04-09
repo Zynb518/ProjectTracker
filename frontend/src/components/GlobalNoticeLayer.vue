@@ -47,11 +47,12 @@ const { notices } = storeToRefs(notificationStore)
   margin-bottom: 12px;
   padding: 14px 16px;
   border: 1px solid color-mix(in srgb, var(--accent-danger) 28%, transparent);
-  border-radius: 16px;
+  border-radius: 12px;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 94%, transparent), color-mix(in srgb, var(--accent-danger) 10%, transparent)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.14), transparent 36%);
-  box-shadow: 0 20px 44px rgba(0, 0, 0, 0.18);
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 98%, transparent), color-mix(in srgb, var(--panel-bg) 92%, transparent)),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 18%, transparent), transparent 36%),
+    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--accent-tertiary) 14%, transparent), transparent 30%);
+  box-shadow: var(--dialog-surface-shadow);
   color: var(--text-main);
   backdrop-filter: blur(16px);
 }
@@ -62,10 +63,15 @@ const { notices } = storeToRefs(notificationStore)
   width: 24px;
   height: 24px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--accent-danger) 18%, transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-danger) 24%, transparent),
+    color-mix(in srgb, var(--accent-tertiary) 18%, transparent)
+  );
   color: var(--accent-danger);
   font-weight: 700;
   line-height: 1;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent-danger) 16%, transparent);
 }
 
 .notice-card__body {
@@ -105,5 +111,16 @@ const { notices } = storeToRefs(notificationStore)
   opacity: 0;
   transform: translateY(-14px) scale(0.96);
   filter: blur(4px);
+}
+
+:global(html.dark) .notice-card {
+  box-shadow:
+    var(--dialog-surface-shadow),
+    0 0 24px rgba(0, 240, 255, 0.12),
+    0 0 26px rgba(157, 0, 255, 0.12);
+}
+
+:global(html.dark) .notice-card__message {
+  color: color-mix(in srgb, var(--text-main) 94%, var(--accent-start) 6%);
 }
 </style>

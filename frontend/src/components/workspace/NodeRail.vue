@@ -11,6 +11,7 @@ import {
 } from '@/utils/display'
 
 type NodeRailViewMode = 'compact' | 'full'
+type ControlTooltipPlacement = 'top' | 'bottom'
 
 const props = withDefaults(defineProps<{
   canManage?: boolean
@@ -40,6 +41,13 @@ const displayMode = ref<NodeRailViewMode>(props.defaultViewMode)
 const hoveredAnchor = ref<HTMLElement | null>(null)
 const hoveredNodeId = ref<number | null>(null)
 const hoverCardPosition = ref<{ left: number; top: number } | null>(null)
+const controlTooltip = ref<{
+  anchor: HTMLElement | null
+  label: string
+  left: number
+  placement: ControlTooltipPlacement
+  top: number
+} | null>(null)
 const previewMovableNodeIds = ref<number[] | null>(null)
 const dropTargetNodeId = ref<number | null>(null)
 
@@ -47,6 +55,10 @@ const HOVER_CARD_WIDTH = 320
 const HOVER_CARD_HEIGHT = 224
 const HOVER_CARD_GAP = 18
 const HOVER_CARD_MARGIN = 20
+const CONTROL_TOOLTIP_WIDTH = 112
+const CONTROL_TOOLTIP_HEIGHT = 40
+const CONTROL_TOOLTIP_GAP = 12
+const CONTROL_TOOLTIP_MARGIN = 16
 
 const orderedNodes = computed(() =>
   [...props.nodes].sort((left, right) => left.sequence_no - right.sequence_no),
@@ -78,6 +90,20 @@ const hoverCardStyle = computed<CSSProperties | undefined>(() => {
     pointerEvents: 'none',
     position: 'fixed',
     zIndex: '240',
+  }
+})
+
+const controlTooltipStyle = computed<CSSProperties | undefined>(() => {
+  if (controlTooltip.value === null) {
+    return undefined
+  }
+
+  return {
+    left: `${controlTooltip.value.left}px`,
+    top: `${controlTooltip.value.top}px`,
+    pointerEvents: 'none',
+    position: 'fixed',
+    zIndex: '420',
   }
 })
 
@@ -173,6 +199,57 @@ function clearHover(nodeId?: number) {
   hoverCardPosition.value = null
 }
 
+function updateControlTooltipPosition() {
+  if (controlTooltip.value?.anchor === null || controlTooltip.value === null || typeof window === 'undefined') {
+    return
+  }
+
+  const rect = controlTooltip.value.anchor.getBoundingClientRect()
+  const viewportWidth = window.innerWidth || document.documentElement.clientWidth
+  const viewportHeight = window.innerHeight || document.documentElement.clientHeight
+  const left = clamp(
+    rect.left + rect.width / 2,
+    CONTROL_TOOLTIP_MARGIN + CONTROL_TOOLTIP_WIDTH / 2,
+    viewportWidth - CONTROL_TOOLTIP_MARGIN - CONTROL_TOOLTIP_WIDTH / 2,
+  )
+  const showBelow = rect.top - CONTROL_TOOLTIP_GAP - CONTROL_TOOLTIP_HEIGHT < CONTROL_TOOLTIP_MARGIN
+  const top = showBelow
+    ? Math.min(rect.bottom + CONTROL_TOOLTIP_GAP, viewportHeight - CONTROL_TOOLTIP_MARGIN)
+    : Math.max(rect.top - CONTROL_TOOLTIP_GAP, CONTROL_TOOLTIP_MARGIN)
+
+  controlTooltip.value = {
+    ...controlTooltip.value,
+    left,
+    placement: showBelow ? 'bottom' : 'top',
+    top,
+  }
+}
+
+function showControlTooltip(label: string, event: FocusEvent | MouseEvent) {
+  const anchor = event.currentTarget instanceof HTMLElement ? event.currentTarget : null
+  if (anchor === null) {
+    return
+  }
+
+  controlTooltip.value = {
+    anchor,
+    label,
+    left: 0,
+    placement: 'top',
+    top: 0,
+  }
+  updateControlTooltipPosition()
+}
+
+function clearControlTooltip() {
+  controlTooltip.value = null
+}
+
+function handleRailLeave() {
+  clearHover()
+  clearControlTooltip()
+}
+
 function reorderPreview(overNodeId: number) {
   if (draggedNodeId.value === null || draggedNodeId.value === overNodeId) {
     return
@@ -251,11 +328,13 @@ function cancelDrag() {
 }
 
 function handleViewportChange() {
-  if (hoveredNodeId.value === null) {
-    return
+  if (hoveredNodeId.value !== null) {
+    updateHoverCardPosition()
   }
 
-  updateHoverCardPosition()
+  if (controlTooltip.value !== null) {
+    updateControlTooltipPosition()
+  }
 }
 
 onMounted(() => {
@@ -280,7 +359,7 @@ onBeforeUnmount(() => {
 <template>
   <section
     :class="['node-rail', { 'node-rail--embedded': embedded }]"
-    @mouseleave="clearHover()"
+    @mouseleave="handleRailLeave()"
   >
     <header class="node-rail__header">
       <div class="node-rail__header-copy">
@@ -290,7 +369,13 @@ onBeforeUnmount(() => {
         </span>
       </div>
       <div class="node-rail__header-side">
-        <div class="node-rail__view-switch" role="tablist" aria-label="阶段节点视图">
+        <div
+          class="node-rail__view-switch"
+          :class="{ 'is-full': !isCompactView }"
+          role="tablist"
+          aria-label="阶段节点视图"
+        >
+          <span class="node-rail__view-switch-indicator" aria-hidden="true"></span>
           <button
             data-testid="node-view-mode-compact"
             class="node-rail__view-button"
@@ -299,9 +384,13 @@ onBeforeUnmount(() => {
             aria-label="精简视图"
             data-tooltip="精简视图"
             type="button"
+            @blur="clearControlTooltip"
             @click="setDisplayMode('compact')"
+            @focus="showControlTooltip('精简视图', $event)"
+            @mouseenter="showControlTooltip('精简视图', $event)"
+            @mouseleave="clearControlTooltip"
           >
-            <span class="node-rail__view-icon-shell" aria-hidden="true">
+            <span class="node-rail__view-button-core" aria-hidden="true">
               <svg class="node-rail__view-icon" viewBox="0 0 24 24">
                 <path
                   d="M5 7.5h14M5 12h14M5 16.5h14"
@@ -321,9 +410,13 @@ onBeforeUnmount(() => {
             aria-label="完整视图"
             data-tooltip="完整视图"
             type="button"
+            @blur="clearControlTooltip"
             @click="setDisplayMode('full')"
+            @focus="showControlTooltip('完整视图', $event)"
+            @mouseenter="showControlTooltip('完整视图', $event)"
+            @mouseleave="clearControlTooltip"
           >
-            <span class="node-rail__view-icon-shell" aria-hidden="true">
+            <span class="node-rail__view-button-core" aria-hidden="true">
               <svg class="node-rail__view-icon" viewBox="0 0 24 24">
                 <path
                   d="M5 6.5h14M5 12h14M5 17.5h7"
@@ -350,7 +443,11 @@ onBeforeUnmount(() => {
           class="node-rail__create"
           data-tooltip="新建节点"
           type="button"
+          @blur="clearControlTooltip"
           @click="$emit('create')"
+          @focus="showControlTooltip('新建节点', $event)"
+          @mouseenter="showControlTooltip('新建节点', $event)"
+          @mouseleave="clearControlTooltip"
         >
           <svg aria-hidden="true" class="node-rail__create-icon" viewBox="0 0 24 24">
             <path
@@ -472,6 +569,20 @@ onBeforeUnmount(() => {
     </div>
 
     <Teleport to="body">
+      <transition name="node-control-tooltip-fade">
+        <aside
+          v-if="controlTooltip !== null && controlTooltipStyle"
+          data-testid="node-control-tooltip"
+          class="node-rail__control-tooltip"
+          :class="`node-rail__control-tooltip--${controlTooltip.placement}`"
+          :style="controlTooltipStyle"
+        >
+          {{ controlTooltip.label }}
+        </aside>
+      </transition>
+    </Teleport>
+
+    <Teleport to="body">
       <transition name="node-hover-card">
         <aside
           v-if="hoveredNode !== null && hoverCardStyle"
@@ -561,15 +672,17 @@ onBeforeUnmount(() => {
   overflow: visible;
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
-  padding: 6px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, var(--border-soft));
-  border-radius: 20px;
+  gap: 0;
+  min-width: 116px;
+  padding: 4px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
+  border-radius: 16px;
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 94%, transparent), color-mix(in srgb, var(--panel-bg) 86%, transparent)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-end) 14%, transparent), transparent 55%);
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 98%, transparent), color-mix(in srgb, var(--panel-bg) 92%, transparent)),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 16%, transparent), transparent 52%),
+    radial-gradient(circle at left center, color-mix(in srgb, var(--accent-tertiary) 10%, transparent), transparent 42%);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--glass-bg-strong) 68%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--glass-bg-strong) 74%, transparent),
     0 14px 28px rgba(15, 23, 42, 0.12);
   backdrop-filter: var(--backdrop-blur);
 }
@@ -577,23 +690,67 @@ onBeforeUnmount(() => {
 .node-rail__view-switch::before {
   content: '';
   position: absolute;
-  inset: 0;
+  inset: 1px;
+  border-radius: 15px;
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent 42%),
-    radial-gradient(circle at 85% 22%, rgba(0, 194, 255, 0.1), transparent 28%);
+    linear-gradient(180deg, color-mix(in srgb, var(--text-inverse) 8%, transparent), transparent 54%),
+    repeating-linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--text-inverse) 5%, transparent) 0,
+      color-mix(in srgb, var(--text-inverse) 5%, transparent) 1px,
+      transparent 1px,
+      transparent 4px
+    );
   pointer-events: none;
+}
+
+.node-rail__view-switch::after {
+  content: '';
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 50%;
+  width: 1px;
+  background: color-mix(in srgb, var(--border-soft) 72%, transparent);
+  transform: translateX(-50%);
+  pointer-events: none;
+}
+
+.node-rail__view-switch-indicator {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc(50% - 4px);
+  border: 1px solid color-mix(in srgb, var(--accent-line) 34%, transparent);
+  border-radius: 12px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 24%, transparent), color-mix(in srgb, var(--accent-end) 22%, transparent)),
+    color-mix(in srgb, var(--glass-bg-strong) 98%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 14%, transparent),
+    0 8px 20px color-mix(in srgb, var(--accent-start) 12%, transparent);
+  pointer-events: none;
+  transition:
+    transform 220ms ease-out,
+    box-shadow 220ms ease-out,
+    border-color 220ms ease-out;
+}
+
+.node-rail__view-switch.is-full .node-rail__view-switch-indicator {
+  transform: translateX(100%);
 }
 
 .node-rail__view-button {
   position: relative;
-  z-index: 1;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 46px;
-  height: 46px;
+  width: 54px;
+  height: 42px;
   border: none;
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 0;
   background: transparent;
   color: var(--text-soft);
@@ -602,24 +759,16 @@ onBeforeUnmount(() => {
   transition:
     transform 200ms ease-out,
     color 200ms ease-out,
-    background 200ms ease-out,
-    border-color 200ms ease-out,
     box-shadow 200ms ease-out;
 }
 
 .node-rail__view-button:hover {
   color: var(--text-main);
-  background: color-mix(in srgb, var(--glass-bg-strong) 46%, transparent);
+  transform: translateY(-1px);
 }
 
 .node-rail__view-button.is-active {
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 16%, transparent), color-mix(in srgb, var(--accent-end) 24%, transparent)),
-    color-mix(in srgb, var(--glass-bg-strong) 94%, transparent);
   color: var(--text-main);
-  box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--accent-line) 28%, transparent),
-    0 10px 22px rgba(15, 23, 42, 0.14);
 }
 
 .node-rail__view-button:focus-visible {
@@ -627,95 +776,59 @@ onBeforeUnmount(() => {
   color: var(--text-main);
   transform: translateY(-1px);
   box-shadow:
-    0 0 0 4px color-mix(in srgb, var(--accent-end) 14%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--accent-end) 12%, transparent),
     0 8px 18px rgba(15, 23, 42, 0.12);
 }
 
-.node-rail__view-button[data-tooltip]::before,
-.node-rail__view-button[data-tooltip]::after {
-  position: absolute;
-  left: 50%;
-  z-index: 24;
-  opacity: 0;
-  pointer-events: none;
+.node-rail__view-button-core {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 12px;
+  color: inherit;
   transition:
-    opacity 180ms ease-out,
-    transform 180ms ease-out;
+    transform 200ms ease-out,
+    color 200ms ease-out,
+    opacity 200ms ease-out;
 }
 
-.node-rail__view-button[data-tooltip]::before {
+.node-rail__view-button-core::before {
   content: '';
-  bottom: calc(100% + 5px);
-  width: 10px;
-  height: 10px;
-  border-left: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
-  transform: translate(-50%, 6px) rotate(-45deg);
-  z-index: 1;
+  position: absolute;
+  inset: 8px 11px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--accent-start) 0%, transparent),
+    color-mix(in srgb, var(--accent-start) 16%, transparent),
+    color-mix(in srgb, var(--accent-tertiary) 10%, transparent)
+  );
+  opacity: 0;
+  transition: opacity 200ms ease-out;
 }
 
-.node-rail__view-button[data-tooltip]::after {
-  content: attr(data-tooltip);
-  bottom: calc(100% + 10px);
-  padding: 8px 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), color-mix(in srgb, var(--panel-bg) 92%, transparent)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.12), transparent 36%);
-  color: var(--text-main);
-  font-size: 0.72rem;
-  font-weight: 700;
-  line-height: 1;
-  letter-spacing: 0.04em;
-  white-space: nowrap;
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
-  transform: translate(-50%, 8px);
-}
-
-.node-rail__view-button[data-tooltip]:hover::before,
-.node-rail__view-button[data-tooltip]:hover::after,
-.node-rail__view-button[data-tooltip]:focus-visible::before,
-.node-rail__view-button[data-tooltip]:focus-visible::after {
+.node-rail__view-button:hover .node-rail__view-button-core::before,
+.node-rail__view-button:focus-visible .node-rail__view-button-core::before {
   opacity: 1;
 }
 
-.node-rail__view-button[data-tooltip]:hover::before,
-.node-rail__view-button[data-tooltip]:focus-visible::before {
-  transform: translate(-50%, 0) rotate(-45deg);
+.node-rail__view-button.is-active .node-rail__view-button-core {
+  transform: translateY(-1px);
+  color: var(--text-main);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--accent-start) 14%, transparent);
 }
 
-.node-rail__view-button[data-tooltip]:hover::after,
-.node-rail__view-button[data-tooltip]:focus-visible::after {
-  transform: translate(-50%, 0);
-}
-
-.node-rail__view-icon-shell {
-  width: 32px;
-  height: 32px;
-  flex: none;
-  display: inline-grid;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, var(--border-soft));
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--glass-bg-strong) 88%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-.node-rail__view-button.is-active .node-rail__view-icon-shell {
-  border-color: transparent;
-  background: var(--gradient-primary);
-  color: var(--text-inverse);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.18),
-    0 8px 18px rgba(10, 102, 255, 0.22);
+.node-rail__view-button.is-active .node-rail__view-button-core::before {
+  opacity: 0;
 }
 
 .node-rail__view-icon {
   width: 14px;
   height: 14px;
+  position: relative;
+  z-index: 1;
 }
 
 .node-rail__header-copy p,
@@ -774,58 +887,56 @@ onBeforeUnmount(() => {
   height: 18px;
 }
 
-.node-rail__create[data-tooltip]::before,
-.node-rail__create[data-tooltip]::after {
+.node-rail__control-tooltip {
+  min-width: 88px;
+  padding: 8px 11px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 98%, transparent), color-mix(in srgb, var(--panel-bg) 94%, transparent)),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 14%, transparent), transparent 40%),
+    radial-gradient(circle at left center, color-mix(in srgb, var(--accent-tertiary) 10%, transparent), transparent 34%);
+  color: var(--text-main);
+  font-size: 0.74rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  text-align: center;
+  box-shadow:
+    var(--shadow-panel-hover),
+    0 0 0 1px color-mix(in srgb, var(--accent-line) 12%, transparent);
+  backdrop-filter: var(--backdrop-blur);
+  transform: translateX(-50%);
+}
+
+.node-rail__control-tooltip::before {
+  content: '';
   position: absolute;
   left: 50%;
-  opacity: 0;
-  pointer-events: none;
-  transition:
-    opacity 180ms ease-out,
-    transform 180ms ease-out;
-}
-
-.node-rail__create[data-tooltip]::before {
-  content: '';
-  bottom: calc(100% + 5px);
   width: 10px;
   height: 10px;
-  border-left: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
-  transform: translate(-50%, 6px) rotate(-45deg);
-  z-index: 1;
+  border-left: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
+  background: color-mix(in srgb, var(--glass-bg-strong) 98%, transparent);
+  transform: translateX(-50%) rotate(-45deg);
 }
 
-.node-rail__create[data-tooltip]::after {
-  content: attr(data-tooltip);
-  bottom: calc(100% + 11px);
-  padding: 7px 10px;
-  border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
-  color: var(--text-main);
-  font-size: 0.75rem;
-  font-weight: 600;
-  line-height: 1;
-  white-space: nowrap;
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
-  transform: translate(-50%, 6px);
-  z-index: 2;
+.node-rail__control-tooltip--top {
+  transform: translate(-50%, -100%);
 }
 
-.node-rail__create[data-tooltip]:hover::before,
-.node-rail__create[data-tooltip]:hover::after,
-.node-rail__create[data-tooltip]:focus-visible::before,
-.node-rail__create[data-tooltip]:focus-visible::after {
-  opacity: 1;
+.node-rail__control-tooltip--top::before {
+  top: calc(100% - 6px);
+}
+
+.node-rail__control-tooltip--bottom {
   transform: translate(-50%, 0);
 }
 
-.node-rail__create[data-tooltip]:hover::before,
-.node-rail__create[data-tooltip]:focus-visible::before {
-  transform: translate(-50%, 0) rotate(-45deg);
+.node-rail__control-tooltip--bottom::before {
+  bottom: calc(100% - 6px);
+  transform: translateX(-50%) rotate(135deg);
 }
 
 .node-rail__timeline-shell {
@@ -1199,5 +1310,17 @@ onBeforeUnmount(() => {
 .node-hover-card-leave-to {
   opacity: 0;
   transform: translate3d(-10px, 0, 0);
+}
+
+.node-control-tooltip-fade-enter-active,
+.node-control-tooltip-fade-leave-active {
+  transition:
+    opacity 160ms ease-out,
+    transform 160ms ease-out;
+}
+
+.node-control-tooltip-fade-enter-from,
+.node-control-tooltip-fade-leave-to {
+  opacity: 0;
 }
 </style>

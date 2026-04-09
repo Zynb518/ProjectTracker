@@ -102,7 +102,7 @@ describe('NodeRail', () => {
     expect(activeCard.find('.node-rail__progress').exists()).toBe(true)
   })
 
-  it('removes the node count copy and uses compact icon switchers with hover labels', () => {
+  it('removes the node count copy and uses a segmented neon mode switch with top-layer hover labels', () => {
     const wrapper = mount(NodeRail, {
       props: {
         canManage: true,
@@ -113,18 +113,88 @@ describe('NodeRail', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeRail.vue'), 'utf8')
 
     expect(wrapper.text()).not.toContain(`${sampleNodes.length} 个节点`)
+    expect(wrapper.get('.node-rail__view-switch-indicator').exists()).toBe(true)
     expect(wrapper.get('[data-testid="node-view-mode-compact"]').attributes('aria-label')).toBe('精简视图')
     expect(wrapper.get('[data-testid="node-view-mode-compact"]').attributes('data-tooltip')).toBe('精简视图')
     expect(wrapper.get('[data-testid="node-view-mode-full"]').attributes('aria-label')).toBe('完整视图')
     expect(wrapper.get('[data-testid="node-view-mode-full"]').attributes('data-tooltip')).toBe('完整视图')
     expect(wrapper.get('[data-testid="node-view-mode-compact"]').text()).toBe('')
     expect(wrapper.get('[data-testid="node-view-mode-full"]').text()).toBe('')
+    expect(source).toContain('class="node-rail__view-switch-indicator"')
+    expect(source).toContain('.node-rail__view-switch-indicator {')
+    expect(source).toContain('.node-rail__view-switch.is-full .node-rail__view-switch-indicator {')
+    expect(source).toContain('.node-rail__view-button-core {')
     expect(source).toContain('overflow: visible;')
     expect(source).toContain('z-index: 12;')
-    expect(source).toContain('z-index: 24;')
-    expect(source).toContain('.node-rail__view-button[data-tooltip]::before')
-    expect(source).toContain('.node-rail__view-button[data-tooltip]::after')
+    expect(source).toContain('data-testid="node-control-tooltip"')
+    expect(source).toContain('zIndex: \'420\'')
+    expect(source).toContain('position: \'fixed\'')
     expect(source).not.toContain('{{ props.nodes.length }} 个节点')
+  })
+
+  it('teleports view-mode and create-button tooltips to body so they stay above surrounding panels', async () => {
+    const wrapper = mount(NodeRail, {
+      attachTo: document.body,
+      props: {
+        canManage: true,
+        nodes: sampleNodes,
+        selectedNodeId: null,
+      },
+    })
+
+    const compactButton = wrapper.get('[data-testid="node-view-mode-compact"]')
+    const createButton = wrapper.get('[data-testid="create-node"]')
+
+    Object.defineProperty(compactButton.element, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        x: 640,
+        y: 88,
+        width: 54,
+        height: 42,
+        top: 88,
+        left: 640,
+        right: 694,
+        bottom: 130,
+        toJSON: () => null,
+      }),
+    })
+
+    Object.defineProperty(createButton.element, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        x: 760,
+        y: 88,
+        width: 44,
+        height: 44,
+        top: 88,
+        left: 760,
+        right: 804,
+        bottom: 132,
+        toJSON: () => null,
+      }),
+    })
+
+    await compactButton.trigger('mouseenter')
+
+    let tooltip = document.body.querySelector('[data-testid="node-control-tooltip"]') as HTMLElement | null
+
+    expect(tooltip).not.toBeNull()
+    expect(tooltip?.textContent).toContain('精简视图')
+    expect(tooltip?.style.position).toBe('fixed')
+    expect(tooltip?.style.zIndex).toBe('420')
+
+    await compactButton.trigger('mouseleave')
+    await createButton.trigger('mouseenter')
+
+    tooltip = document.body.querySelector('[data-testid="node-control-tooltip"]') as HTMLElement | null
+
+    expect(tooltip).not.toBeNull()
+    expect(tooltip?.textContent).toContain('新建节点')
+    expect(tooltip?.style.position).toBe('fixed')
+    expect(tooltip?.style.zIndex).toBe('420')
+
+    wrapper.unmount()
   })
 
   it('keeps node names and status pills on one row so long names do not push statuses out of the card', () => {

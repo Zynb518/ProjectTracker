@@ -91,7 +91,13 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
   height: 24px;
   padding: 2px;
   border-radius: 999px;
-  background: var(--gradient-primary-soft);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--accent-start) 28%, transparent),
+    color-mix(in srgb, var(--accent-end) 26%, transparent),
+    color-mix(in srgb, var(--accent-tertiary) 18%, transparent)
+  );
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 82%, transparent);
 }
 
 .theme-toggle__thumb {
@@ -100,9 +106,12 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #0a66ff;
+  background: color-mix(in srgb, var(--text-inverse) 90%, var(--panel-bg) 10%);
+  color: var(--accent-end);
   transform: translateX(v-bind('isDark ? "16px" : "0px"'));
+  box-shadow:
+    0 6px 16px color-mix(in srgb, var(--accent-start) 18%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--border-soft) 80%, transparent);
   transition: transform 200ms ease-out;
 }
 
@@ -116,5 +125,35 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
+}
+
+:global(html.dark) .theme-toggle {
+  border-color: color-mix(in srgb, var(--accent-start) 18%, var(--border-soft));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--glass-bg-strong) 98%, transparent),
+    color-mix(in srgb, var(--panel-bg-soft) 94%, transparent)
+  );
+  box-shadow:
+    var(--shadow-panel),
+    0 0 22px rgba(157, 0, 255, 0.1);
+}
+
+:global(html.dark) .theme-toggle__thumb {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--text-inverse) 86%, var(--accent-start) 14%),
+    color-mix(in srgb, var(--text-inverse) 72%, var(--panel-bg) 28%)
+  );
+  color: var(--accent-start);
+  box-shadow:
+    0 8px 18px rgba(0, 240, 255, 0.18),
+    0 0 0 1px rgba(0, 240, 255, 0.12),
+    0 0 18px rgba(157, 0, 255, 0.14);
+}
+
+:global(html.dark) .theme-toggle__label {
+  color: color-mix(in srgb, var(--text-main) 94%, var(--accent-start) 6%);
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.06);
 }
 </style>
