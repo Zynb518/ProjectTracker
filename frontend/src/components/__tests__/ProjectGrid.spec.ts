@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 import ProjectGrid from '@/components/projects/ProjectGrid.vue'
 import type { ProjectListItem } from '@/types/project'
@@ -34,6 +36,18 @@ describe('ProjectGrid', () => {
     expect(getComputedStyle(card).minHeight).toBe('492px')
   })
 
+  it('uses a dedicated non-white surface style for each project card so it does not blend into the inner meta cards', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),
+      'utf8',
+    )
+    const themeSource = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8')
+
+    expect(source).toContain('background: var(--project-card-bg), var(--project-card-glow);')
+    expect(themeSource).toContain('--project-card-bg: linear-gradient(180deg, rgba(241, 246, 255, 0.92), rgba(220, 230, 245, 0.9));')
+    expect(themeSource).toContain('--project-card-glow: radial-gradient(circle at top right, rgba(10, 102, 255, 0.14), transparent 30%);')
+  })
+
   it('renders the project name in the header without showing the project id', () => {
     const wrapper = mount(ProjectGrid, {
       props: {
@@ -43,6 +57,19 @@ describe('ProjectGrid', () => {
 
     expect(wrapper.get('.project-card__name').text()).toBe(sampleProject.name)
     expect(wrapper.text()).not.toContain(`项目 #${sampleProject.id}`)
+  })
+
+  it('uses a brighter single-line title treatment with ellipsis so names do not collide with status tags', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),
+      'utf8',
+    )
+
+    expect(source).toContain('font-size: 1.68rem;')
+    expect(source).toContain('font-weight: 700;')
+    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 84%, #ffffff 16%);')
+    expect(source).toContain('white-space: nowrap;')
+    expect(source).toContain('text-overflow: ellipsis;')
   })
 
   it('maps each status to a dedicated status color class', () => {
@@ -79,6 +106,75 @@ describe('ProjectGrid', () => {
     expect(lines[1].text()).toBe('2026-06-30')
   })
 
+  it('uses icon-only meta labels while preserving accessible labels for each project detail', () => {
+    const wrapper = mount(ProjectGrid, {
+      props: {
+        projects: [sampleProject],
+      },
+    })
+
+    const labels = wrapper.findAll('.project-card__meta dt')
+    const icons = wrapper.findAll('.project-card__meta-icon')
+
+    expect(labels).toHaveLength(4)
+    expect(icons).toHaveLength(4)
+    expect(labels.map((label) => label.attributes('aria-label'))).toEqual([
+      '负责人',
+      '计划周期',
+      '成员数',
+      '节点 / 子任务',
+    ])
+  })
+
+  it('adds hover tooltip labels to each project meta card', () => {
+    const wrapper = mount(ProjectGrid, {
+      props: {
+        projects: [sampleProject],
+      },
+    })
+
+    const metaCards = wrapper.findAll('.project-card__meta-item')
+
+    expect(metaCards).toHaveLength(4)
+    expect(metaCards.map((card) => card.attributes('data-tooltip'))).toEqual([
+      '负责人',
+      '计划周期',
+      '成员数',
+      '节点 / 子任务',
+    ])
+  })
+
+  it('renders project meta icons without framed containers', () => {
+    const wrapper = mount(ProjectGrid, {
+      props: {
+        projects: [sampleProject],
+      },
+    })
+
+    const icon = wrapper.get('.project-card__meta-icon').element
+    const styles = getComputedStyle(icon)
+
+    expect(styles.borderTopWidth).toBe('0px')
+    expect(styles.backgroundImage).toBe('none')
+    expect(styles.boxShadow).toBe('none')
+  })
+
+  it('uses a dedicated tinted surface style for project meta cards so they stand apart from the main card', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),
+      'utf8',
+    )
+    const themeSource = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8')
+
+    expect(source).toContain('border: 1px solid var(--meta-surface-border);')
+    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow);')
+    expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
+    expect(themeSource).toContain('--meta-surface-bg: linear-gradient(180deg, rgba(252, 255, 255, 0.98), rgba(236, 247, 255, 0.92));')
+    expect(themeSource).toContain('--meta-surface-glow: radial-gradient(circle at 100% 0%, rgba(0, 194, 255, 0.22), transparent 60%);')
+    expect(themeSource).toContain('--meta-surface-border:')
+    expect(themeSource).toContain('--meta-surface-shadow:')
+  })
+
   it('separates project meta content and actions into independent layout regions', () => {
     const wrapper = mount(ProjectGrid, {
       props: {
@@ -94,7 +190,37 @@ describe('ProjectGrid', () => {
     expect(footer.getComponent({ name: 'ProjectActionsMenu' }).exists()).toBe(true)
   })
 
-  it('keeps each project meta card slightly taller for clearer spacing', () => {
+  it('keeps the three action buttons in one row with balanced spacing below the meta section', () => {
+    const wrapper = mount(ProjectGrid, {
+      props: {
+        projects: [sampleProject],
+      },
+    })
+
+    const footer = wrapper.get('.project-card__footer')
+    const actionBar = footer.get('.project-actions')
+
+    expect(getComputedStyle(footer.element).alignItems).toBe('center')
+    expect(actionBar.findAll('button')).toHaveLength(3)
+    expect(actionBar.classes()).not.toContain('project-actions--pair')
+  })
+
+  it('keeps all project meta cards slightly taller for clearer spacing', () => {
+    const wrapper = mount(ProjectGrid, {
+      props: {
+        projects: [sampleProject],
+      },
+    })
+
+    const metaCards = wrapper.findAll('.project-card__meta div')
+
+    expect(getComputedStyle(metaCards[0].element).minHeight).toBe('74px')
+    expect(getComputedStyle(metaCards[1].element).minHeight).toBe('74px')
+    expect(getComputedStyle(metaCards[2].element).minHeight).toBe('74px')
+    expect(getComputedStyle(metaCards[3].element).minHeight).toBe('74px')
+  })
+
+  it('anchors meta icons to the top of each info card even when content spans multiple lines', () => {
     const wrapper = mount(ProjectGrid, {
       props: {
         projects: [sampleProject],
@@ -103,7 +229,21 @@ describe('ProjectGrid', () => {
 
     const metaCard = wrapper.get('.project-card__meta div').element
 
-    expect(getComputedStyle(metaCard).minHeight).toBe('72px')
+    expect(getComputedStyle(metaCard).justifyContent).toBe('flex-start')
+  })
+
+  it('tightens the icon-to-text spacing while pushing meta text slightly farther from the left edge', () => {
+    const wrapper = mount(ProjectGrid, {
+      props: {
+        projects: [sampleProject],
+      },
+    })
+
+    const metaText = wrapper.get('.project-card__meta dd').element
+    const styles = getComputedStyle(metaText)
+
+    expect(styles.marginTop).toBe('6px')
+    expect(styles.paddingLeft).toBe('4px')
   })
 
   it('opens the project when a user clicks the card', async () => {
@@ -127,7 +267,7 @@ describe('ProjectGrid', () => {
 
     expect(wrapper.text()).not.toContain('进入项目')
 
-    await wrapper.findAll('button').find((button) => button.text() === '编辑')!.trigger('click')
+    await wrapper.findAll('button').find((button) => button.attributes('aria-label') === '编辑')!.trigger('click')
 
     expect(wrapper.emitted('edit')).toEqual([[sampleProject]])
     expect(wrapper.emitted('open')).toBeUndefined()

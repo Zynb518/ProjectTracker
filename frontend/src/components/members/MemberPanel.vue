@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import type { ProjectMember } from '@/types/member'
 
-defineProps<{
+withDefaults(defineProps<{
   canManage: boolean
+  fixedHeight?: boolean
   members: ProjectMember[]
-}>()
+}>(), {
+  fixedHeight: false,
+})
 
 defineEmits<{
   add: []
@@ -13,7 +16,10 @@ defineEmits<{
 </script>
 
 <template>
-  <section class="member-panel">
+  <section
+    :class="['member-panel', { 'member-panel--fixed': fixedHeight }]"
+    data-testid="member-panel"
+  >
     <header>
       <div>
         <p>项目成员</p>
@@ -29,36 +35,45 @@ defineEmits<{
       </button>
     </header>
 
-    <article v-for="member in members" :key="member.user_id" class="member-panel__item">
-      <div>
-        <strong>{{ member.real_name }}</strong>
-        <p>{{ member.username }}</p>
-      </div>
-      <div class="member-panel__actions">
-        <span>{{ member.is_owner ? '负责人' : '成员' }}</span>
-        <button
-          v-if="canManage && !member.is_owner"
-          :data-testid="`remove-member-${member.user_id}`"
-          type="button"
-          @click="$emit('remove', member.user_id)"
-        >
-          移除
-        </button>
-      </div>
-    </article>
+    <div class="member-panel__list" data-testid="member-panel-list">
+      <article v-for="member in members" :key="member.user_id" class="member-panel__item">
+        <div>
+          <strong>{{ member.real_name }}</strong>
+          <p>{{ member.username }}</p>
+        </div>
+        <div class="member-panel__actions">
+          <span>{{ member.is_owner ? '负责人' : '成员' }}</span>
+          <button
+            v-if="canManage && !member.is_owner"
+            :data-testid="`remove-member-${member.user_id}`"
+            type="button"
+            @click="$emit('remove', member.user_id)"
+          >
+            移除
+          </button>
+        </div>
+      </article>
+    </div>
   </section>
 </template>
 
 <style scoped>
 .member-panel {
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
+  min-height: 0;
   padding: 18px;
   border: 1px solid var(--border-soft);
   border-radius: 18px;
   background: var(--glass-bg);
   box-shadow: var(--shadow-panel);
   backdrop-filter: var(--backdrop-blur);
+}
+
+.member-panel--fixed {
+  height: 720px;
+  min-height: 720px;
 }
 
 header {
@@ -80,6 +95,15 @@ header p {
 header div {
   display: grid;
   gap: 4px;
+}
+
+.member-panel__list {
+  min-height: 0;
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  overflow-y: auto;
+  padding-right: 6px;
 }
 
 .member-panel__item {
@@ -116,5 +140,12 @@ button {
 .member-panel__item p,
 .member-panel__item span {
   color: var(--text-soft);
+}
+
+@media (max-width: 1180px) {
+  .member-panel--fixed {
+    height: auto;
+    min-height: 0;
+  }
 }
 </style>

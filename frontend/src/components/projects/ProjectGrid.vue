@@ -67,16 +67,56 @@ function statusTone(status: number) {
 
       <div class="project-card__body">
         <dl class="project-card__meta">
-          <div>
-            <dt>负责人</dt>
+          <div class="project-card__meta-item" data-tooltip="负责人">
+            <dt aria-label="负责人">
+              <span class="project-card__meta-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                  <path
+                    d="M5 20a7 7 0 0 1 14 0"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-width="1.7"
+                  />
+                </svg>
+              </span>
+            </dt>
             <dd>
               <span class="project-card__meta-value" :title="project.owner_real_name">
                 {{ project.owner_real_name }}
               </span>
             </dd>
           </div>
-          <div>
-            <dt>计划周期</dt>
+          <div class="project-card__meta-item" data-tooltip="计划周期">
+            <dt aria-label="计划周期">
+              <span class="project-card__meta-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M7 4.5v3M17 4.5v3M4.5 9.5h15"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-width="1.7"
+                  />
+                  <rect
+                    x="4.5"
+                    y="6.5"
+                    width="15"
+                    height="13"
+                    rx="3"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                </svg>
+              </span>
+            </dt>
             <dd>
               <span
                 class="project-card__schedule"
@@ -87,16 +127,76 @@ function statusTone(status: number) {
               </span>
             </dd>
           </div>
-          <div>
-            <dt>成员数</dt>
+          <div class="project-card__meta-item" data-tooltip="成员数">
+            <dt aria-label="成员数">
+              <span class="project-card__meta-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <path
+                    d="M9 10a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM16.5 11a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                  <path
+                    d="M3.5 19a5.5 5.5 0 0 1 11 0M14 18.5a4.5 4.5 0 0 1 6.5-3.9"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-width="1.7"
+                  />
+                </svg>
+              </span>
+            </dt>
             <dd>
               <span class="project-card__meta-value" :title="String(project.member_count)">
                 {{ project.member_count }}
               </span>
             </dd>
           </div>
-          <div>
-            <dt>节点 / 子任务</dt>
+          <div class="project-card__meta-item" data-tooltip="节点 / 子任务">
+            <dt aria-label="节点 / 子任务">
+              <span class="project-card__meta-icon" aria-hidden="true">
+                <svg viewBox="0 0 24 24">
+                  <rect
+                    x="4"
+                    y="4.5"
+                    width="6"
+                    height="5"
+                    rx="1.6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                  <rect
+                    x="14"
+                    y="4.5"
+                    width="6"
+                    height="5"
+                    rx="1.6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                  <rect
+                    x="9"
+                    y="14.5"
+                    width="6"
+                    height="5"
+                    rx="1.6"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.7"
+                  />
+                  <path
+                    d="M12 9.5v3M7 12.5h10"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-linecap="round"
+                    stroke-width="1.7"
+                  />
+                </svg>
+              </span>
+            </dt>
             <dd>
               <span
                 class="project-card__meta-value"
@@ -135,7 +235,7 @@ function statusTone(status: number) {
   position: relative;
   min-width: 0;
   display: grid;
-  grid-template-rows: auto 84px minmax(0, 1fr) 112px;
+  grid-template-rows: auto 84px minmax(0, 1fr) 88px;
   gap: 14px;
   height: 492px;
   min-height: 492px;
@@ -143,9 +243,7 @@ function statusTone(status: number) {
   padding: 24px;
   border: 1px solid var(--border-soft);
   border-radius: 16px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 92%, transparent), var(--glass-bg)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.1), transparent 24%);
+  background: var(--project-card-bg), var(--project-card-glow);
   box-shadow: var(--shadow-panel);
   backdrop-filter: var(--backdrop-blur);
   cursor: pointer;
@@ -207,14 +305,15 @@ function statusTone(status: number) {
 }
 
 .project-card__name {
-  font-size: 1.35rem;
-  line-height: 1.18;
+  font-size: 1.68rem;
+  font-weight: 700;
+  line-height: 1.08;
+  letter-spacing: -0.02em;
+  color: color-mix(in srgb, var(--text-main) 84%, #ffffff 16%);
   overflow: hidden;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
+  display: block;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .project-card__status {
@@ -303,29 +402,82 @@ function statusTone(status: number) {
   margin: 0;
 }
 
-.project-card__meta div {
+.project-card__meta-item {
+  position: relative;
   min-width: 0;
-  min-height: 72px;
+  min-height: 74px;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 12px 12px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  background: var(--meta-surface-bg), var(--meta-surface-glow);
+  box-shadow: var(--meta-surface-shadow);
+  overflow: hidden;
+}
+
+.project-card__meta-item::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 5px 8px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--glass-bg-strong) 94%, transparent);
+  color: var(--text-main);
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: var(--backdrop-blur);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
+}
+
+.project-card__meta-item:hover::after {
+  opacity: 1;
+  transform: translateY(0);
 }
 
 .project-card__meta dt {
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  display: flex;
+  align-items: center;
+  margin: 0;
   color: var(--text-soft);
 }
 
 .project-card__meta dd {
   margin: 6px 0 0;
+  padding-left: 4px;
   min-width: 0;
-  font-weight: 600;
+  font-size: 0.98rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.project-card__meta-icon {
+  width: 32px;
+  height: 32px;
+  display: inline-grid;
+  place-items: center;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: color-mix(in srgb, var(--text-main) 74%, var(--accent-end) 26%);
+  box-shadow: none;
+}
+
+.project-card__meta-icon svg {
+  width: 16px;
+  height: 16px;
 }
 
 .project-card__meta-value {
@@ -353,7 +505,7 @@ function statusTone(status: number) {
 .project-card__footer {
   min-height: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
 }
 
 .project-card__footer :deep(.project-actions) {

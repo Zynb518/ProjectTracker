@@ -108,7 +108,7 @@ describe('ProjectListView', () => {
 
     expect(await screen.findByText('内部进度平台')).toBeTruthy()
 
-    await user.selectOptions(screen.getByTestId('projects-status'), '2')
+    await user.click(screen.getByTestId('projects-status-2'))
 
     await waitFor(() => {
       expect(listProjects).toHaveBeenLastCalledWith({

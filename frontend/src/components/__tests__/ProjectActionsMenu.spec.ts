@@ -44,15 +44,55 @@ describe('ProjectActionsMenu', () => {
       },
     })
 
-    expect(pendingWrapper.findAll('button').map((button) => button.text())).toEqual(['开始', '编辑', '删除'])
-    expect(activeWrapper.findAll('button').map((button) => button.text())).toEqual(['完成', '编辑', '删除'])
-    expect(doneWrapper.findAll('button').map((button) => button.text())).toEqual([
+    expect(pendingWrapper.findAll('button').map((button) => button.text())).toEqual(['', '', ''])
+    expect(activeWrapper.findAll('button').map((button) => button.text())).toEqual(['', '', ''])
+    expect(doneWrapper.findAll('button').map((button) => button.text())).toEqual(['', '', ''])
+    expect(pendingWrapper.findAll('button').map((button) => button.attributes('aria-label'))).toEqual([
+      '开始',
+      '编辑',
+      '删除',
+    ])
+    expect(pendingWrapper.findAll('button').map((button) => button.attributes('data-tooltip'))).toEqual([
+      '开始',
+      '编辑',
+      '删除',
+    ])
+    expect(activeWrapper.findAll('button').map((button) => button.attributes('aria-label'))).toEqual([
+      '完成',
+      '编辑',
+      '删除',
+    ])
+    expect(activeWrapper.findAll('button').map((button) => button.attributes('data-tooltip'))).toEqual([
+      '完成',
+      '编辑',
+      '删除',
+    ])
+    expect(doneWrapper.findAll('button').map((button) => button.attributes('aria-label'))).toEqual([
       '撤销完成',
       '编辑',
       '删除',
     ])
+    expect(doneWrapper.findAll('button').map((button) => button.attributes('data-tooltip'))).toEqual([
+      '撤销完成',
+      '编辑',
+      '删除',
+    ])
+    expect(doneWrapper.findAll('button').map((button) => button.attributes('title'))).toEqual([
+      undefined,
+      undefined,
+      undefined,
+    ])
+    expect(pendingWrapper.findAll('button')[0].classes()).toContain('project-actions__button--start')
+    expect(activeWrapper.findAll('button')[0].classes()).toContain('project-actions__button--success')
+    expect(doneWrapper.findAll('button')[0].classes()).toContain('project-actions__button--warning')
     expect(doneWrapper.findAll('button')[1].attributes('disabled')).toBeDefined()
-    expect(delayedWrapper.findAll('button').map((button) => button.text())).toEqual(['完成', '编辑', '删除'])
+    expect(delayedWrapper.findAll('button').map((button) => button.text())).toEqual(['', '', ''])
+    expect(delayedWrapper.findAll('button').map((button) => button.attributes('aria-label'))).toEqual([
+      '完成',
+      '编辑',
+      '删除',
+    ])
+    expect(delayedWrapper.findAll('button')[0].classes()).toContain('project-actions__button--success')
   })
 
   it('emits the matching lifecycle event for the current status and blocks disabled edit', async () => {

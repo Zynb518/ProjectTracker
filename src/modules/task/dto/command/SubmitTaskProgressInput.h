@@ -3,7 +3,6 @@
 #include <cstdint>
 #include <string>
 
-#include "modules/task/domain/TaskEnums.h"
 #include "modules/user/domain/UserEnums.h"
 
 namespace project_tracker::modules::task::dto::command {
@@ -12,7 +11,6 @@ namespace project_tracker::modules::task::dto::command {
         std::int64_t subTaskId;
         std::int64_t operatorUserId;
         user::domain::SystemRole operatorUserRole;
-        domain::TaskStatus status;
         int progressPercent;
         std::string progressNote;
     };

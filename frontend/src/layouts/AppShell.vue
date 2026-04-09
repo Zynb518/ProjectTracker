@@ -10,6 +10,20 @@ const router = useRouter()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
 
+function roleLabel(systemRole?: number) {
+  return (
+    {
+      1: '管理员',
+      2: '项目经理',
+      3: '普通员工',
+    }[systemRole ?? 0] ?? '访客'
+  )
+}
+
+function userInitial(name?: string | null) {
+  return name?.trim().charAt(0) || '访'
+}
+
 async function handleLogout() {
   try {
     await authStore.logout()
@@ -66,25 +80,31 @@ async function handleLogout() {
       </nav>
 
       <div class="app-shell__sidebar-foot">
-        <p class="app-shell__foot-label">视觉模式</p>
-        <ThemeToggle />
+        <section class="app-shell__sidebar-account" data-testid="sidebar-account">
+          <p class="app-shell__foot-label">当前会话</p>
+
+          <div class="app-shell__account-card">
+            <div class="app-shell__account-avatar" aria-hidden="true">
+              {{ userInitial(authStore.currentUser?.real_name) }}
+            </div>
+
+            <div class="app-shell__account-copy">
+              <strong>{{ authStore.currentUser?.real_name ?? '未登录' }}</strong>
+              <span>{{ roleLabel(authStore.currentUser?.system_role) }}</span>
+            </div>
+          </div>
+
+          <p class="app-shell__account-note">数据已同步到当前工作区，当前会话状态正常。</p>
+
+          <div class="app-shell__account-actions">
+            <ThemeToggle />
+            <button class="app-shell__logout" type="button" @click="handleLogout">退出登录</button>
+          </div>
+        </section>
       </div>
     </aside>
 
     <div class="app-shell__content">
-      <header class="app-shell__header">
-        <div class="app-shell__header-copy">
-          <p class="app-shell__header-label">当前登录</p>
-          <strong>{{ authStore.currentUser?.real_name ?? '未登录' }}</strong>
-          <span>数据已同步到当前工作区</span>
-        </div>
-
-        <div class="app-shell__toolbar">
-          <ThemeToggle class="app-shell__toolbar-theme" />
-          <button class="app-shell__logout" type="button" @click="handleLogout">退出登录</button>
-        </div>
-      </header>
-
       <main class="app-shell__workspace">
         <RouterView />
       </main>
@@ -213,8 +233,6 @@ async function handleLogout() {
 }
 
 .app-shell__sidebar-foot {
-  display: grid;
-  gap: 12px;
   margin-top: auto;
   padding-top: 16px;
   border-top: 1px solid var(--border-soft);
@@ -228,69 +246,103 @@ async function handleLogout() {
   color: var(--text-soft);
 }
 
-.app-shell__content {
+.app-shell__sidebar-account {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 18px;
+  gap: 14px;
 }
 
-.app-shell__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding: 18px 22px;
-  border: 1px solid var(--border-soft);
-  border-radius: 22px;
-  background: var(--glass-bg);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
-}
-
-.app-shell__header-copy {
+.app-shell__account-card {
   display: grid;
-  gap: 4px;
-}
-
-.app-shell__header-copy strong {
-  font-size: 1.2rem;
-}
-
-.app-shell__header-copy span {
-  color: var(--text-soft);
-}
-
-.app-shell__header-label {
-  margin: 0 0 6px;
-  font-size: 0.8rem;
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  color: var(--text-soft);
-}
-
-.app-shell__toolbar {
-  display: inline-flex;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 12px;
   align-items: center;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 88%, rgba(255, 255, 255, 0.08));
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), var(--glass-bg-strong)),
+    radial-gradient(circle at top right, rgba(0, 194, 255, 0.14), transparent 46%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 18px 30px rgba(3, 10, 24, 0.12);
+}
+
+.app-shell__account-avatar {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: var(--gradient-primary);
+  color: var(--text-inverse);
+  font-size: 1rem;
+  font-weight: 700;
+  box-shadow: 0 12px 24px rgba(10, 102, 255, 0.2);
+}
+
+.app-shell__account-copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.app-shell__account-copy strong {
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.app-shell__account-copy span {
+  justify-self: start;
+  padding: 6px 10px;
+  border: 1px solid rgba(0, 194, 255, 0.2);
+  border-radius: 999px;
+  background: var(--gradient-primary-soft);
+  color: var(--text-main);
+  font-size: 0.76rem;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
+.app-shell__account-note {
+  margin: 0;
+  color: var(--text-soft);
+  line-height: 1.55;
+}
+
+.app-shell__account-actions {
+  display: grid;
   gap: 12px;
 }
 
-.app-shell__toolbar-theme {
-  display: none;
+.app-shell__content {
+  min-width: 0;
 }
 
 .app-shell__logout {
+  width: 100%;
   border: 1px solid var(--border-soft);
-  border-radius: 10px;
-  padding: 10px 14px;
-  background: var(--glass-bg-strong);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 94%, transparent), var(--glass-bg-strong)),
+    radial-gradient(circle at right top, rgba(255, 159, 67, 0.14), transparent 52%);
   color: var(--text-main);
+  font: inherit;
+  font-weight: 600;
   cursor: pointer;
+  transition:
+    transform 200ms ease-out,
+    border-color 200ms ease-out,
+    box-shadow 200ms ease-out,
+    background 200ms ease-out;
 }
 
 .app-shell__logout:hover {
   transform: translateY(-2px);
-  border-color: var(--accent-line);
-  box-shadow: var(--shadow-panel-hover);
+  border-color: color-mix(in srgb, var(--accent-warning) 36%, transparent);
+  box-shadow:
+    0 14px 30px rgba(3, 10, 24, 0.18),
+    0 0 0 1px rgba(255, 159, 67, 0.12);
 }
 
 .app-shell__workspace {
@@ -308,14 +360,14 @@ async function handleLogout() {
     height: auto;
     max-height: none;
     overflow-y: visible;
-    grid-template-columns: minmax(0, 1fr) auto auto;
-    align-items: center;
   }
 
   .app-shell__sidebar-foot {
     margin-top: 0;
-    padding-top: 0;
-    border-top: none;
+  }
+
+  .app-shell__content {
+    min-width: 0;
   }
 }
 
@@ -329,21 +381,8 @@ async function handleLogout() {
     grid-template-columns: 1fr;
   }
 
-  .app-shell__header {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .app-shell__toolbar {
-    justify-content: space-between;
-  }
-
-  .app-shell__toolbar-theme {
-    display: inline-flex;
-  }
-
-  .app-shell__sidebar-foot .theme-toggle {
-    display: none;
+  .app-shell__content {
+    min-width: 0;
   }
 }
 </style>

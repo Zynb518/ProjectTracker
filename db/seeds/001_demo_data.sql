@@ -523,6 +523,44 @@ INSERT INTO project_template_node (
         1
     );
 
+-- 追加补充：修正演示数据中的成员关系，保证项目负责人和子任务负责人都属于项目成员。
+INSERT INTO project_member (
+    project_id,
+    user_id,
+    added_by,
+    joined_at
+) VALUES
+    (
+        (SELECT id FROM project WHERE name = '移动端打卡'),
+        (SELECT id FROM sys_user WHERE username = 'chen_xu'),
+        (SELECT id FROM sys_user WHERE username = 'wang_jie'),
+        '2026-03-18 17:00:00+08:00'
+    ),
+    (
+        (SELECT id FROM project WHERE name = '财务报表平台'),
+        (SELECT id FROM sys_user WHERE username = 'chen_xu'),
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        '2026-01-08 10:00:00+08:00'
+    ),
+    (
+        (SELECT id FROM project WHERE name = '仓储扫码升级'),
+        (SELECT id FROM sys_user WHERE username = 'chen_xu'),
+        (SELECT id FROM sys_user WHERE username = 'wang_jie'),
+        '2026-02-05 10:35:00+08:00'
+    ),
+    (
+        (SELECT id FROM project WHERE name = '人事流程优化'),
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        '2026-03-12 09:16:00+08:00'
+    ),
+    (
+        (SELECT id FROM project WHERE name = '人事流程优化'),
+        (SELECT id FROM sys_user WHERE username = 'chen_xu'),
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        '2026-03-12 09:50:00+08:00'
+    );
+
 -- 追加补充：在不改动现有演示数据的前提下，为每个项目补齐至少 5 个阶段节点，
 -- 并让每个阶段节点至少包含 3 个子任务。
 WITH extra_project_nodes (

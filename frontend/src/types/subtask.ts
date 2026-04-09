@@ -29,7 +29,6 @@ export interface SubtaskPayload {
 }
 
 export interface SubtaskProgressPayload {
-  status: number
   progress_percent: number
   progress_note?: string
 }

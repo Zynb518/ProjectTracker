@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ai-project-manager"
+version = "0.1.0"
+description = "Offline tooling for coordinating AI project requirements."
+readme = "README.md"
+requires-python = ">=3.11,<3.12"
+dependencies = [
+    "pydantic>=2.8,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0,<9",
+]
+train = [
+    "datasets>=2.20,<3",
+    "transformers>=4.44,<5",
+    "accelerate>=0.33,<1",
+    "sentencepiece>=0.2,<1",
+    "torch>=2.4,<3",
+]
+
+[project.scripts]
+ai-project-manager = "ai_project_manager.cli:main"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.setuptools.package-dir]
+"" = "src"

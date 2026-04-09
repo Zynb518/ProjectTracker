@@ -1996,7 +1996,6 @@ null
 
 ```json
 {
-  "status": 2,
   "progress_percent": 60,
   "progress_note": "已完成接口定义和数据库连接"
 }
@@ -2006,7 +2005,6 @@ null
 
 | 字段 | 必填 | 说明 |
 | --- | --- | --- |
-| `status` | 是 | `1/2/3/4` |
 | `progress_percent` | 是 | `0~100` 且必须为 `10` 的倍数 |
 | `progress_note` | 否 | 进度说明或备注 |
 
@@ -2036,11 +2034,11 @@ null
 业务约束：
 
 - 默认仅子任务负责人可提交进度
-- `status` 与 `progress_percent` 必须匹配
-- 当 `status=3` 时，`progress_percent` 必须为 `100`
-- 当 `status!=3` 时，`progress_percent` 必须小于 `100`
-- 若首次提交的 `progress_percent > 0`，应视为触发开始信号
-- 一旦开始信号已经成立，不应通过本接口把子任务状态回退为 `未开始`
+- 本接口不再接收 `status`，由服务端按 `progress_percent` 自动推导状态
+- 当 `progress_percent = 100` 时，子任务状态自动写为 `已完成`
+- 当 `progress_percent < 100` 且已逾期时，子任务状态自动写为 `已延期`
+- 当 `progress_percent < 100` 且未逾期时，子任务状态统一写为 `进行中`
+- 若子任务当前为 `未开始`，首次提交即使 `progress_percent = 0`，也应推进为 `进行中`
 - 提交成功后必须同时更新 `sub_task` 当前值，并新增一条 `sub_task_progress` 记录
 - 对已完成子任务不允许直接提交进度，必须先撤销完成
 

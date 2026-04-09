@@ -31,3 +31,11 @@ config/config.dev.json
 
 # 日志
 *.log
+
+# Python 离线工具本地产物
+tools/ai_project_manager/.conda/
+tools/ai_project_manager/.pytest_cache/
+tools/ai_project_manager/tests/__pycache__/
+tools/ai_project_manager/src/*.egg-info/
+tools/ai_project_manager/data/processed/
+tools/ai_project_manager/models/

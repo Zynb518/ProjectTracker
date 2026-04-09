@@ -1,0 +1,138 @@
+@baseUrl = http://127.0.0.1:8080
+@ownerUsername = chen_xu
+@nonMemberUsername = wang_jie
+@password = 123456
+@repeatableTaskProgressListProjectName = list_task_progress_case_{{$timestamp}}
+@missingTaskId = 999999
+@invalidTaskId = 0
+
+### 提示：正常路径会先创建临时项目、临时阶段节点、临时子任务，并连续提交两次进度，因此可以重复回放。
+### 提示：`wang_jie` 不属于当前临时个人项目，可直接用于验证 403。
+
+### 正常路径：责任人登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：责任人创建临时个人项目
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{repeatableTaskProgressListProjectName}}",
+  "description": "用于验证获取子任务进度记录列表接口。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2099-12-31"
+}
+
+> {% client.global.set("repeatableTaskProgressListProjectId", response.body.data.id); %}
+
+### 正常路径：责任人创建临时阶段节点
+POST {{baseUrl}}/api/projects/{{repeatableTaskProgressListProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "进度记录读取",
+  "description": "用于验证获取子任务进度记录列表。",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2099-12-20"
+}
+
+> {% client.global.set("repeatableTaskProgressListNodeId", response.body.data.id); %}
+
+### 正常路径：责任人创建自己负责的临时子任务
+POST {{baseUrl}}/api/projects/{{repeatableTaskProgressListProjectId}}/nodes/{{repeatableTaskProgressListNodeId}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "进度记录列表联调",
+  "description": "用于验证获取子任务进度记录列表。",
+  "planned_start_date": "2026-04-06",
+  "planned_end_date": "2099-12-10"
+}
+
+> {% client.global.set("repeatableTaskProgressListTaskId", response.body.data.id); %}
+
+### 正常路径：第一次提交进度
+POST {{baseUrl}}/api/subtasks/{{repeatableTaskProgressListTaskId}}/progress
+Content-Type: application/json
+
+{
+  "progress_percent": 20,
+  "progress_note": "已拆分接口任务"
+}
+
+### 正常路径：第二次提交进度
+POST {{baseUrl}}/api/subtasks/{{repeatableTaskProgressListTaskId}}/progress
+Content-Type: application/json
+
+{
+  "progress_percent": 60,
+  "progress_note": "已完成接口定义和数据库连接"
+}
+
+### 正常路径：责任人获取子任务进度记录列表，应按 created_at DESC, id DESC 返回
+GET {{baseUrl}}/api/subtasks/{{repeatableTaskProgressListTaskId}}/progress
+
+> {%
+client.global.set("repeatableTaskProgressListTaskId", Number(client.global.get("repeatableTaskProgressListTaskId")));
+client.test("责任人获取子任务进度记录列表成功", function() {
+  client.assert(response.status === 200, "获取子任务进度记录列表应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(Array.isArray(response.body.data.list), "data.list 应为数组");
+  client.assert(response.body.data.list.length === 2, "当前应返回 2 条进度记录");
+  client.assert(response.body.data.list[0].sub_task_id === client.global.get("repeatableTaskProgressListTaskId"), "第一条记录的 sub_task_id 应等于目标子任务");
+  client.assert(response.body.data.list[0].progress_note === "已完成接口定义和数据库连接", "第一条记录应为最近一次提交的进度说明");
+  client.assert(response.body.data.list[0].progress_percent === 60, "第一条记录的 progress_percent 应为 60");
+  client.assert(response.body.data.list[0].status === 2, "第一条记录的 status 应为 2");
+  client.assert(typeof response.body.data.list[0].operator_real_name === "string" && response.body.data.list[0].operator_real_name.length > 0, "operator_real_name 应为非空字符串");
+  client.assert(response.body.data.list[1].progress_note === "已拆分接口任务", "第二条记录应为更早一次提交的进度说明");
+  client.assert(response.body.data.list[1].progress_percent === 20, "第二条记录的 progress_percent 应为 20");
+});
+%}
+
+### 正常路径：责任人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取子任务进度记录列表，预期 401
+GET {{baseUrl}}/api/subtasks/{{repeatableTaskProgressListTaskId}}/progress
+
+### 正常路径：非项目成员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{nonMemberUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：非项目成员获取子任务进度记录列表，预期 403
+GET {{baseUrl}}/api/subtasks/{{repeatableTaskProgressListTaskId}}/progress
+
+### 正常路径：非项目成员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 正常路径：重新登录责任人
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{ownerUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：subtask_id 非法，预期 400
+GET {{baseUrl}}/api/subtasks/{{invalidTaskId}}/progress
+
+### 异常路径：子任务不存在，预期 404
+GET {{baseUrl}}/api/subtasks/{{missingTaskId}}/progress

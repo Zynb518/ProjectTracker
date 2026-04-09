@@ -140,7 +140,6 @@ namespace project_tracker::modules::task::repository {
         std::int64_t responsibleUserId;
         project_node::domain::ProjectNodeStatus nodeStatus;
         domain::TaskStatus taskStatus;
-        bool hasStartedSignal;
     };
 
     // 撤销子任务完成时，从历史中恢复出的最近一条未完成快照
@@ -215,8 +214,7 @@ namespace project_tracker::modules::task::repository {
         drogon::Task<std::optional<dto::view::UpdatedTaskStatusView>>
         updateTaskStatusForSubmitProgress(
             const common::db::SqlExecutorPtr &executor,
-            const dto::command::SubmitTaskProgressInput &input,
-            bool hasStartedSignal) const;
+            const dto::command::SubmitTaskProgressInput &input) const;
 
         // 追加一条提交子任务进度的历史记录
         drogon::Task<dto::view::TaskProgressRecordView>

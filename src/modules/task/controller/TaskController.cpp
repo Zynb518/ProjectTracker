@@ -764,24 +764,8 @@ namespace project_tracker::modules::task::controller {
             .subTaskId = subTaskId,
             .operatorUserId = *userId,
             .operatorUserRole = *systemRole,
-            .status = domain::TaskStatus::NotStarted,
             .progressPercent = 0
         };
-
-        int statusValue = 0;
-        if (!util::readRequiredInt(*json, "status", statusValue)) {
-            co_return api::fail(
-                drogon::k400BadRequest,
-                error::ErrorCode::InvalidParameter,
-                "status 必须是整数");
-        }
-        if (!isValidTaskStatus(statusValue)) {
-            co_return api::fail(
-                drogon::k400BadRequest,
-                error::ErrorCode::InvalidParameter,
-                "status 只能是 1、2、3 或 4");
-        }
-        input.status = static_cast<domain::TaskStatus>(statusValue);
 
         if (!util::readRequiredInt(*json, "progress_percent", input.progressPercent)) {
             co_return api::fail(

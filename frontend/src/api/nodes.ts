@@ -5,6 +5,10 @@ export async function listProjectNodes(projectId: number): Promise<{ list: Proje
   return unwrapResponse<{ list: ProjectNode[] }>(http.get(`/api/projects/${projectId}/nodes`))
 }
 
+export async function getProjectNodeDetail(projectId: number, nodeId: number): Promise<ProjectNode> {
+  return unwrapResponse<ProjectNode>(http.get(`/api/projects/${projectId}/nodes/${nodeId}`))
+}
+
 export async function createProjectNode(projectId: number, payload: ProjectNodePayload): Promise<ProjectNode> {
   return unwrapResponse<ProjectNode>(http.post(`/api/projects/${projectId}/nodes`, payload))
 }

@@ -57,13 +57,12 @@ Content-Type: application/json
 
 > {% client.global.set("repeatableSubmitProgressTaskId", response.body.data.id); %}
 
-### 正常路径：负责人首次提交进度，省略 progress_note 时应写入空字符串
+### 正常路径：负责人首次提交 0% 进度，未开始应自动进入进行中，省略 progress_note 时应写入空字符串
 POST {{baseUrl}}/api/subtasks/{{repeatableSubmitProgressTaskId}}/progress
 Content-Type: application/json
 
 {
-  "status": 2,
-  "progress_percent": 60
+  "progress_percent": 0
 }
 
 > {%
@@ -71,34 +70,46 @@ client.test("负责人提交子任务进度成功并同步写入当前值与历�
   client.assert(response.status === 200, "提交子任务进度应返回 200");
   client.assert(response.body.code === 0, "响应 code 应为 0");
   client.assert(response.body.data.subtask.id === client.global.get("repeatableSubmitProgressTaskId"), "返回的 subtask.id 应等于目标子任务");
-  client.assert(response.body.data.subtask.status === 2, "首次提交 60% 进度后 status 应为 2");
-  client.assert(response.body.data.subtask.progress_percent === 60, "subtask.progress_percent 应为 60");
+  client.assert(response.body.data.subtask.status === 2, "首次提交 0% 进度后 status 也应自动进入 2");
+  client.assert(response.body.data.subtask.progress_percent === 0, "subtask.progress_percent 应为 0");
   client.assert(response.body.data.subtask.completed_at === null, "未完成时 completed_at 应为 null");
   client.assert(response.body.data.progress_record.sub_task_id === client.global.get("repeatableSubmitProgressTaskId"), "progress_record.sub_task_id 应等于目标子任务");
   client.assert(response.body.data.progress_record.operator_user_id > 0, "operator_user_id 应为正整数");
   client.assert(response.body.data.progress_record.progress_note === "", "省略 progress_note 时应落为空字符串");
-  client.assert(response.body.data.progress_record.progress_percent === 60, "progress_record.progress_percent 应为 60");
+  client.assert(response.body.data.progress_record.progress_percent === 0, "progress_record.progress_percent 应为 0");
   client.assert(response.body.data.progress_record.status === 2, "progress_record.status 应为 2");
 });
 %}
 
-### 异常路径：开始信号已成立后，再回退为未开始，预期 409
+### 正常路径：提交 100% 进度后应自动完成
 POST {{baseUrl}}/api/subtasks/{{repeatableSubmitProgressTaskId}}/progress
 Content-Type: application/json
 
 {
-  "status": 1,
-  "progress_percent": 0,
-  "progress_note": "错误回退"
+  "progress_percent": 100,
+  "progress_note": "全部完成"
 }
 
-### 异常路径：status!=3 时 progress_percent=100，预期 409
+> {%
+client.test("提交 100% 进度后自动完成", function() {
+  client.assert(response.status === 200, "提交 100% 进度应返回 200");
+  client.assert(response.body.code === 0, "响应 code 应为 0");
+  client.assert(response.body.data.subtask.status === 3, "progress_percent=100 时 status 应自动变为 3");
+  client.assert(response.body.data.subtask.progress_percent === 100, "subtask.progress_percent 应为 100");
+  client.assert(typeof response.body.data.subtask.completed_at === "string" && response.body.data.subtask.completed_at.length > 0, "自动完成后 completed_at 应为非空字符串");
+  client.assert(response.body.data.progress_record.progress_note === "全部完成", "progress_record.progress_note 应保留本次备注");
+  client.assert(response.body.data.progress_record.progress_percent === 100, "progress_record.progress_percent 应为 100");
+  client.assert(response.body.data.progress_record.status === 3, "progress_record.status 应自动变为 3");
+});
+%}
+
+### 异常路径：已完成后再次提交进度，预期 409
 POST {{baseUrl}}/api/subtasks/{{repeatableSubmitProgressTaskId}}/progress
 Content-Type: application/json
 
 {
-  "status": 2,
-  "progress_percent": 100
+  "progress_percent": 90,
+  "progress_note": "重复提交"
 }
 
 ### 正常路径：普通员工登出
@@ -112,7 +123,6 @@ POST {{baseUrl}}/api/subtasks/{{repeatableSubmitProgressTaskId}}/progress
 Content-Type: application/json
 
 {
-  "status": 2,
   "progress_percent": 80
 }
 
@@ -130,7 +140,6 @@ POST {{baseUrl}}/api/subtasks/{{invalidTaskId}}/progress
 Content-Type: application/json
 
 {
-  "status": 2,
   "progress_percent": 20
 }
 
@@ -139,7 +148,6 @@ POST {{baseUrl}}/api/subtasks/{{missingTaskId}}/progress
 Content-Type: application/json
 
 {
-  "status": 2,
   "progress_percent": 20
 }
 
@@ -148,7 +156,6 @@ POST {{baseUrl}}/api/subtasks/{{completedTaskId}}/progress
 Content-Type: application/json
 
 {
-  "status": 3,
   "progress_percent": 100,
   "progress_note": "尝试重复提交完成"
 }

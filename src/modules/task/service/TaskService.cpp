@@ -320,18 +320,6 @@ namespace project_tracker::modules::task::service {
     drogon::Task<dto::view::StartedTaskView>
     TaskService::submitTaskProgress(
         const dto::command::SubmitTaskProgressInput &input) const {
-        if (input.status == domain::TaskStatus::Completed) {
-            if (input.progressPercent != 100) {
-                error::throwConflict(
-                    error::ErrorCode::StatusProgressMismatch,
-                    "status=3 时 progress_percent 必须为 100");
-            }
-        } else if (input.progressPercent >= 100) {
-            error::throwConflict(
-                error::ErrorCode::StatusProgressMismatch,
-                "status!=3 时 progress_percent 必须小于 100");
-        }
-
         std::shared_ptr<drogon::orm::Transaction> transaction;
         bool hasWrittenBeforeFinish = false;
 
@@ -390,24 +378,9 @@ namespace project_tracker::modules::task::service {
                     "子任务已完成，必须先撤销完成");
             }
 
-            if (taskCheckResult->hasStartedSignal && input.status == domain::TaskStatus::NotStarted) {
-                error::throwConflict(
-                    error::ErrorCode::StatusProgressMismatch,
-                    "开始信号已成立后，status 不能再回退为 1");
-            }
-
-            if (!taskCheckResult->hasStartedSignal &&
-                input.status == domain::TaskStatus::NotStarted &&
-                input.progressPercent > 0) {
-                error::throwConflict(
-                    error::ErrorCode::StatusProgressMismatch,
-                    "首次提交 progress_percent 大于 0 时，status 不能为 1");
-            }
-
             const auto task = co_await taskRepository_.updateTaskStatusForSubmitProgress(
                 transaction,
-                input,
-                taskCheckResult->hasStartedSignal);
+                input);
             if (!task) {
                 error::throwInternalError(
                     error::ErrorCode::InternalError,

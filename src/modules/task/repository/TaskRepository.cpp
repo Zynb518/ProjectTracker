@@ -727,22 +727,12 @@ namespace project_tracker::modules::task::repository {
         std::int64_t subTaskId) const {
         // 查询思路：
         // 1. 项目行已在写事务上一步锁定，这里只锁目标子任务行。
-        // 2. “是否已有开始信号”依赖当前子任务及其历史集合；这里在锁住 sub_task 后安全读取历史。
         static const std::string findTaskSubmitProgressTaskCheckResultForUpdateSql = R"SQL(
             SELECT
                 pn.id AS node_id,
                 st.responsible_user_id,
                 pn.status AS node_status,
-                st.status AS task_status,
-                CASE
-                    WHEN st.status <> $2 THEN TRUE
-                    WHEN EXISTS (
-                        SELECT 1
-                        FROM sub_task_progress stp
-                        WHERE stp.sub_task_id = st.id
-                    ) THEN TRUE
-                    ELSE FALSE
-                END AS has_started_signal
+                st.status AS task_status
             FROM sub_task st
             JOIN project_node pn ON pn.id = st.node_id
             WHERE st.id = $1
@@ -753,8 +743,7 @@ namespace project_tracker::modules::task::repository {
         try {
             const auto result = co_await executor->execSqlCoro(
                 findTaskSubmitProgressTaskCheckResultForUpdateSql,
-                subTaskId,
-                domain::toInt(domain::TaskStatus::NotStarted));
+                subTaskId);
 
             if (result.empty()) {
                 co_return std::nullopt;
@@ -767,8 +756,7 @@ namespace project_tracker::modules::task::repository {
                 .nodeStatus = static_cast<project_node_domain::ProjectNodeStatus>(
                     row["node_status"].as<int>()),
                 .taskStatus = static_cast<domain::TaskStatus>(
-                    row["task_status"].as<int>()),
-                .hasStartedSignal = row["has_started_signal"].as<bool>()
+                    row["task_status"].as<int>())
             };
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(
@@ -780,27 +768,25 @@ namespace project_tracker::modules::task::repository {
     drogon::Task<std::optional<dto::view::UpdatedTaskStatusView>>
     TaskRepository::updateTaskStatusForSubmitProgress(
         const common::db::SqlExecutorPtr &executor,
-        const dto::command::SubmitTaskProgressInput &input,
-        bool hasStartedSignal) const {
-        // -- 未完成状态统一按北京时间重算：已逾期落 4；未逾期时只有“尚无开始信号 + 本次仍提交未开始 + 0%”
-        // -- 才保持未开始，其余未完成写入都归一化为进行中。
+        const dto::command::SubmitTaskProgressInput &input) const {
+        // -- 提交进度不再接收 status：
+        // -- progress_percent=100 自动完成；其余未完成状态按北京时间重算，已逾期落 4，否则统一归一化为进行中。
         static const std::string updateTaskStatusForSubmitProgressSql = R"SQL(
             UPDATE sub_task st
             SET
                 status = CASE
-                    WHEN $2 = $6 THEN $6
-                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > st.planned_end_date THEN $7
-                    WHEN $2 = $5 AND $3 = FALSE AND $4 = 0 THEN $5
-                    ELSE $8
+                    WHEN $2 = 100 THEN $3
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > st.planned_end_date THEN $4
+                    ELSE $5
                 END,
-                progress_percent = $4,
+                progress_percent = $2,
                 completed_at = CASE
-                    WHEN $2 = $6 THEN NOW()
+                    WHEN $2 = 100 THEN NOW()
                     ELSE NULL
                 END,
                 updated_at = NOW()
             WHERE st.id = $1 AND
-                st.status <> $6
+                st.status <> $3
             RETURNING
                 st.id,
                 st.status,
@@ -813,10 +799,7 @@ namespace project_tracker::modules::task::repository {
             const auto result = co_await executor->execSqlCoro(
                 updateTaskStatusForSubmitProgressSql,
                 input.subTaskId,
-                domain::toInt(input.status),
-                hasStartedSignal,
                 input.progressPercent,
-                domain::toInt(domain::TaskStatus::NotStarted),
                 domain::toInt(domain::TaskStatus::Completed),
                 domain::toInt(domain::TaskStatus::Delayed),
                 domain::toInt(domain::TaskStatus::InProgress));

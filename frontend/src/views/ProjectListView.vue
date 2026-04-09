@@ -20,6 +20,18 @@ import type { ProjectFormPayload, ProjectListItem } from '@/types/project'
 
 const router = useRouter()
 
+type DialogMotionOrigin = {
+  x: number
+  y: number
+  translateX: number
+  translateY: number
+}
+
+type DialogTriggerOrigin = {
+  x: number
+  y: number
+}
+
 const filters = reactive({
   keyword: '',
   status: '',
@@ -39,6 +51,7 @@ const dialogOpen = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const formValue = ref<ProjectFormPayload>(defaultFormValue())
 const editingProjectId = ref<number | null>(null)
+const dialogMotionOrigin = ref<DialogMotionOrigin | null>(null)
 const notificationStore = useNotificationStore()
 const pagination = reactive({
   page: 1,
@@ -91,16 +104,31 @@ async function changePage(page: number) {
   await loadProjects(page)
 }
 
-function openCreateDialog() {
+function createDialogMotionOrigin(origin: DialogTriggerOrigin | null): DialogMotionOrigin | null {
+  if (!origin || typeof window === 'undefined') {
+    return null
+  }
+
+  return {
+    x: origin.x,
+    y: origin.y,
+    translateX: origin.x - window.innerWidth / 2,
+    translateY: origin.y - window.innerHeight / 2,
+  }
+}
+
+function openCreateDialog(origin: DialogTriggerOrigin) {
   dialogMode.value = 'create'
   editingProjectId.value = null
   formValue.value = defaultFormValue()
+  dialogMotionOrigin.value = createDialogMotionOrigin(origin)
   dialogOpen.value = true
 }
 
 function openEditDialog(project: ProjectListItem) {
   dialogMode.value = 'edit'
   editingProjectId.value = project.id
+  dialogMotionOrigin.value = null
   formValue.value = {
     name: project.name,
     description: project.description,
@@ -261,6 +289,7 @@ onMounted(loadProjects)
     <ProjectFormDialog
       v-model="dialogOpen"
       :initial-value="formValue"
+      :motion-origin="dialogMotionOrigin"
       :mode="dialogMode"
       @submit="submitProject"
     />

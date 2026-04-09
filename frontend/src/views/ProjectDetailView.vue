@@ -5,39 +5,114 @@ import { useRoute } from 'vue-router'
 
 import AddMemberDialog from '@/components/members/AddMemberDialog.vue'
 import MemberPanel from '@/components/members/MemberPanel.vue'
+import SubtaskFormDialog from '@/components/subtasks/SubtaskFormDialog.vue'
 import SubtaskHistoryDrawer from '@/components/subtasks/SubtaskHistoryDrawer.vue'
 import SubtaskProgressDialog from '@/components/subtasks/SubtaskProgressDialog.vue'
-import SubtaskTable from '@/components/subtasks/SubtaskTable.vue'
+import NodeDrawer from '@/components/workspace/NodeDrawer.vue'
+import NodeFormDialog from '@/components/workspace/NodeFormDialog.vue'
 import NodeRail from '@/components/workspace/NodeRail.vue'
 import ProjectHero from '@/components/workspace/ProjectHero.vue'
-import WorkspaceStats from '@/components/workspace/WorkspaceStats.vue'
 import { getErrorMessage } from '@/api/http'
 import { addProjectMember, removeProjectMember } from '@/api/members'
-import { listSubtaskProgressRecords, submitSubtaskProgress } from '@/api/subtasks'
+import {
+  completeProjectNode,
+  createProjectNode,
+  deleteProjectNode,
+  getProjectNodeDetail,
+  reorderProjectNodes,
+  reopenProjectNode,
+  startProjectNode,
+  updateProjectNode,
+} from '@/api/nodes'
+import {
+  createSubtask,
+  deleteSubtask,
+  listSubtaskProgressRecords,
+  reopenSubtask,
+  submitSubtaskProgress,
+  updateSubtask,
+} from '@/api/subtasks'
 import { useNotificationStore } from '@/stores/notifications'
 import { useProjectWorkspaceStore } from '@/stores/projectWorkspace'
-import type { SubtaskProgressRecord } from '@/types/subtask'
+import type { ProjectMember } from '@/types/member'
+import type { ProjectNodePayload } from '@/types/node'
+import type { Subtask, SubtaskPayload, SubtaskProgressRecord } from '@/types/subtask'
+
+type NodeReorderPayload = { nodes: Array<{ node_id: number; sequence_no: number }> }
 
 const route = useRoute()
 const workspaceStore = useProjectWorkspaceStore()
 const notificationStore = useNotificationStore()
-const { isLoading, isSubtasksLoading, members, nodes, project, selectedNode, selectedNodeId, subtasks } =
+const { isLoading, isSubtasksLoading, members, nodes, project, selectedNodeId, subtasks } =
   storeToRefs(workspaceStore)
 
 const projectId = Number(route.params.projectId)
 const showAddMemberDialog = ref(false)
+const showNodeDialog = ref(false)
+const showSubtaskDialog = ref(false)
 const showProgressDialog = ref(false)
 const showHistoryDrawer = ref(false)
 const selectedSubtaskId = ref<number | null>(null)
 const historyTitle = ref('')
 const progressRecords = ref<SubtaskProgressRecord[]>([])
+const drawerNodeId = ref<number | null>(null)
+const editingNodeId = ref<number | null>(null)
+const editingSubtaskId = ref<number | null>(null)
+const nodeDialogMode = ref<'create' | 'edit'>('create')
+const subtaskDialogMode = ref<'create' | 'edit'>('create')
+const nodeFormInitial = ref<ProjectNodePayload>({
+  name: '',
+  description: '',
+  planned_start_date: '',
+  planned_end_date: '',
+})
+const subtaskFormInitial = ref<SubtaskPayload>({
+  name: '',
+  description: '',
+  planned_start_date: '',
+  planned_end_date: '',
+  priority: 2,
+})
 
 const selectedSubtask = computed(
   () => subtasks.value.find((subtask) => subtask.id === selectedSubtaskId.value) ?? null,
 )
+const drawerNode = computed(
+  () => nodes.value.find((node) => node.id === drawerNodeId.value) ?? null,
+)
 
 const canManageMembers = computed(() => project.value?.permissions.can_manage_members ?? false)
 const canManageNodes = computed(() => project.value?.permissions.can_manage_nodes ?? false)
+const projectStartDate = computed(() => project.value?.planned_start_date)
+const projectEndDate = computed(() => project.value?.planned_end_date)
+const selectedNodeStartDate = computed(() => drawerNode.value?.planned_start_date ?? projectStartDate.value)
+const selectedNodeEndDate = computed(() => drawerNode.value?.planned_end_date ?? projectEndDate.value)
+const subtaskAssignees = computed<ProjectMember[]>(() => {
+  if (project.value === null) {
+    return members.value
+  }
+
+  const ownerId = project.value.owner_user_id
+  const hasOwner = members.value.some((member) => member.user_id === ownerId)
+
+  if (hasOwner) {
+    return members.value
+  }
+
+  return [
+    {
+      project_id: project.value.id,
+      user_id: ownerId,
+      username: '',
+      real_name: project.value.owner_real_name,
+      system_role: 2,
+      status: 1,
+      joined_at: project.value.created_at,
+      is_owner: true,
+    },
+    ...members.value,
+  ]
+})
 
 onMounted(async () => {
   try {
@@ -48,7 +123,22 @@ onMounted(async () => {
 })
 
 async function refreshWorkspace() {
+  const openNodeId = drawerNodeId.value
   await workspaceStore.loadWorkspace(projectId)
+
+  if (openNodeId === null) {
+    return
+  }
+
+  const nodeStillExists = nodes.value.some((node) => node.id === openNodeId)
+
+  if (!nodeStillExists) {
+    drawerNodeId.value = null
+    return
+  }
+
+  drawerNodeId.value = openNodeId
+  await workspaceStore.selectNode(projectId, openNodeId)
 }
 
 async function handleAddMember(userId: number) {
@@ -76,22 +166,252 @@ async function openProgressDialog(subtaskId: number) {
 }
 
 async function handleSelectNode(nodeId: number) {
+  const previousDrawerNodeId = drawerNodeId.value
+
+  drawerNodeId.value = nodeId
+
   try {
     await workspaceStore.selectNode(projectId, nodeId)
   } catch (error) {
+    drawerNodeId.value = previousDrawerNodeId
     notificationStore.notifyError(getErrorMessage(error, '节点任务加载失败'))
+  }
+}
+
+function openCreateNodeDialog() {
+  nodeDialogMode.value = 'create'
+  editingNodeId.value = null
+  nodeFormInitial.value = {
+    name: '',
+    description: '',
+    planned_start_date: '',
+    planned_end_date: '',
+  }
+  showNodeDialog.value = true
+}
+
+function openCreateSubtaskDialog() {
+  if (drawerNode.value === null) {
+    return
+  }
+
+  subtaskDialogMode.value = 'create'
+  editingSubtaskId.value = null
+  subtaskFormInitial.value = {
+    name: '',
+    description: '',
+    planned_start_date: drawerNode.value.planned_start_date,
+    planned_end_date: drawerNode.value.planned_end_date,
+    priority: 2,
+    responsible_user_id: project.value?.owner_user_id,
+  }
+  showSubtaskDialog.value = true
+}
+
+function applySubtaskToForm(subtask: Subtask) {
+  subtaskFormInitial.value = {
+    name: subtask.name,
+    description: subtask.description,
+    planned_start_date: subtask.planned_start_date,
+    planned_end_date: subtask.planned_end_date,
+    priority: subtask.priority,
+    responsible_user_id: subtask.responsible_user_id,
+  }
+}
+
+function openEditSubtaskDialog(subtaskId: number) {
+  const subtask = subtasks.value.find((item) => item.id === subtaskId)
+
+  if (!subtask) {
+    notificationStore.notifyError('子任务详情加载失败')
+    return
+  }
+
+  subtaskDialogMode.value = 'edit'
+  editingSubtaskId.value = subtaskId
+  applySubtaskToForm(subtask)
+  showSubtaskDialog.value = true
+}
+
+async function openEditNodeDialog(nodeId: number) {
+  try {
+    const node = await getProjectNodeDetail(projectId, nodeId)
+    nodeDialogMode.value = 'edit'
+    editingNodeId.value = nodeId
+    nodeFormInitial.value = {
+      name: node.name,
+      description: node.description,
+      planned_start_date: node.planned_start_date,
+      planned_end_date: node.planned_end_date,
+    }
+    showNodeDialog.value = true
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '节点详情加载失败'))
+  }
+}
+
+async function submitNode(payload: ProjectNodePayload) {
+  try {
+    if (nodeDialogMode.value === 'create') {
+      const createdNode = await createProjectNode(projectId, payload)
+      showNodeDialog.value = false
+      await refreshWorkspace()
+      await handleSelectNode(createdNode.id)
+      return
+    }
+
+    if (editingNodeId.value === null) {
+      return
+    }
+
+    const nodeId = editingNodeId.value
+    await updateProjectNode(projectId, nodeId, payload)
+    showNodeDialog.value = false
+    await refreshWorkspace()
+    await handleSelectNode(nodeId)
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '节点保存失败'))
+  }
+}
+
+async function submitSubtask(payload: SubtaskPayload) {
+  if (drawerNode.value === null) {
+    return
+  }
+
+  try {
+    if (subtaskDialogMode.value === 'create') {
+      await createSubtask(projectId, drawerNode.value.id, payload)
+    } else {
+      if (editingSubtaskId.value === null) {
+        return
+      }
+
+      await updateSubtask(editingSubtaskId.value, payload)
+    }
+
+    showSubtaskDialog.value = false
+    editingSubtaskId.value = null
+
+    if (drawerNodeId.value !== null) {
+      await refreshWorkspace()
+      await handleSelectNode(drawerNodeId.value)
+    }
+  } catch (error) {
+    notificationStore.notifyError(
+      getErrorMessage(error, subtaskDialogMode.value === 'edit' ? '子任务保存失败' : '子任务创建失败'),
+    )
+  }
+}
+
+async function handleReopenSubtask(subtaskId: number) {
+  try {
+    await reopenSubtask(subtaskId)
+    await refreshWorkspace()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '撤销子任务完成失败'))
+  }
+}
+
+async function handleRemoveSubtask(subtaskId: number) {
+  if (!window.confirm('确认删除该子任务吗？')) {
+    return
+  }
+
+  try {
+    await deleteSubtask(subtaskId)
+    await refreshWorkspace()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '子任务删除失败'))
+  }
+}
+
+async function handleStartNode(nodeId: number) {
+  try {
+    await startProjectNode(projectId, nodeId)
+    await refreshWorkspace()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '节点开始失败'))
+  }
+}
+
+async function handleCompleteNode(nodeId: number) {
+  try {
+    await completeProjectNode(projectId, nodeId)
+    await refreshWorkspace()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '节点完成失败'))
+  }
+}
+
+async function handleReopenNode(nodeId: number) {
+  try {
+    await reopenProjectNode(projectId, nodeId)
+    await refreshWorkspace()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '撤销节点完成失败'))
+  }
+}
+
+async function handleRemoveNode(nodeId: number) {
+  if (!window.confirm('确认删除该阶段节点吗？其下子任务也会一并删除。')) {
+    return
+  }
+
+  try {
+    await deleteProjectNode(projectId, nodeId)
+    await refreshWorkspace()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '节点删除失败'))
+  }
+}
+
+function applyNodeReorder(payload: NodeReorderPayload) {
+  const sequenceMap = new Map(payload.nodes.map((item) => [item.node_id, item.sequence_no]))
+
+  nodes.value = [...nodes.value]
+    .map((node) => {
+      const nextSequence = sequenceMap.get(node.id)
+
+      if (nextSequence === undefined) {
+        return node
+      }
+
+      return {
+        ...node,
+        sequence_no: nextSequence,
+      }
+    })
+    .sort((left, right) => left.sequence_no - right.sequence_no)
+}
+
+async function handleReorderNodes(payload: NodeReorderPayload) {
+  const previousNodes = nodes.value
+
+  applyNodeReorder(payload)
+
+  try {
+    const response = await reorderProjectNodes(projectId, payload)
+
+    if (project.value !== null) {
+      project.value = {
+        ...project.value,
+        updated_at: response.updated_at,
+      }
+    }
+  } catch (error) {
+    nodes.value = previousNodes
+    notificationStore.notifyError(getErrorMessage(error, '节点顺序调整失败'))
   }
 }
 
 async function submitProgress(payload: {
   subtaskId: number
-  status: number
   progress_percent: number
   progress_note: string
 }) {
   try {
     await submitSubtaskProgress(payload.subtaskId, {
-      status: payload.status,
       progress_percent: payload.progress_percent,
       progress_note: payload.progress_note,
     })
@@ -135,39 +455,70 @@ async function openHistoryDrawer(subtaskId: number) {
       </p>
 
       <ProjectHero :project="project" />
-      <WorkspaceStats
-        :completed-node-count="project.completed_node_count"
-        :completed-sub-task-count="project.completed_sub_task_count"
-        :member-count="project.member_count"
-        :node-count="project.node_count"
-        :sub-task-count="project.sub_task_count"
-      />
 
       <div class="project-detail__grid">
-        <NodeRail
-          :nodes="nodes"
-          :selected-node-id="selectedNodeId"
-          @select="handleSelectNode"
-        />
+        <section class="project-detail__workspace-card" data-testid="project-workspace-card">
+          <div class="project-detail__workspace-rail">
+            <NodeRail
+              :can-manage="canManageNodes"
+              :embedded="true"
+              :nodes="nodes"
+              :selected-node-id="drawerNodeId"
+              @complete="handleCompleteNode"
+              @create="openCreateNodeDialog"
+              @edit="openEditNodeDialog"
+              @remove="handleRemoveNode"
+              @reorder="handleReorderNodes"
+              @reopen="handleReopenNode"
+              @select="handleSelectNode"
+              @start="handleStartNode"
+            />
+          </div>
 
-        <div class="project-detail__main">
-          <p v-if="isSubtasksLoading" class="project-detail__state loading-panel">节点任务加载中...</p>
-          <SubtaskTable
-            v-else
-            :can-manage="canManageNodes"
-            :selected-node="selectedNode"
-            :subtasks="subtasks"
-            @history="openHistoryDrawer"
-            @progress="openProgressDialog"
+          <div class="project-detail__workspace-main">
+          <Transition name="project-drawer">
+            <NodeDrawer
+              v-if="drawerNode"
+              :key="drawerNode.id"
+              :can-manage="canManageNodes"
+              :embedded="true"
+              :is-loading="isSubtasksLoading"
+              :node="drawerNode"
+              :subtasks="subtasks"
+              @create="openCreateSubtaskDialog"
+              @edit="openEditSubtaskDialog"
+              @history="openHistoryDrawer"
+              @progress="openProgressDialog"
+              @remove="handleRemoveSubtask"
+              @reopen="handleReopenSubtask"
+            />
+
+            <section
+              v-else
+              key="placeholder"
+              data-testid="node-drawer-placeholder"
+              class="project-detail__placeholder"
+            >
+              <div class="project-detail__placeholder-glow" aria-hidden="true" />
+              <div class="project-detail__placeholder-copy">
+                <span>Node Drawer</span>
+                <strong>点击左侧未完成阶段，查看节点详情与子任务面板</strong>
+                <p>已完成节点保留在时间线中用于回看，进行中、未开始、已延期节点可直接展开。</p>
+              </div>
+            </section>
+          </Transition>
+          </div>
+        </section>
+
+        <div class="project-detail__members">
+          <MemberPanel
+            :can-manage="canManageMembers"
+            :fixed-height="true"
+            :members="members"
+            @add="showAddMemberDialog = true"
+            @remove="handleRemoveMember"
           />
         </div>
-
-        <MemberPanel
-          :can-manage="canManageMembers"
-          :members="members"
-          @add="showAddMemberDialog = true"
-          @remove="handleRemoveMember"
-        />
       </div>
     </template>
 
@@ -176,6 +527,26 @@ async function openHistoryDrawer(subtaskId: number) {
       v-model="showAddMemberDialog"
       :project-id="project.id"
       @select="handleAddMember"
+    />
+
+    <NodeFormDialog
+      v-model="showNodeDialog"
+      :initial-value="nodeFormInitial"
+      :max-date="projectEndDate"
+      :min-date="projectStartDate"
+      :mode="nodeDialogMode"
+      @submit="submitNode"
+    />
+
+    <SubtaskFormDialog
+      v-model="showSubtaskDialog"
+      :assignees="subtaskAssignees"
+      :default-responsible-user-id="project?.owner_user_id"
+      :initial-value="subtaskFormInitial"
+      :max-date="selectedNodeEndDate"
+      :min-date="selectedNodeStartDate"
+      :mode="subtaskDialogMode"
+      @submit="submitSubtask"
     />
 
     <SubtaskProgressDialog
@@ -201,12 +572,49 @@ async function openHistoryDrawer(subtaskId: number) {
 
 .project-detail__grid {
   display: grid;
-  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(260px, 300px);
+  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
   gap: 18px;
-  align-items: start;
+  align-items: stretch;
 }
 
-.project-detail__main {
+.project-detail__workspace-card,
+.project-detail__members {
+  height: 720px;
+  min-height: 720px;
+}
+
+.project-detail__workspace-card {
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+  border: 1px solid var(--border-soft);
+  border-radius: 28px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), var(--glass-bg)),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-end) 12%, transparent), transparent 34%);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: var(--backdrop-blur);
+}
+
+.project-detail__workspace-rail,
+.project-detail__workspace-main {
+  min-width: 0;
+  min-height: 0;
+}
+
+.project-detail__workspace-rail {
+  padding: 22px 18px 22px 22px;
+  border-right: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 68%, transparent), transparent),
+    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-start) 10%, transparent), transparent 36%);
+}
+
+.project-detail__workspace-main {
+  padding: 22px 22px 22px 18px;
+}
+
+.project-detail__members {
   min-width: 0;
 }
 
@@ -232,9 +640,127 @@ async function openHistoryDrawer(subtaskId: number) {
   backdrop-filter: var(--backdrop-blur);
 }
 
+.project-detail__placeholder {
+  position: relative;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  height: 100%;
+  padding: 28px;
+  border: 1px solid var(--border-soft);
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), var(--glass-bg)),
+    radial-gradient(circle at 78% 22%, color-mix(in srgb, var(--accent-end) 14%, transparent), transparent 28%),
+    radial-gradient(circle at 18% 82%, color-mix(in srgb, var(--accent-start) 12%, transparent), transparent 34%);
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: var(--backdrop-blur);
+}
+
+.project-detail__placeholder::before {
+  content: '';
+  position: absolute;
+  inset: 18px;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
+  border-radius: 20px;
+  pointer-events: none;
+}
+
+.project-detail__placeholder-glow {
+  position: absolute;
+  width: 280px;
+  height: 280px;
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-end) 20%, transparent), transparent 68%);
+  filter: blur(8px);
+  animation: placeholder-float 4.2s ease-in-out infinite;
+}
+
+.project-detail__placeholder-copy {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  gap: 14px;
+  max-width: 420px;
+  text-align: center;
+}
+
+.project-detail__placeholder-copy span,
+.project-detail__placeholder-copy strong,
+.project-detail__placeholder-copy p {
+  margin: 0;
+}
+
+.project-detail__placeholder-copy span {
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.project-detail__placeholder-copy strong {
+  font-size: clamp(1.2rem, 2vw, 1.6rem);
+  line-height: 1.45;
+}
+
+.project-detail__placeholder-copy p {
+  color: var(--text-soft);
+  line-height: 1.75;
+}
+
+.project-drawer-enter-active,
+.project-drawer-leave-active {
+  transition:
+    opacity 240ms ease-out,
+    transform 240ms ease-out;
+}
+
+.project-drawer-enter-from,
+.project-drawer-leave-to {
+  opacity: 0;
+  transform: translateX(24px);
+}
+
+@keyframes placeholder-float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  50% {
+    transform: translate3d(10px, -12px, 0) scale(1.04);
+  }
+}
+
 @media (max-width: 1180px) {
   .project-detail__grid {
     grid-template-columns: 1fr;
+  }
+
+  .project-detail__workspace-card,
+  .project-detail__members {
+    height: auto;
+    min-height: 0;
+  }
+
+  .project-detail__workspace-card {
+    grid-template-columns: 1fr;
+  }
+
+  .project-detail__workspace-rail {
+    padding-right: 22px;
+    border-right: none;
+    border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
+  }
+
+  .project-detail__workspace-main {
+    padding-left: 22px;
+  }
+
+  .project-detail__placeholder {
+    min-height: 420px;
   }
 }
 </style>

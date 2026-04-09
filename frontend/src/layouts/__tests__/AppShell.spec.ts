@@ -45,7 +45,11 @@ describe('AppShell', () => {
 
     expect(wrapper.text()).toContain('项目列表')
     expect(wrapper.text()).toContain('我的任务')
-    expect(wrapper.text()).toContain('张三')
+    expect(wrapper.get('[data-testid="sidebar-account"]').text()).toContain('张三')
+    expect(wrapper.get('[data-testid="sidebar-account"]').text()).toContain('项目经理')
+    expect(wrapper.get('[data-testid="sidebar-account"]').text()).toContain('退出登录')
+    expect(wrapper.find('.app-shell__header').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('Workspace Signal')
     expect(wrapper.find('[data-testid="workspace-slot"]').exists()).toBe(true)
   })
 
