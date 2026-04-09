@@ -4,14 +4,15 @@ import {
   buildGanttAxisItems,
   getGanttBarLayout,
   getZoomedGanttScale,
+  packGanttLaneItems,
 } from '@/utils/gantt'
 
 describe('gantt utils', () => {
-  it('builds an inclusive day axis for the project range', () => {
+  it('builds an inclusive day axis with padded labels sized for fixed MM/DD copy', () => {
     const items = buildGanttAxisItems('2026-03-20', '2026-03-22', 'day')
 
     expect(items.map((item) => item.label)).toEqual(['03/20', '03/21', '03/22'])
-    expect(items.map((item) => item.widthPx)).toEqual([36, 36, 36])
+    expect(items.map((item) => item.widthPx)).toEqual([64, 64, 64])
   })
 
   it('builds week cells in seven-day chunks from the project start date', () => {
@@ -19,7 +20,8 @@ describe('gantt utils', () => {
 
     expect(items).toHaveLength(3)
     expect(items.map((item) => item.label)).toEqual(['03/20', '03/27', '04/03'])
-    expect(items.map((item) => item.widthPx)).toEqual([84, 84, 36])
+    expect(items.map((item) => item.endDate)).toEqual(['2026-03-26', '2026-04-02', '2026-04-09'])
+    expect(items.map((item) => item.widthPx)).toEqual([84, 84, 84])
   })
 
   it('builds month cells aligned to calendar months for wider gantt views', () => {
@@ -40,7 +42,7 @@ describe('gantt utils', () => {
     const layout = getGanttBarLayout('2026-03-20', '2026-03-20', '2026-03-20', 'day')
 
     expect(layout.leftPx).toBe(0)
-    expect(layout.widthPx).toBe(36)
+    expect(layout.widthPx).toBe(64)
   })
 
   it('zooms between day, week, and month without leaving the supported bounds', () => {
@@ -48,5 +50,53 @@ describe('gantt utils', () => {
     expect(getZoomedGanttScale('week', 'out')).toBe('month')
     expect(getZoomedGanttScale('day', 'in')).toBe('day')
     expect(getZoomedGanttScale('month', 'out')).toBe('month')
+  })
+
+  it('packs overlapping items into separate lanes while keeping input order stable', () => {
+    const layouts = packGanttLaneItems([
+      {
+        id: 'a',
+        planned_start_date: '2026-03-27',
+        planned_end_date: '2026-03-31',
+      },
+      {
+        id: 'b',
+        planned_start_date: '2026-03-29',
+        planned_end_date: '2026-04-02',
+      },
+      {
+        id: 'c',
+        planned_start_date: '2026-04-03',
+        planned_end_date: '2026-04-04',
+      },
+    ])
+
+    expect(layouts.map((layout) => [layout.item.id, layout.laneIndex])).toEqual([
+      ['a', 0],
+      ['b', 1],
+      ['c', 0],
+    ])
+  })
+
+  it('reuses the same lane when items do not overlap in time', () => {
+    const layouts = packGanttLaneItems([
+      {
+        id: 'a',
+        planned_start_date: '2026-03-20',
+        planned_end_date: '2026-03-21',
+      },
+      {
+        id: 'b',
+        planned_start_date: '2026-03-22',
+        planned_end_date: '2026-03-23',
+      },
+      {
+        id: 'c',
+        planned_start_date: '2026-03-24',
+        planned_end_date: '2026-03-26',
+      },
+    ])
+
+    expect(layouts.every((layout) => layout.laneIndex === 0)).toBe(true)
   })
 })

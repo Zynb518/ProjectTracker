@@ -31,6 +31,11 @@ namespace project_tracker::modules::project_ai::service {
             std::filesystem::path modelDir;
         };
 
+        struct LocalAiProcessOutput {
+            std::string stdoutText;
+            std::string stderrText;
+        };
+
         struct TempRequestFile {
             std::filesystem::path path;
 
@@ -132,29 +137,56 @@ namespace project_tracker::modules::project_ai::service {
             };
         }
 
-        std::string runLocalAiProcess(const LocalAiConfig &config,
-                                      const std::filesystem::path &inputFilePath) {
-            int pipeFds[2];
-            if (::pipe(pipeFds) == -1) {
+        std::string readPipeToString(int fd) {
+            std::string output;
+            std::array<char, 4096> buffer{};
+            while (true) {
+                const ssize_t bytesRead = ::read(fd, buffer.data(), buffer.size());
+                if (bytesRead <= 0) {
+                    break;
+                }
+
+                output.append(buffer.data(), static_cast<std::size_t>(bytesRead));
+            }
+            return output;
+        }
+
+        LocalAiProcessOutput runLocalAiProcess(const LocalAiConfig &config,
+                                               const std::filesystem::path &inputFilePath) {
+            int stdoutPipeFds[2];
+            if (::pipe(stdoutPipeFds) == -1) {
                 error::throwInternalError(
                     error::ErrorCode::InternalError,
-                    "创建本地 AI 输出管道失败");
+                    "创建本地 AI 标准输出管道失败");
+            }
+
+            int stderrPipeFds[2];
+            if (::pipe(stderrPipeFds) == -1) {
+                ::close(stdoutPipeFds[0]);
+                ::close(stdoutPipeFds[1]);
+                error::throwInternalError(
+                    error::ErrorCode::InternalError,
+                    "创建本地 AI 标准错误管道失败");
             }
 
             const pid_t pid = ::fork();
             if (pid == -1) {
-                ::close(pipeFds[0]);
-                ::close(pipeFds[1]);
+                ::close(stdoutPipeFds[0]);
+                ::close(stdoutPipeFds[1]);
+                ::close(stderrPipeFds[0]);
+                ::close(stderrPipeFds[1]);
                 error::throwInternalError(
                     error::ErrorCode::InternalError,
                     "启动本地 AI 进程失败");
             }
 
             if (pid == 0) {
-                ::dup2(pipeFds[1], STDOUT_FILENO);
-                ::dup2(pipeFds[1], STDERR_FILENO);
-                ::close(pipeFds[0]);
-                ::close(pipeFds[1]);
+                ::dup2(stdoutPipeFds[1], STDOUT_FILENO);
+                ::dup2(stderrPipeFds[1], STDERR_FILENO);
+                ::close(stdoutPipeFds[0]);
+                ::close(stdoutPipeFds[1]);
+                ::close(stderrPipeFds[0]);
+                ::close(stderrPipeFds[1]);
 
                 std::string pythonBin = config.pythonBin.string();
                 std::string scriptPath = config.scriptPath.string();
@@ -177,19 +209,14 @@ namespace project_tracker::modules::project_ai::service {
                 _exit(127);
             }
 
-            ::close(pipeFds[1]);
+            ::close(stdoutPipeFds[1]);
+            ::close(stderrPipeFds[1]);
 
-            std::string output;
-            std::array<char, 4096> buffer{};
-            while (true) {
-                const ssize_t bytesRead = ::read(pipeFds[0], buffer.data(), buffer.size());
-                if (bytesRead <= 0) {
-                    break;
-                }
+            const auto stdoutText = readPipeToString(stdoutPipeFds[0]);
+            ::close(stdoutPipeFds[0]);
 
-                output.append(buffer.data(), static_cast<std::size_t>(bytesRead));
-            }
-            ::close(pipeFds[0]);
+            const auto stderrText = readPipeToString(stderrPipeFds[0]);
+            ::close(stderrPipeFds[0]);
 
             int waitStatus = 0;
             if (::waitpid(pid, &waitStatus, 0) == -1) {
@@ -199,13 +226,21 @@ namespace project_tracker::modules::project_ai::service {
             }
 
             if (!WIFEXITED(waitStatus) || WEXITSTATUS(waitStatus) != 0) {
-                LOG_ERROR << "local ai invocation failed: " << output;
+                LOG_ERROR << "local ai invocation failed, stdout: " << stdoutText
+                          << ", stderr: " << stderrText;
                 error::throwInternalError(
                     error::ErrorCode::InternalError,
                     "本地 AI 生成失败");
             }
 
-            return output;
+            if (!stderrText.empty()) {
+                LOG_WARN << "local ai stderr: " << stderrText;
+            }
+
+            return LocalAiProcessOutput{
+                .stdoutText = stdoutText,
+                .stderrText = stderrText
+            };
         }
 
         Json::Value parseGeneratedDraftJson(const std::string &rawOutput) {
@@ -241,7 +276,7 @@ namespace project_tracker::modules::project_ai::service {
         const dto::command::GenerateProjectDraftInput &input) const {
         const auto config = readLocalAiConfig();
         const auto requestFile = createRequestFile(input.prompt);
-        const auto rawOutput = runLocalAiProcess(config, requestFile.path);
-        co_return parseGeneratedDraftJson(rawOutput);
+        const auto processOutput = runLocalAiProcess(config, requestFile.path);
+        co_return parseGeneratedDraftJson(processOutput.stdoutText);
     }
 } // namespace project_tracker::modules::project_ai::service

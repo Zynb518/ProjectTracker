@@ -13,10 +13,15 @@ export interface GanttBarLayout {
   widthPx: number
 }
 
+export interface GanttLaneLayout<T> {
+  item: T
+  laneIndex: number
+}
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 const PIXELS_PER_DAY = {
-  day: 36,
+  day: 64,
   week: 12,
   month: 4,
 } as const
@@ -74,6 +79,11 @@ function normalizeRange(startDate: string, endDate: string) {
   return { start: parsedEnd, end: parsedStart }
 }
 
+interface GanttLaneItemLike {
+  planned_start_date: string
+  planned_end_date: string
+}
+
 export function getPixelsPerDay(scale: GanttScale): number {
   return PIXELS_PER_DAY[scale]
 }
@@ -118,18 +128,17 @@ export function buildGanttAxisItems(
     let cursor = start
 
     while (cursor.getTime() <= end.getTime()) {
-      const cellEnd = new Date(Math.min(addDays(cursor, 6).getTime(), end.getTime()))
-      const spanDays = diffInDays(cursor, cellEnd) + 1
+      const cellEnd = addDays(cursor, 6)
 
       items.push({
         key: `${toDateString(cursor)}:${toDateString(cellEnd)}`,
         label: getMonthDayLabel(cursor),
         startDate: toDateString(cursor),
         endDate: toDateString(cellEnd),
-        widthPx: spanDays * pixelsPerDay,
+        widthPx: 7 * pixelsPerDay,
       })
 
-      cursor = addDays(cellEnd, 1)
+      cursor = addDays(cursor, 7)
     }
 
     return items
@@ -175,4 +184,25 @@ export function getGanttBarLayout(
     leftPx: Math.max(0, leftDays) * pixelsPerDay,
     widthPx: Math.max(1, spanDays) * pixelsPerDay,
   }
+}
+
+export function packGanttLaneItems<T extends GanttLaneItemLike>(items: T[]): Array<GanttLaneLayout<T>> {
+  const laneEndTimes: number[] = []
+
+  return items.map((item) => {
+    const { start, end } = normalizeRange(item.planned_start_date, item.planned_end_date)
+    let laneIndex = laneEndTimes.findIndex((endTime) => start.getTime() > endTime)
+
+    if (laneIndex === -1) {
+      laneIndex = laneEndTimes.length
+      laneEndTimes.push(end.getTime())
+    } else {
+      laneEndTimes[laneIndex] = end.getTime()
+    }
+
+    return {
+      item,
+      laneIndex,
+    }
+  })
 }

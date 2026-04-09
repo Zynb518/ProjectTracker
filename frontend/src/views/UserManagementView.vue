@@ -286,7 +286,11 @@ onMounted(loadUsers)
       用户列表刷新中...
     </p>
 
-    <section v-if="users.length > 0" class="user-management__table-card">
+    <section
+      v-if="users.length > 0"
+      v-smooth-wheel="{ axis: 'horizontal' }"
+      class="user-management__table-card smooth-scroll-surface"
+    >
       <table class="user-management__table">
         <thead>
           <tr>

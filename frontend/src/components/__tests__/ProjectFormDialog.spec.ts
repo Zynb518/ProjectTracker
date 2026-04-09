@@ -87,4 +87,20 @@ describe('ProjectFormDialog', () => {
     expect(source).toContain('rotateX(4deg)')
     expect(source).toContain('filter: blur(6px)')
   })
+
+  it('uses the shared darker dialog and control surfaces instead of bright panel fills', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/projects/ProjectFormDialog.vue'),
+      'utf8',
+    )
+    const themeSource = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8')
+
+    expect(source).toContain('background: var(--dialog-surface-glow), var(--dialog-surface-bg);')
+    expect(source).toContain('border: 1px solid var(--dialog-surface-border);')
+    expect(source).toContain('box-shadow: var(--dialog-surface-shadow);')
+    expect(source).toContain('background: var(--dialog-control-bg);')
+    expect(source).toContain('background: var(--dialog-control-bg-strong);')
+    expect(themeSource).toContain('--dialog-surface-bg:')
+    expect(themeSource).toContain('--dialog-control-bg:')
+  })
 })

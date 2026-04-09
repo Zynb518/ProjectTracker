@@ -1058,15 +1058,15 @@ namespace project_tracker::modules::task::repository {
             UPDATE sub_task st
             SET
                 status = CASE
-                    WHEN $2 = $4 THEN $4
-                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > st.planned_end_date THEN $4
-                    ELSE $2
+                    WHEN $2::integer = $4::integer THEN $4::integer
+                    WHEN (NOW() AT TIME ZONE 'Asia/Shanghai')::date > st.planned_end_date THEN $4::integer
+                    ELSE $2::integer
                 END,
                 progress_percent = $3,
                 completed_at = NULL,
                 updated_at = NOW()
             WHERE st.id = $1 AND
-                st.status = $5
+                st.status = $5::integer
             RETURNING
                 st.id,
                 st.status,

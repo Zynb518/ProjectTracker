@@ -180,7 +180,7 @@ function submit() {
   background:
     radial-gradient(circle at 18% 22%, rgba(10, 102, 255, 0.12), transparent 22%),
     radial-gradient(circle at 82% 78%, rgba(0, 194, 255, 0.14), transparent 24%),
-    rgba(10, 14, 23, 0.42);
+    var(--overlay-backdrop);
   backdrop-filter: blur(16px);
 }
 
@@ -189,8 +189,8 @@ function submit() {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(var(--overlay-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--overlay-grid-line) 1px, transparent 1px);
   background-size: 28px 28px;
   opacity: 0.18;
   pointer-events: none;
@@ -220,15 +220,10 @@ function submit() {
   display: grid;
   gap: 18px;
   padding: 24px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-surface-border);
   border-radius: 16px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.14), transparent 34%);
-  box-shadow:
-    0 24px 56px rgba(3, 10, 24, 0.32),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 0 42px rgba(10, 102, 255, 0.08);
+  background: var(--dialog-surface-glow), var(--dialog-surface-bg);
+  box-shadow: var(--dialog-surface-shadow);
   backdrop-filter: var(--backdrop-blur);
 }
 
@@ -237,10 +232,10 @@ function submit() {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid color-mix(in srgb, var(--dialog-surface-border) 72%, transparent);
   background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.18), transparent 34%),
-    linear-gradient(180deg, transparent, rgba(0, 194, 255, 0.05));
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-end) 10%, transparent), transparent 38%),
+    linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent-start) 4%, transparent));
   pointer-events: none;
 }
 
@@ -296,10 +291,11 @@ span {
 
 input,
 textarea {
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 8px;
   padding: 12px 14px;
-  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
   font: inherit;
 }
@@ -311,10 +307,11 @@ textarea:focus {
 }
 
 button {
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 10px;
   padding: 10px 16px;
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  background: var(--dialog-control-bg-strong);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
   cursor: pointer;
 }

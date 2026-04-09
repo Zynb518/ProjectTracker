@@ -1,5 +1,5 @@
 import { http, unwrapResponse } from '@/api/http'
-import type { ProjectStageGantt } from '@/types/gantt'
+import type { ProjectMemberGantt, ProjectStageGantt } from '@/types/gantt'
 import type { PaginatedList } from '@/types/pagination'
 import type {
   ProjectDetail,
@@ -19,6 +19,10 @@ export async function getProjectDetail(projectId: number): Promise<ProjectDetail
 
 export async function getProjectGanttNodes(projectId: number): Promise<ProjectStageGantt> {
   return unwrapResponse<ProjectStageGantt>(http.get(`/api/projects/${projectId}/gantt/nodes`))
+}
+
+export async function getProjectGanttMembers(projectId: number): Promise<ProjectMemberGantt> {
+  return unwrapResponse<ProjectMemberGantt>(http.get(`/api/projects/${projectId}/gantt/members`))
 }
 
 export async function createProject(payload: ProjectFormPayload): Promise<ProjectMutationResult> {

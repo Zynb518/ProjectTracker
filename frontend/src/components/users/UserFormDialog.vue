@@ -180,8 +180,20 @@ function submit() {
   background:
     radial-gradient(circle at 18% 20%, rgba(10, 102, 255, 0.12), transparent 24%),
     radial-gradient(circle at 84% 78%, rgba(0, 194, 255, 0.16), transparent 28%),
-    rgba(10, 14, 23, 0.42);
+    var(--overlay-backdrop);
   backdrop-filter: blur(16px);
+}
+
+.user-dialog__backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(var(--overlay-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--overlay-grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.18;
+  pointer-events: none;
 }
 
 .user-dialog__glow {
@@ -203,12 +215,10 @@ function submit() {
   display: grid;
   gap: 18px;
   padding: 24px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-surface-border);
   border-radius: 22px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 94%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.12), transparent 34%);
-  box-shadow: var(--shadow-glass);
+  background: var(--dialog-surface-glow), var(--dialog-surface-bg);
+  box-shadow: var(--dialog-surface-shadow);
   backdrop-filter: var(--backdrop-blur);
 }
 
@@ -217,7 +227,7 @@ function submit() {
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid color-mix(in srgb, var(--dialog-surface-border) 72%, transparent);
   pointer-events: none;
 }
 
@@ -244,11 +254,12 @@ function submit() {
 
 .user-dialog__header button,
 .user-dialog__footer button {
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 12px;
   padding: 10px 14px;
   color: var(--text-main);
-  background: color-mix(in srgb, var(--glass-bg) 88%, transparent);
+  background: var(--dialog-control-bg-strong);
+  box-shadow: var(--dialog-control-shadow);
   cursor: pointer;
 }
 
@@ -280,12 +291,12 @@ function submit() {
 .user-dialog__grid input,
 .user-dialog__grid select {
   width: 100%;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 12px;
   padding: 12px 14px;
   color: var(--text-main);
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
 }
 
 .user-dialog__grid input:disabled {

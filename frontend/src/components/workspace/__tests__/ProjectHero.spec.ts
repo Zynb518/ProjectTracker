@@ -35,6 +35,14 @@ const sampleProject: ProjectDetail = {
 }
 
 describe('ProjectHero', () => {
+  it('uses larger, higher-contrast typography for overview copy and labels', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectHero.vue'), 'utf8')
+
+    expect(source).toContain('font-size: 0.82rem;')
+    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 78%, var(--text-soft));')
+    expect(source).toContain('font-size: 1rem;')
+  })
+
   it('uses valid surface backgrounds instead of mixing gradient tokens through color-mix', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectHero.vue'), 'utf8')
 

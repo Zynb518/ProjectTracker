@@ -55,8 +55,8 @@ describe('ProjectGrid', () => {
     const themeSource = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8')
 
     expect(source).toContain('background: var(--project-card-bg), var(--project-card-glow);')
-    expect(themeSource).toContain('--project-card-bg: linear-gradient(180deg, rgba(241, 246, 255, 0.92), rgba(220, 230, 245, 0.9));')
-    expect(themeSource).toContain('--project-card-glow: radial-gradient(circle at top right, rgba(10, 102, 255, 0.14), transparent 30%);')
+    expect(themeSource).toContain('--project-card-bg: linear-gradient(180deg, rgba(227, 235, 246, 0.98), rgba(214, 225, 239, 0.96));')
+    expect(themeSource).toContain('--project-card-glow: radial-gradient(circle at top right, rgba(0, 194, 255, 0.1), transparent 36%);')
   })
 
   it('renders the project name in the header without showing the project id', () => {
@@ -78,7 +78,7 @@ describe('ProjectGrid', () => {
 
     expect(source).toContain('font-size: 1.68rem;')
     expect(source).toContain('font-weight: 700;')
-    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 84%, #ffffff 16%);')
+    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 92%, var(--accent-end) 8%);')
     expect(source).toContain('white-space: nowrap;')
     expect(source).toContain('text-overflow: ellipsis;')
   })
@@ -180,8 +180,8 @@ describe('ProjectGrid', () => {
     expect(source).toContain('border: 1px solid var(--meta-surface-border);')
     expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow);')
     expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
-    expect(themeSource).toContain('--meta-surface-bg: linear-gradient(180deg, rgba(252, 255, 255, 0.98), rgba(236, 247, 255, 0.92));')
-    expect(themeSource).toContain('--meta-surface-glow: radial-gradient(circle at 100% 0%, rgba(0, 194, 255, 0.22), transparent 60%);')
+    expect(themeSource).toContain('--meta-surface-bg: linear-gradient(180deg, rgba(239, 245, 251, 0.96), rgba(226, 234, 245, 0.94));')
+    expect(themeSource).toContain('--meta-surface-glow: radial-gradient(circle at 100% 0%, rgba(0, 194, 255, 0.14), transparent 62%);')
     expect(themeSource).toContain('--meta-surface-border:')
     expect(themeSource).toContain('--meta-surface-shadow:')
   })

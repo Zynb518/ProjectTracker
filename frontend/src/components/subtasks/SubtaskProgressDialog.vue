@@ -19,6 +19,10 @@ const form = reactive({
 })
 
 const currentProgress = computed(() => props.subtask?.progress_percent ?? 0)
+const sliderStyle = computed(() => ({
+  '--subtask-progress-current': `${currentProgress.value}%`,
+  '--subtask-progress-value': `${form.progress_percent}%`,
+}))
 
 function normalizeProgress(value: number) {
   if (Number.isNaN(value)) {
@@ -50,6 +54,14 @@ watch(
 
 function close() {
   emit('update:modelValue', false)
+}
+
+function syncProgressInput(event: Event) {
+  const target = event.target as HTMLInputElement
+  const nextValue = normalizeProgress(Number(target.value))
+
+  form.progress_percent = nextValue
+  target.value = String(nextValue)
 }
 
 function submit() {
@@ -84,16 +96,19 @@ function submit() {
           </div>
 
           <input
-            v-model.number="form.progress_percent"
-            :min="currentProgress"
+            :value="form.progress_percent"
+            :min="0"
+            :style="sliderStyle"
             aria-label="进度百分比"
             data-testid="subtask-progress-range"
             max="100"
             step="10"
             type="range"
+            @input="syncProgressInput"
           />
 
           <div class="subtask-dialog__progress-scale">
+            <small>0%</small>
             <small>当前 {{ currentProgress }}%</small>
             <small>100%</small>
           </div>
@@ -150,7 +165,7 @@ function submit() {
   background:
     radial-gradient(circle at 18% 22%, rgba(10, 102, 255, 0.12), transparent 22%),
     radial-gradient(circle at 82% 78%, rgba(0, 194, 255, 0.14), transparent 24%),
-    rgba(10, 14, 23, 0.42);
+    var(--overlay-backdrop);
   backdrop-filter: blur(16px);
 }
 
@@ -159,8 +174,8 @@ function submit() {
   position: absolute;
   inset: 0;
   background:
-    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    linear-gradient(var(--overlay-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--overlay-grid-line) 1px, transparent 1px);
   background-size: 28px 28px;
   opacity: 0.18;
   pointer-events: none;
@@ -172,15 +187,10 @@ function submit() {
   display: grid;
   gap: 16px;
   padding: 24px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-surface-border);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.14), transparent 34%);
-  box-shadow:
-    0 24px 56px rgba(3, 10, 24, 0.32),
-    0 0 0 1px rgba(255, 255, 255, 0.04),
-    0 0 42px rgba(10, 102, 255, 0.08);
+  background: var(--dialog-surface-glow), var(--dialog-surface-bg);
+  box-shadow: var(--dialog-surface-shadow);
   backdrop-filter: var(--backdrop-blur);
 }
 
@@ -219,30 +229,58 @@ button {
 
 input,
 textarea {
-  border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+  border: 1px solid var(--dialog-control-border);
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
 }
 
 input[type='range'] {
+  --subtask-progress-current: 0%;
+  --subtask-progress-value: 0%;
+  --subtask-progress-locked-color: color-mix(in srgb, var(--accent-neutral) 68%, var(--text-soft));
+  --subtask-progress-remaining-color: color-mix(in srgb, var(--panel-bg) 92%, var(--text-soft));
+  --subtask-progress-track-background: linear-gradient(
+    90deg,
+    var(--subtask-progress-locked-color) 0%,
+    var(--subtask-progress-locked-color) var(--subtask-progress-current),
+    var(--accent-start) var(--subtask-progress-current),
+    var(--accent-end) var(--subtask-progress-value),
+    var(--subtask-progress-remaining-color) var(--subtask-progress-value),
+    var(--subtask-progress-remaining-color) 100%
+  );
   appearance: none;
-  height: 8px;
+  height: 18px;
   padding: 0;
   border: none;
+  background: transparent;
+}
+
+input[type='range']::-webkit-slider-runnable-track {
+  height: 8px;
   border-radius: 999px;
-  background:
-    linear-gradient(90deg, var(--accent-start), var(--accent-end)),
-    color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  background: var(--subtask-progress-track-background);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 82%, transparent),
-    0 0 0 1px rgba(255, 255, 255, 0.03);
+    inset 0 0 0 1px var(--dialog-control-border),
+    0 0 0 1px color-mix(in srgb, var(--dialog-surface-border) 18%, transparent);
+}
+
+input[type='range']::-moz-range-track {
+  height: 8px;
+  border: none;
+  border-radius: 999px;
+  background: var(--subtask-progress-track-background);
+  box-shadow:
+    inset 0 0 0 1px var(--dialog-control-border),
+    0 0 0 1px color-mix(in srgb, var(--dialog-surface-border) 18%, transparent);
 }
 
 input[type='range']::-webkit-slider-thumb {
   appearance: none;
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.72);
+  margin-top: -5px;
+  border: 2px solid color-mix(in srgb, var(--text-inverse) 58%, var(--accent-end) 42%);
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
   box-shadow:
@@ -254,7 +292,7 @@ input[type='range']::-webkit-slider-thumb {
 input[type='range']::-moz-range-thumb {
   width: 18px;
   height: 18px;
-  border: 2px solid rgba(255, 255, 255, 0.72);
+  border: 2px solid color-mix(in srgb, var(--text-inverse) 58%, var(--accent-end) 42%);
   border-radius: 50%;
   background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
   box-shadow:
@@ -286,8 +324,9 @@ input[type='range']::-moz-range-thumb {
 }
 
 button {
-  border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  border: 1px solid var(--dialog-control-border);
+  background: var(--dialog-control-bg-strong);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
 }
 

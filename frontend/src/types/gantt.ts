@@ -1,4 +1,5 @@
 export type GanttScale = 'day' | 'week' | 'month'
+export type GanttPerspective = 'member' | 'stage'
 
 export interface GanttProjectSummary {
   id: number
@@ -36,6 +37,24 @@ export interface GanttSubtaskSummary {
   completed_at: string | null
 }
 
+export interface GanttMemberSubtaskSummary {
+  subtask_id: number
+  name: string
+  node_id: number
+  node_name: string
+  status: number
+  progress_percent: number
+  planned_start_date: string
+  planned_end_date: string
+  completed_at: string | null
+}
+
+export interface GanttMemberRowSummary {
+  user_id: number
+  real_name: string
+  subtasks: GanttMemberSubtaskSummary[]
+}
+
 export interface ProjectStageGantt {
   project: GanttProjectSummary
   nodes: GanttNodeSummary[]
@@ -45,4 +64,9 @@ export interface ProjectNodeSubtaskGantt {
   project: GanttProjectSummary
   node: GanttNodeSummary
   subtasks: GanttSubtaskSummary[]
+}
+
+export interface ProjectMemberGantt {
+  project: GanttProjectSummary
+  member_rows: GanttMemberRowSummary[]
 }

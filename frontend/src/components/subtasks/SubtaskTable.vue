@@ -11,6 +11,8 @@ interface ManagementAction {
   disabled?: boolean
 }
 
+type PriorityTone = 'high' | 'low' | 'medium' | 'unknown'
+
 withDefaults(defineProps<{
   canManage: boolean
   embedded?: boolean
@@ -37,6 +39,22 @@ function priorityLabel(priority: number) {
       3: '高',
     }[priority] ?? '未设定'
   )
+}
+
+function priorityTone(priority: number): PriorityTone {
+  if (priority === 1) {
+    return 'low'
+  }
+
+  if (priority === 2) {
+    return 'medium'
+  }
+
+  if (priority === 3) {
+    return 'high'
+  }
+
+  return 'unknown'
 }
 
 function managementActions(subtask: Subtask): ManagementAction[] {
@@ -105,15 +123,35 @@ function emitAction(key: ActionKey, subtaskId: number) {
     </header>
 
     <article v-for="subtask in subtasks" :key="subtask.id" class="subtask-table__row">
-      <div>
-        <strong>{{ subtask.name }}</strong>
-        <p>{{ subtask.description }}</p>
+      <div class="subtask-table__content">
+        <strong class="subtask-table__title" :title="subtask.name">{{ subtask.name }}</strong>
+        <p class="subtask-table__description" :title="subtask.description || '当前子任务未填写说明。'">
+          {{ subtask.description || '当前子任务未填写说明。' }}
+        </p>
       </div>
 
       <div class="subtask-table__metrics">
-        <span>{{ subtask.responsible_real_name || '未分配' }}</span>
-        <span>{{ priorityLabel(subtask.priority) }}优先级</span>
-        <span>{{ subtask.progress_percent }}%</span>
+        <span class="subtask-table__metric-chip">
+          {{ subtask.responsible_real_name || '未分配' }}
+        </span>
+        <span
+          :class="[
+            'subtask-table__priority',
+            `subtask-table__priority--${priorityTone(subtask.priority)}`,
+          ]"
+        >
+          {{ priorityLabel(subtask.priority) }}优先级
+        </span>
+        <div class="subtask-table__progress" :aria-label="`进度 ${subtask.progress_percent}%`">
+          <span class="subtask-table__progress-label">进度</span>
+          <div class="subtask-table__progress-track">
+            <span
+              class="subtask-table__progress-fill"
+              :style="{ width: `${subtask.progress_percent}%` }"
+            />
+          </div>
+          <strong class="subtask-table__progress-value">{{ subtask.progress_percent }}%</strong>
+        </div>
       </div>
 
       <div class="subtask-table__actions">
@@ -235,12 +273,14 @@ function emitAction(key: ActionKey, subtaskId: number) {
 .subtask-table {
   display: grid;
   gap: 12px;
+  min-width: 0;
   padding: 18px;
   border: 1px solid var(--border-soft);
   border-radius: 18px;
   background: var(--glass-bg);
   box-shadow: var(--shadow-panel);
   backdrop-filter: var(--backdrop-blur);
+  overflow-x: hidden;
 }
 
 .subtask-table--embedded {
@@ -363,11 +403,17 @@ function emitAction(key: ActionKey, subtaskId: number) {
 
 .subtask-table__row {
   display: grid;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'content content'
+    'metrics actions';
+  gap: 14px 16px;
+  min-width: 0;
   padding: 14px;
   border: 1px solid var(--border-soft);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  background: var(--drawer-item-bg);
+  box-shadow: var(--dialog-control-shadow);
 }
 
 .subtask-table__row strong,
@@ -375,24 +421,140 @@ function emitAction(key: ActionKey, subtaskId: number) {
   margin: 0;
 }
 
-.subtask-table__row p {
+.subtask-table__content {
+  grid-area: content;
+  min-width: 0;
+}
+
+.subtask-table__title {
+  display: block;
+  overflow: hidden;
+  font-size: 1.04rem;
+  font-weight: 700;
+  line-height: 1.25;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: color-mix(in srgb, var(--text-main) 92%, var(--accent-end) 8%);
+}
+
+.subtask-table__description {
+  margin-top: 6px;
+  overflow: hidden;
   color: var(--text-soft);
+  line-height: 1.56;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
 }
 
 .subtask-table__metrics {
-  display: flex;
-  flex-wrap: wrap;
+  grid-area: metrics;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 10px;
+}
+
+.subtask-table__metric-chip,
+.subtask-table__priority {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 12px;
+  border: 1px solid var(--dialog-control-border);
+  border-radius: 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  line-height: 1.1;
+  box-shadow: var(--dialog-control-shadow);
+}
+
+.subtask-table__metric-chip {
+  background: var(--dialog-control-bg);
   color: var(--text-soft);
+}
+
+.subtask-table__priority {
+  justify-content: center;
+}
+
+.subtask-table__priority--low {
+  background: color-mix(in srgb, var(--accent-success) 14%, var(--dialog-control-bg));
+  border-color: color-mix(in srgb, var(--accent-success) 28%, transparent);
+  color: color-mix(in srgb, var(--accent-success) 72%, var(--text-main));
+}
+
+.subtask-table__priority--medium {
+  background: color-mix(in srgb, var(--accent-start) 16%, var(--dialog-control-bg));
+  border-color: color-mix(in srgb, var(--accent-start) 28%, transparent);
+  color: color-mix(in srgb, var(--accent-start) 70%, var(--text-main));
+}
+
+.subtask-table__priority--high {
+  background: color-mix(in srgb, var(--accent-warning) 16%, var(--dialog-control-bg));
+  border-color: color-mix(in srgb, var(--accent-warning) 28%, transparent);
+  color: color-mix(in srgb, var(--accent-warning) 74%, var(--text-main));
+}
+
+.subtask-table__priority--unknown {
+  background: var(--dialog-control-bg);
+  color: var(--text-soft);
+}
+
+.subtask-table__progress {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--dialog-control-border);
+  border-radius: 12px;
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
+}
+
+.subtask-table__progress-label {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.subtask-table__progress-track {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-bg) 76%, var(--dialog-control-bg));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--dialog-control-border) 92%, transparent);
+}
+
+.subtask-table__progress-fill {
+  display: block;
+  height: 100%;
+  min-width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
+  box-shadow: 0 0 16px color-mix(in srgb, var(--accent-end) 28%, transparent);
+}
+
+.subtask-table__progress-value {
+  color: var(--text-main);
   font-size: 0.92rem;
+  font-weight: 700;
 }
 
 .subtask-table__actions {
+  grid-area: actions;
+  min-width: 0;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  justify-content: flex-end;
+  gap: 10px;
 }
 
 .subtask-table__flow-actions,
@@ -547,5 +709,31 @@ function emitAction(key: ActionKey, subtaskId: number) {
 .subtask-table__empty {
   margin: 0;
   color: var(--text-soft);
+}
+
+@media (max-width: 900px) {
+  .subtask-table__row {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'content'
+      'metrics'
+      'actions';
+  }
+
+  .subtask-table__actions {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 640px) {
+  .subtask-table__metrics,
+  .subtask-table__progress {
+    grid-template-columns: 1fr;
+  }
+
+  .subtask-table__flow-actions,
+  .subtask-table__management-actions {
+    width: 100%;
+  }
 }
 </style>

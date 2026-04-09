@@ -35,7 +35,11 @@ defineEmits<{
       </button>
     </header>
 
-    <div class="member-panel__list" data-testid="member-panel-list">
+    <div
+      v-smooth-wheel
+      class="member-panel__list smooth-scroll-surface"
+      data-testid="member-panel-list"
+    >
       <article v-for="member in members" :key="member.user_id" class="member-panel__item">
         <div>
           <strong>{{ member.real_name }}</strong>

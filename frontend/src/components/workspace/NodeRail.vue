@@ -365,12 +365,16 @@ onBeforeUnmount(() => {
       </div>
     </header>
 
-    <TransitionGroup
-      tag="div"
-      name="node-list"
+    <div
       data-testid="node-rail-scroll"
-      class="node-rail__timeline"
+      v-smooth-wheel
+      class="node-rail__timeline-shell smooth-scroll-surface"
     >
+      <TransitionGroup
+        tag="div"
+        name="node-list"
+        class="node-rail__timeline"
+      >
       <article
         v-for="node in displayNodes"
         :key="node.id"
@@ -464,7 +468,8 @@ onBeforeUnmount(() => {
           </article>
         </div>
       </article>
-    </TransitionGroup>
+      </TransitionGroup>
+    </div>
 
     <Teleport to="body">
       <transition name="node-hover-card">
@@ -823,14 +828,18 @@ onBeforeUnmount(() => {
   transform: translate(-50%, 0) rotate(-45deg);
 }
 
+.node-rail__timeline-shell {
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
 .node-rail__timeline {
   position: relative;
   display: grid;
   align-content: start;
   gap: 14px;
-  min-height: 0;
-  overflow-y: auto;
-  padding-right: 8px;
+  min-height: 100%;
 }
 
 .node-list-move,
@@ -977,6 +986,12 @@ onBeforeUnmount(() => {
   gap: 12px;
 }
 
+.node-rail__item-top,
+.node-rail__compact-head {
+  min-width: 0;
+  overflow: hidden;
+}
+
 .node-rail__item-top-left {
   display: inline-flex;
   align-items: center;
@@ -1021,6 +1036,8 @@ onBeforeUnmount(() => {
   font-size: 0.76rem;
   font-weight: 700;
   line-height: 1;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .node-rail__status--pending,

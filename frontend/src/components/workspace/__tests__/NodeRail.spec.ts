@@ -127,6 +127,19 @@ describe('NodeRail', () => {
     expect(source).not.toContain('{{ props.nodes.length }} 个节点')
   })
 
+  it('keeps node names and status pills on one row so long names do not push statuses out of the card', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeRail.vue'), 'utf8')
+
+    expect(source).toContain('.node-rail__item-top,')
+    expect(source).toContain('.node-rail__compact-head,')
+    expect(source).toContain('overflow: hidden;')
+    expect(source).toContain('.node-rail__status,')
+    expect(source).toContain('flex-shrink: 0;')
+    expect(source).toContain('white-space: nowrap;')
+    expect(source).toContain('.node-rail__name--compact {')
+    expect(source).toContain('text-overflow: ellipsis;')
+  })
+
   it('shows a hover detail card as a fixed top-layer overlay on the right side of the hovered node', async () => {
     const wrapper = mount(NodeRail, {
       attachTo: document.body,

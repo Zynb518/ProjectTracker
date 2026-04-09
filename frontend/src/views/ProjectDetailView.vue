@@ -13,6 +13,7 @@ import NodeGanttDialog from '@/components/workspace/NodeGanttDialog.vue'
 import NodeFormDialog from '@/components/workspace/NodeFormDialog.vue'
 import NodeRail from '@/components/workspace/NodeRail.vue'
 import ProjectGanttView from '@/components/workspace/ProjectGanttView.vue'
+import ProjectMemberGanttView from '@/components/workspace/ProjectMemberGanttView.vue'
 import ProjectHero from '@/components/workspace/ProjectHero.vue'
 import { getErrorMessage } from '@/api/http'
 import { addProjectMember, removeProjectMember } from '@/api/members'
@@ -27,7 +28,7 @@ import {
   startProjectNode,
   updateProjectNode,
 } from '@/api/nodes'
-import { getProjectGanttNodes } from '@/api/projects'
+import { getProjectGanttMembers, getProjectGanttNodes } from '@/api/projects'
 import {
   createSubtask,
   deleteSubtask,
@@ -38,7 +39,13 @@ import {
 } from '@/api/subtasks'
 import { useNotificationStore } from '@/stores/notifications'
 import { useProjectWorkspaceStore } from '@/stores/projectWorkspace'
-import type { GanttScale, ProjectNodeSubtaskGantt, ProjectStageGantt } from '@/types/gantt'
+import type {
+  GanttPerspective,
+  GanttScale,
+  ProjectMemberGantt,
+  ProjectNodeSubtaskGantt,
+  ProjectStageGantt,
+} from '@/types/gantt'
 import type { ProjectMember } from '@/types/member'
 import type { ProjectNodePayload } from '@/types/node'
 import type { Subtask, SubtaskPayload, SubtaskProgressRecord } from '@/types/subtask'
@@ -75,10 +82,14 @@ const nodeFormInitial = ref<ProjectNodePayload>({
   planned_end_date: '',
 })
 const currentViewMode = ref<ProjectDetailViewMode>('workspace')
+const ganttPerspective = ref<GanttPerspective>('stage')
 const ganttScale = ref<GanttScale>('week')
 const projectGantt = ref<ProjectStageGantt | null>(null)
 const ganttLoadError = ref<string | null>(null)
 const isGanttLoading = ref(false)
+const projectMemberGantt = ref<ProjectMemberGantt | null>(null)
+const memberGanttLoadError = ref<string | null>(null)
+const isMemberGanttLoading = ref(false)
 const nodeGantt = ref<ProjectNodeSubtaskGantt | null>(null)
 const nodeGanttLoadError = ref<string | null>(null)
 const isNodeGanttLoading = ref(false)
@@ -143,6 +154,8 @@ onMounted(async () => {
 function invalidateGanttCache() {
   projectGantt.value = null
   ganttLoadError.value = null
+  projectMemberGantt.value = null
+  memberGanttLoadError.value = null
   nodeGantt.value = null
   nodeGanttLoadError.value = null
   selectedGanttNodeId.value = null
@@ -164,6 +177,23 @@ async function loadProjectGantt(force = false) {
     ganttLoadError.value = getErrorMessage(error, '阶段甘特图加载失败')
   } finally {
     isGanttLoading.value = false
+  }
+}
+
+async function loadProjectMemberGantt(force = false) {
+  if (!force && projectMemberGantt.value !== null) {
+    return
+  }
+
+  isMemberGanttLoading.value = true
+  memberGanttLoadError.value = null
+
+  try {
+    projectMemberGantt.value = await getProjectGanttMembers(projectId)
+  } catch (error) {
+    memberGanttLoadError.value = getErrorMessage(error, '人员甘特图加载失败')
+  } finally {
+    isMemberGanttLoading.value = false
   }
 }
 
@@ -201,6 +231,27 @@ async function switchView(mode: ProjectDetailViewMode) {
 
   if (mode === 'workspace') {
     showNodeGanttDialog.value = false
+    return
+  }
+
+  if (ganttPerspective.value === 'member') {
+    await loadProjectMemberGantt()
+    return
+  }
+
+  await loadProjectGantt()
+}
+
+async function switchGanttPerspective(perspective: GanttPerspective) {
+  ganttPerspective.value = perspective
+  showNodeGanttDialog.value = false
+
+  if (currentViewMode.value !== 'gantt') {
+    return
+  }
+
+  if (perspective === 'member') {
+    await loadProjectMemberGantt()
     return
   }
 
@@ -640,13 +691,27 @@ async function openHistoryDrawer(subtaskId: number) {
       </div>
 
       <ProjectGanttView
-        v-else
+        v-else-if="ganttPerspective === 'stage'"
         :error="ganttLoadError"
         :gantt="projectGantt"
         :is-loading="isGanttLoading"
+        :perspective="ganttPerspective"
         :scale="ganttScale"
         @open-node="openNodeGantt"
         @retry="loadProjectGantt(true)"
+        @update:perspective="switchGanttPerspective"
+        @update:scale="ganttScale = $event"
+      />
+
+      <ProjectMemberGanttView
+        v-else
+        :error="memberGanttLoadError"
+        :gantt="projectMemberGantt"
+        :is-loading="isMemberGanttLoading"
+        :perspective="ganttPerspective"
+        :scale="ganttScale"
+        @retry="loadProjectMemberGantt(true)"
+        @update:perspective="switchGanttPerspective"
         @update:scale="ganttScale = $event"
       />
     </template>

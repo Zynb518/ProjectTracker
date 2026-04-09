@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import SubtaskHistoryDrawer from '@/components/subtasks/SubtaskHistoryDrawer.vue'
@@ -33,8 +35,12 @@ describe('Subtask dialogs', () => {
     expect(backdrop.classes()).toContain('subtask-dialog-fade-enter-from')
     expect(backdrop.classes()).toContain('subtask-dialog-fade-enter-active')
     expect(wrapper.find('select').exists()).toBe(false)
-    expect(slider.attributes('min')).toBe('40')
+    expect(slider.attributes('min')).toBe('0')
+    expect((slider.element as HTMLInputElement).value).toBe('40')
     expect(slider.attributes('step')).toBe('10')
+    expect(wrapper.text()).toContain('当前 40%')
+    expect(wrapper.text()).toContain('0%')
+    expect(wrapper.text()).toContain('100%')
 
     await slider.setValue(20)
     await wrapper.get('textarea').setValue('继续推进')
@@ -75,5 +81,48 @@ describe('Subtask dialogs', () => {
 
     expect(backdrop.classes()).toContain('history-drawer-slide-enter-from')
     expect(backdrop.classes()).toContain('history-drawer-slide-enter-active')
+  })
+
+  it('uses darker shared surface tokens for the progress dialog and history drawer', () => {
+    const progressSource = readFileSync(
+      resolve(process.cwd(), 'src/components/subtasks/SubtaskProgressDialog.vue'),
+      'utf8',
+    )
+    const historySource = readFileSync(
+      resolve(process.cwd(), 'src/components/subtasks/SubtaskHistoryDrawer.vue'),
+      'utf8',
+    )
+
+    expect(progressSource).toContain('background: var(--dialog-surface-glow), var(--dialog-surface-bg);')
+    expect(progressSource).toContain('background: var(--dialog-control-bg);')
+    expect(historySource).toContain('background: var(--dialog-surface-glow), var(--drawer-surface-bg);')
+    expect(historySource).toContain('background: var(--drawer-item-bg);')
+    expect(historySource).toContain('background: var(--dialog-control-bg-strong);')
+  })
+
+  it('uses distinct locked and remaining track colors around the progress thumb', () => {
+    const progressSource = readFileSync(
+      resolve(process.cwd(), 'src/components/subtasks/SubtaskProgressDialog.vue'),
+      'utf8',
+    )
+
+    expect(progressSource).toContain('--subtask-progress-locked-color')
+    expect(progressSource).toContain('--subtask-progress-remaining-color')
+    expect(progressSource).toContain('var(--subtask-progress-locked-color) 0%')
+    expect(progressSource).toContain('var(--subtask-progress-remaining-color) 100%')
+    expect(progressSource).toContain("input[type='range']::-webkit-slider-runnable-track")
+    expect(progressSource).toContain("input[type='range']::-moz-range-track")
+  })
+
+  it('vertically centers the progress thumb on the track', () => {
+    const progressSource = readFileSync(
+      resolve(process.cwd(), 'src/components/subtasks/SubtaskProgressDialog.vue'),
+      'utf8',
+    )
+
+    expect(progressSource).toContain("input[type='range'] {\n  --subtask-progress-current: 0%;")
+    expect(progressSource).toContain('height: 18px;')
+    expect(progressSource).toContain("input[type='range']::-webkit-slider-thumb")
+    expect(progressSource).toContain('margin-top: -5px;')
   })
 })

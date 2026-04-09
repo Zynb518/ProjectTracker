@@ -93,6 +93,8 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 - 如果分页读接口既要返回 `total` 又要返回当前页列表，并且希望空页时仍能拿到 `total`，优先考虑 `WITH filtered / total / paged` 再 `LEFT JOIN` 的单条 SQL 结构，而不是依赖两次查询或单纯 `COUNT(*) OVER()`。
 - 如果 SQL 参数一边和 `BIGINT` 列比较，一边又和 `0` 这类整数字面量比较，要显式写成 `0::bigint` 或 `$n::bigint`，避免 PostgreSQL 把参数先推断成 `integer`，再和 Drogon 传入的 `std::int64_t` 二进制绑定格式冲突。
 - 类似 `($3 = 0 OR p.owner_user_id = $3)` 这种写法在 `owner_user_id` 为 `BIGINT` 时有踩坑风险；优先写成 `($3 = 0::bigint OR p.owner_user_id = $3)`。
+- 如果 PostgreSQL 的 `CASE / COALESCE / 比较表达式` 里主要是参数占位符互相比较或互相返回，例如 `WHEN $2 = $4 THEN $4 ELSE $2`，不要假设数据库一定能从上下文稳定推断出参数类型；对 `status / priority` 这类整数枚举字段，优先显式写成 `$n::integer`，对 `BIGINT` 主键或外键优先显式写成 `$n::bigint`。
+- 特别是 `UPDATE ... SET status = CASE ... END` 这类写法，如果 `CASE` 分支里只有占位符，没有足够强的字面量或列类型锚点，PostgreSQL 可能把整段表达式推成 `text`，最终报“字段是 integer，但表达式是 text”；这时应直接在分支和相关比较条件上补齐显式类型转换，例如 `WHEN $2::integer = $4::integer THEN $4::integer ELSE $2::integer`，必要时连 `WHERE st.status = $5::integer` 一并写明。
 - 对本地模块内跨层复用的简单输入模型，优先放在 `dto/command/`，避免同一条简单输入在 service / repository 重复定义。
 - 如果多个“状态动作接口”输入结构完全一致，例如项目的 `start / complete / reopen`，优先合并成一个共享输入模型，例如 `ProjectStatusActionInput`，不要继续为每个动作保留重复 DTO。
 - 对按北京时间判断是否延期的 SQL，优先显式写成 `(NOW() AT TIME ZONE 'Asia/Shanghai')::date` 再和 `DATE` 列比较；必要时加一行短注释说明不是直接拿 session 时区取 `NOW()::date`。
@@ -128,6 +130,14 @@ description: Use when continuing backend work in this Project-Tracker C++20/Drog
 - `.http` 用例的顺序优先写成“正常路径在前，异常路径在后”，便于人工顺序点击验证。
 - 对会直接修改数据库状态的正常路径，优先把 `.http` 用例写成可重复回放：先创建临时资源，再继续开始/完成/删除等动作；如果需要承接上一步响应里的 ID，允许使用 JetBrains HTTP client 的 `client.global.set(...)` 保存变量。
 - 如果某条异常路径依赖种子数据中的固定项目或固定状态，要在 `.http` 注释里明确写出这一前提；如果能通过“先创建再操作”改造成可重复用例，优先改成可重复。
+
+## Local AI Integration Notes
+
+- 当前仓库如果通过 `drogon::app().getCustomConfig()` 读取本地 AI 配置，JSON 配置必须放在 `custom_config` 节点下；直接写在顶层时，运行期会表现为“配置文件明明有值，但接口一直报未配置”。
+- 把独立 Python/Conda 项目拷贝进当前仓库后，不要直接信任 `.conda/bin/<console-script>` 这类入口脚本；它的 shebang 可能仍然指向旧 worktree 或旧绝对路径。优先在 C++ 侧显式配置并调用 `python_bin + script_path`。
+- 本地模型子进程如果要向 Drogon 返回 JSON，默认只解析 `stdout`；`stderr` 必须单独收集到日志，不要并到 JSON 解析输入里。像 `transformers` 这类依赖会在 `stderr` 打出 `Device set to use cpu`，否则会把合法 JSON 污染成“非法 JSON”。
+- 这类本地 AI 链路的联调顺序优先写成：先单独运行 Python wrapper 验证 `stdout` 是否是纯 JSON，再回放 `.http` 接口，最后再看 Drogon 的子进程收发逻辑，不要一上来同时怀疑模型、接口和配置。
+- 在 Codex 当前沙箱里回放 `.http` 时，如果用户确认服务已启动但 `curl 127.0.0.1:8080` 仍连不上，要优先怀疑沙箱网络隔离，而不是马上判断后端没起来；这时应改用沙箱外执行进行验证。
 
 ## Debugging Workflow
 

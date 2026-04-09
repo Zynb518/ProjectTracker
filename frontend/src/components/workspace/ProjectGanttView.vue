@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 
 import GanttScaleSwitcher from '@/components/workspace/GanttScaleSwitcher.vue'
-import type { GanttNodeSummary, GanttScale, ProjectStageGantt } from '@/types/gantt'
+import type { GanttNodeSummary, GanttPerspective, GanttScale, ProjectStageGantt } from '@/types/gantt'
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout } from '@/utils/gantt'
 
@@ -10,19 +10,34 @@ const props = withDefaults(defineProps<{
   error?: string | null
   gantt: ProjectStageGantt | null
   isLoading?: boolean
+  perspective?: GanttPerspective
   scale: GanttScale
 }>(), {
   error: null,
   isLoading: false,
+  perspective: 'stage',
 })
 
 const emit = defineEmits<{
   'open-node': [nodeId: number]
   retry: []
+  'update:perspective': [perspective: GanttPerspective]
   'update:scale': [scale: GanttScale]
 }>()
 
+type HoverCardPlacement = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
+
 const hoveredNodeId = ref<number | null>(null)
+const hoveredNodeAnchor = ref({ x: 0, y: 0 })
+const hoveredNodePlacement = ref<HoverCardPlacement>('top-right')
+let hideDetailTimer: ReturnType<typeof window.setTimeout> | null = null
+
+const DETAIL_HIDE_DELAY_MS = 180
+const DETAIL_CARD_EDGE_GAP_PX = 24
+const DETAIL_CARD_HEIGHT_HINT_PX = 220
+const DETAIL_CARD_WIDTH_PX = 288
+const axisScrollRef = ref<HTMLElement | null>(null)
+const rowsScrollRef = ref<HTMLElement | null>(null)
 
 const axisItems = computed(() =>
   props.gantt === null
@@ -42,9 +57,29 @@ const canvasWidth = computed(() =>
   axisItems.value.reduce((total, item) => total + item.widthPx, 0),
 )
 
+const timelineCanvasStyle = computed(() => ({
+  width: `${canvasWidth.value}px`,
+}))
+
 const hoveredNode = computed(() =>
   props.gantt?.nodes.find((node) => node.id === hoveredNodeId.value) ?? null,
 )
+
+const detailCardStyle = computed(() => ({
+  left: `${hoveredNodeAnchor.value.x}px`,
+  top: `${hoveredNodeAnchor.value.y}px`,
+}))
+
+function getScheduleDays(startDate: string, endDate: string) {
+  const start = new Date(`${startDate}T00:00:00`)
+  const end = new Date(`${endDate}T00:00:00`)
+
+  return Math.max(1, Math.round((end.getTime() - start.getTime()) / 86400000) + 1)
+}
+
+function formatCompletedAt(value: string) {
+  return value.slice(0, 16).replace('T', ' ')
+}
 
 function getBarStyle(node: GanttNodeSummary) {
   const layout = getGanttBarLayout(
@@ -60,15 +95,91 @@ function getBarStyle(node: GanttNodeSummary) {
   }
 }
 
-function showNodeDetail(nodeId: number) {
-  hoveredNodeId.value = nodeId
-}
+function getHoverPoint(event?: FocusEvent | MouseEvent) {
+  if (event instanceof MouseEvent && (event.clientX !== 0 || event.clientY !== 0)) {
+    return {
+      x: event.clientX,
+      y: event.clientY,
+    }
+  }
 
-function clearNodeDetail(nodeId: number) {
-  if (hoveredNodeId.value === nodeId) {
-    hoveredNodeId.value = null
+  const target = event?.currentTarget
+  if (target instanceof HTMLElement) {
+    const rect = target.getBoundingClientRect()
+
+    return {
+      x: rect.right,
+      y: rect.top + rect.height / 2,
+    }
+  }
+
+  return {
+    x: window.innerWidth / 2,
+    y: window.innerHeight / 2,
   }
 }
+
+function getHoverPlacement(anchor: { x: number; y: number }): HoverCardPlacement {
+  const shouldFlipHorizontally = window.innerWidth - anchor.x < DETAIL_CARD_WIDTH_PX + DETAIL_CARD_EDGE_GAP_PX
+  const shouldFlipVertically = anchor.y < DETAIL_CARD_HEIGHT_HINT_PX + DETAIL_CARD_EDGE_GAP_PX
+
+  if (shouldFlipVertically) {
+    return shouldFlipHorizontally ? 'bottom-left' : 'bottom-right'
+  }
+
+  return shouldFlipHorizontally ? 'top-left' : 'top-right'
+}
+
+function showNodeDetail(nodeId: number, event?: FocusEvent | MouseEvent) {
+  cancelHideNodeDetail()
+  hoveredNodeId.value = nodeId
+  hoveredNodeAnchor.value = getHoverPoint(event)
+  hoveredNodePlacement.value = getHoverPlacement(hoveredNodeAnchor.value)
+}
+
+function cancelHideNodeDetail() {
+  if (hideDetailTimer !== null) {
+    window.clearTimeout(hideDetailTimer)
+    hideDetailTimer = null
+  }
+}
+
+function scheduleHideNodeDetail() {
+  cancelHideNodeDetail()
+
+  hideDetailTimer = window.setTimeout(() => {
+    hoveredNodeId.value = null
+    hideDetailTimer = null
+  }, DETAIL_HIDE_DELAY_MS)
+}
+
+function clearNodeDetail(nodeId?: number) {
+  if (nodeId !== undefined && hoveredNodeId.value !== nodeId) {
+    return
+  }
+
+  scheduleHideNodeDetail()
+}
+
+function syncHorizontalScroll(source: HTMLElement | null, target: HTMLElement | null) {
+  if (source === null || target === null || source.scrollLeft === target.scrollLeft) {
+    return
+  }
+
+  target.scrollLeft = source.scrollLeft
+}
+
+function handleAxisScroll() {
+  syncHorizontalScroll(axisScrollRef.value, rowsScrollRef.value)
+}
+
+function handleRowsScroll() {
+  syncHorizontalScroll(rowsScrollRef.value, axisScrollRef.value)
+}
+
+onBeforeUnmount(() => {
+  cancelHideNodeDetail()
+})
 </script>
 
 <template>
@@ -82,7 +193,26 @@ function clearNodeDetail(nodeId: number) {
         </div>
       </div>
 
-      <GanttScaleSwitcher :scale="scale" @update:scale="emit('update:scale', $event)" />
+      <div class="project-gantt__toolbar-actions">
+        <div class="project-gantt__perspective-switch" role="tablist" aria-label="甘特图视角">
+          <button
+            :class="['project-gantt__perspective-button', { 'is-active': perspective === 'stage' }]"
+            type="button"
+            @click="emit('update:perspective', 'stage')"
+          >
+            阶段 / 时间
+          </button>
+          <button
+            :class="['project-gantt__perspective-button', { 'is-active': perspective === 'member' }]"
+            type="button"
+            @click="emit('update:perspective', 'member')"
+          >
+            人员 / 时间
+          </button>
+        </div>
+
+        <GanttScaleSwitcher :scale="scale" @update:scale="emit('update:scale', $event)" />
+      </div>
     </header>
 
     <p v-if="isLoading" class="project-gantt__state loading-panel">阶段甘特图加载中...</p>
@@ -100,90 +230,165 @@ function clearNodeDetail(nodeId: number) {
       当前还没有可展示的阶段排期。
     </section>
 
-    <div v-else class="project-gantt__body">
-      <aside class="project-gantt__sidebar">
-        <div class="project-gantt__sidebar-head">
-          <span>阶段</span>
-          <span>状态</span>
-        </div>
+    <div
+      v-else
+      v-smooth-wheel
+      class="project-gantt__body-scroll smooth-scroll-surface"
+    >
+      <div class="project-gantt__body">
+        <aside class="project-gantt__sidebar">
+          <div class="project-gantt__sidebar-head">
+            <span>阶段</span>
+            <span>状态</span>
+          </div>
 
-        <div
-          v-for="node in gantt.nodes"
-          :key="node.id"
-          :data-testid="`project-gantt-row-label-${node.id}`"
-          class="project-gantt__sidebar-row"
-        >
-          <strong>{{ node.name }}</strong>
-          <span
-            :class="[
-              'project-gantt__status-pill',
-              `project-gantt__status-pill--${getWorkStatusTone(node.status)}`,
-            ]"
+          <div
+            v-for="node in gantt.nodes"
+            :key="node.id"
+            :data-testid="`project-gantt-row-label-${node.id}`"
+            class="project-gantt__sidebar-row"
           >
-            {{ getWorkStatusLabel(node.status) }}
-          </span>
-        </div>
-      </aside>
+            <strong>{{ node.name }}</strong>
+            <span
+              :class="[
+                'project-gantt__status-pill',
+                `project-gantt__status-pill--${getWorkStatusTone(node.status)}`,
+              ]"
+            >
+              {{ getWorkStatusLabel(node.status) }}
+            </span>
+          </div>
+        </aside>
 
-      <div class="project-gantt__timeline-shell">
-        <div class="project-gantt__timeline-scroll">
-          <div class="project-gantt__timeline-canvas" :style="{ width: `${canvasWidth}px` }">
-            <div class="project-gantt__axis" data-testid="project-gantt-axis">
-              <div
-                v-for="item in axisItems"
-                :key="item.key"
-                class="project-gantt__axis-cell"
-                :style="{ width: `${item.widthPx}px` }"
-              >
-                {{ item.label }}
-              </div>
-            </div>
-
-            <div class="project-gantt__rows">
-              <div v-for="node in gantt.nodes" :key="node.id" class="project-gantt__row">
-                <div class="project-gantt__track">
-                  <button
-                    :data-testid="`project-gantt-stage-bar-${node.id}`"
-                    :class="[
-                      'project-gantt__bar',
-                      `project-gantt__bar--${getWorkStatusTone(node.status)}`,
-                    ]"
-                    :style="getBarStyle(node)"
-                    :title="`${node.name}｜${getWorkStatusLabel(node.status)}｜${node.planned_start_date} - ${node.planned_end_date}`"
-                    type="button"
-                    @blur="clearNodeDetail(node.id)"
-                    @click="emit('open-node', node.id)"
-                    @focus="showNodeDetail(node.id)"
-                    @mouseleave="clearNodeDetail(node.id)"
-                    @mouseenter="showNodeDetail(node.id)"
-                  >
-                    <span>{{ node.name }}</span>
-                  </button>
+        <div class="project-gantt__timeline-shell">
+          <div
+            ref="axisScrollRef"
+            data-testid="project-gantt-axis-scroll"
+            v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"
+            class="project-gantt__axis-scroll smooth-scroll-surface"
+            @scroll="handleAxisScroll"
+          >
+            <div class="project-gantt__timeline-canvas" :style="timelineCanvasStyle">
+              <div class="project-gantt__axis" data-testid="project-gantt-axis">
+                <div
+                  v-for="item in axisItems"
+                  :key="item.key"
+                  :class="['project-gantt__axis-cell', `project-gantt__axis-cell--${scale}`]"
+                  :style="{ width: `${item.widthPx}px` }"
+                  :title="`${item.startDate} 至 ${item.endDate}`"
+                >
+                  {{ item.label }}
                 </div>
               </div>
             </div>
           </div>
-        </div>
 
-        <aside v-if="hoveredNode" class="project-gantt__detail-card">
-          <span class="project-gantt__detail-eyebrow">阶段详情</span>
-          <strong>{{ hoveredNode.name }}</strong>
-          <p>{{ getWorkStatusLabel(hoveredNode.status) }}</p>
-          <dl>
-            <div>
-              <dt>顺序</dt>
-              <dd>#{{ hoveredNode.sequence_no }}</dd>
+          <div
+            ref="rowsScrollRef"
+            data-testid="project-gantt-rows-scroll"
+            v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"
+            class="project-gantt__timeline-scroll smooth-scroll-surface"
+            @scroll="handleRowsScroll"
+          >
+            <div class="project-gantt__timeline-canvas" :style="timelineCanvasStyle">
+              <div class="project-gantt__rows">
+                <div v-for="node in gantt.nodes" :key="node.id" class="project-gantt__row">
+                  <div class="project-gantt__track">
+                    <div
+                      :data-testid="`project-gantt-track-grid-${node.id}`"
+                      aria-hidden="true"
+                      class="project-gantt__track-grid"
+                    >
+                      <div
+                        v-for="item in axisItems"
+                        :key="`${node.id}-${item.key}`"
+                        :class="['project-gantt__track-cell', `project-gantt__track-cell--${scale}`]"
+                        :style="{ width: `${item.widthPx}px` }"
+                      />
+                    </div>
+                    <button
+                      :data-testid="`project-gantt-stage-bar-${node.id}`"
+                      :class="[
+                        'project-gantt__bar',
+                        `project-gantt__bar--${getWorkStatusTone(node.status)}`,
+                      ]"
+                      :style="getBarStyle(node)"
+                      :title="`${node.name}｜${getWorkStatusLabel(node.status)}｜${node.planned_start_date} - ${node.planned_end_date}`"
+                      type="button"
+                      @blur="clearNodeDetail(node.id)"
+                      @click="emit('open-node', node.id)"
+                      @focus="showNodeDetail(node.id, $event)"
+                      @mouseleave="clearNodeDetail(node.id)"
+                      @mouseenter="showNodeDetail(node.id, $event)"
+                    >
+                      <span>{{ node.name }}</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div>
-              <dt>周期</dt>
-              <dd>{{ hoveredNode.planned_start_date }}<br>{{ hoveredNode.planned_end_date }}</dd>
-            </div>
-            <div v-if="hoveredNode.completed_at">
-              <dt>完成</dt>
-              <dd>{{ hoveredNode.completed_at.slice(0, 16).replace('T', ' ') }}</dd>
-            </div>
-          </dl>
-        </aside>
+          </div>
+
+          <Teleport to="body">
+            <aside
+              v-if="hoveredNode"
+              :data-placement="hoveredNodePlacement"
+              :style="detailCardStyle"
+              class="project-gantt__detail-card"
+              data-testid="project-gantt-detail-card"
+              @mouseenter="cancelHideNodeDetail"
+              @mouseleave="clearNodeDetail()"
+            >
+              <div class="project-gantt__detail-topline">
+                <span class="project-gantt__detail-eyebrow">阶段详情</span>
+                <span
+                  :class="[
+                    'project-gantt__detail-status',
+                    `project-gantt__detail-status--${getWorkStatusTone(hoveredNode.status)}`,
+                  ]"
+                >
+                  {{ getWorkStatusLabel(hoveredNode.status) }}
+                </span>
+              </div>
+
+              <strong class="project-gantt__detail-title">{{ hoveredNode.name }}</strong>
+
+              <div
+                :class="[
+                  'project-gantt__detail-stat',
+                  `project-gantt__detail-stat--${getWorkStatusTone(hoveredNode.status)}`,
+                ]"
+              >
+                <span>计划窗口</span>
+                <strong>{{ getScheduleDays(hoveredNode.planned_start_date, hoveredNode.planned_end_date) }} 天</strong>
+                <small>Phase {{ hoveredNode.sequence_no }}</small>
+              </div>
+
+              <dl class="project-gantt__detail-grid">
+                <div class="project-gantt__detail-grid-item">
+                  <dt>阶段顺序</dt>
+                  <dd>#{{ hoveredNode.sequence_no }}</dd>
+                </div>
+                <div class="project-gantt__detail-grid-item">
+                  <dt>计划周期</dt>
+                  <dd>{{ hoveredNode.planned_start_date }}<br>{{ hoveredNode.planned_end_date }}</dd>
+                </div>
+                <div
+                  :class="[
+                    'project-gantt__detail-grid-item',
+                    'project-gantt__detail-grid-item--completion',
+                    {
+                      'is-empty': !hoveredNode.completed_at,
+                    },
+                  ]"
+                >
+                  <dt>完成时间</dt>
+                  <dd>{{ hoveredNode.completed_at ? formatCompletedAt(hoveredNode.completed_at) : '尚未完成' }}</dd>
+                </div>
+              </dl>
+            </aside>
+          </Teleport>
+        </div>
       </div>
     </div>
   </section>
@@ -214,11 +419,11 @@ function clearNodeDetail(nodeId: number) {
     linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
   background-size: 24px 24px;
   opacity: 0.18;
-  pointer-events: none;
+  pointer-events: auto;
 }
 
 .project-gantt__toolbar,
-.project-gantt__body,
+.project-gantt__body-scroll,
 .project-gantt__state {
   position: relative;
   z-index: 1;
@@ -259,6 +464,47 @@ function clearNodeDetail(nodeId: number) {
   line-height: 1.6;
 }
 
+.project-gantt__toolbar-actions {
+  display: grid;
+  justify-items: end;
+  gap: 12px;
+}
+
+.project-gantt__perspective-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 22%, var(--border-soft));
+  border-radius: 999px;
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
+}
+
+.project-gantt__perspective-button {
+  padding: 9px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 180ms ease-out,
+    background 180ms ease-out,
+    color 180ms ease-out,
+    box-shadow 180ms ease-out;
+}
+
+.project-gantt__perspective-button.is-active {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 80%, #0d2754 20%), color-mix(in srgb, var(--accent-end) 68%, #0f2c5b 32%));
+  color: #f7fbff;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent),
+    0 10px 18px color-mix(in srgb, var(--accent-end) 16%, transparent);
+}
+
 .project-gantt__state {
   display: flex;
   align-items: center;
@@ -292,11 +538,18 @@ function clearNodeDetail(nodeId: number) {
   cursor: pointer;
 }
 
+.project-gantt__body-scroll {
+  max-height: 80vh;
+  overflow: auto;
+  padding-right: 4px;
+}
+
 .project-gantt__body {
   display: grid;
   grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   gap: 18px;
   align-items: start;
+  min-width: 0;
 }
 
 .project-gantt__sidebar,
@@ -323,7 +576,14 @@ function clearNodeDetail(nodeId: number) {
   box-shadow: var(--meta-surface-shadow);
 }
 
+.project-gantt__sidebar-row {
+  overflow: hidden;
+}
+
 .project-gantt__sidebar-head {
+  position: sticky;
+  top: 0;
+  z-index: 3;
   min-height: 56px;
   font-size: 0.78rem;
   letter-spacing: 0.12em;
@@ -349,6 +609,8 @@ function clearNodeDetail(nodeId: number) {
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .project-gantt__status-pill--pending {
@@ -357,8 +619,11 @@ function clearNodeDetail(nodeId: number) {
 }
 
 .project-gantt__status-pill--active {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 24%, transparent), color-mix(in srgb, var(--accent-end) 26%, transparent));
-  color: color-mix(in srgb, var(--accent-end) 84%, #ffffff 16%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 78%, #0d2754 22%), color-mix(in srgb, var(--accent-end) 68%, #0f2c5b 32%));
+  color: #f7fbff;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent),
+    0 8px 16px color-mix(in srgb, var(--accent-end) 14%, transparent);
 }
 
 .project-gantt__status-pill--done {
@@ -374,34 +639,88 @@ function clearNodeDetail(nodeId: number) {
 .project-gantt__timeline-shell {
   position: relative;
   display: grid;
-  gap: 14px;
+  gap: 10px;
+}
+
+.project-gantt__axis-scroll {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  padding-bottom: 4px;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--accent-end) 58%, var(--panel-bg)) color-mix(in srgb, var(--panel-bg) 84%, transparent);
+}
+
+.project-gantt__axis-scroll::-webkit-scrollbar {
+  height: 12px;
+}
+
+.project-gantt__axis-scroll::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-bg) 84%, transparent);
+}
+
+.project-gantt__axis-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent-start) 72%, #0d2754 28%), color-mix(in srgb, var(--accent-end) 72%, #0f2c5b 28%));
+  background-clip: padding-box;
 }
 
 .project-gantt__timeline-scroll {
-  overflow: auto;
-  padding-bottom: 6px;
+  overflow-x: hidden;
+  overflow-y: hidden;
+  padding-bottom: 0;
 }
 
 .project-gantt__timeline-canvas {
   min-width: 100%;
+  box-sizing: content-box;
 }
 
 .project-gantt__axis {
   display: flex;
   min-height: 56px;
-  margin-bottom: 10px;
+  background: color-mix(in srgb, var(--glass-bg) 96%, transparent);
+  backdrop-filter: blur(12px);
 }
 
 .project-gantt__axis-cell {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
+  justify-content: flex-start;
   padding: 0 12px;
   border-top: 1px solid color-mix(in srgb, var(--accent-line) 20%, transparent);
   border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 20%, transparent);
   border-right: 1px solid color-mix(in srgb, var(--accent-line) 16%, transparent);
   font-size: 0.8rem;
   color: var(--text-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 16%, transparent), color-mix(in srgb, var(--glass-bg) 92%, transparent));
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
+}
+
+.project-gantt__axis-cell:nth-child(even) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 14%, transparent), color-mix(in srgb, var(--glass-bg) 90%, transparent));
+}
+
+.project-gantt__axis-cell--day {
+  justify-content: center;
+  padding: 0 6px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.project-gantt__axis-cell--week,
+.project-gantt__axis-cell--month {
+  font-variant-numeric: tabular-nums;
 }
 
 .project-gantt__axis-cell:first-child {
@@ -427,11 +746,32 @@ function clearNodeDetail(nodeId: number) {
 .project-gantt__track {
   position: relative;
   min-height: 62px;
+  overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent-line) 18%, transparent);
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 74%, transparent), transparent),
-    repeating-linear-gradient(90deg, color-mix(in srgb, var(--grid-line) 80%, transparent) 0, color-mix(in srgb, var(--grid-line) 80%, transparent) 1px, transparent 1px, transparent 36px);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 74%, transparent), transparent);
+}
+
+.project-gantt__track-grid {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  pointer-events: none;
+}
+
+.project-gantt__track-cell {
+  flex: 0 0 auto;
+  height: 100%;
+  border-right: 1px solid color-mix(in srgb, var(--accent-line) 14%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 10%, transparent), color-mix(in srgb, var(--glass-bg) 92%, transparent));
+}
+
+.project-gantt__track-cell:nth-child(even) {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 8%, transparent), color-mix(in srgb, var(--glass-bg) 90%, transparent));
+}
+
+.project-gantt__track-cell--day {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 12%, transparent), color-mix(in srgb, var(--glass-bg) 90%, transparent));
 }
 
 .project-gantt__bar {
@@ -445,6 +785,7 @@ function clearNodeDetail(nodeId: number) {
   border-radius: 14px;
   cursor: pointer;
   transform: translateY(-50%);
+  z-index: 1;
   transition:
     transform 180ms ease-out,
     box-shadow 180ms ease-out,
@@ -461,7 +802,6 @@ function clearNodeDetail(nodeId: number) {
 
 .project-gantt__bar:hover,
 .project-gantt__bar:focus-visible {
-  transform: translateY(calc(-50% - 1px));
   box-shadow: 0 16px 28px color-mix(in srgb, var(--text-main) 18%, transparent);
   filter: saturate(1.04);
   outline: none;
@@ -488,54 +828,217 @@ function clearNodeDetail(nodeId: number) {
 }
 
 .project-gantt__detail-card {
-  align-self: start;
+  position: fixed;
+  z-index: 260;
+  width: min(288px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
   display: grid;
   gap: 10px;
-  padding: 18px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 24%, var(--border-soft));
-  border-radius: 20px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), color-mix(in srgb, var(--glass-bg) 86%, transparent)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-end) 14%, transparent), transparent 38%);
-  box-shadow: var(--shadow-panel);
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 38%, var(--border-soft));
+  border-radius: 22px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent-end) 18%, var(--panel-bg)), color-mix(in srgb, var(--accent-start) 24%, var(--panel-bg)));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-line) 58%, var(--accent-end)),
+    0 24px 44px color-mix(in srgb, #061831 26%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
+  scrollbar-gutter: stable;
+  pointer-events: auto;
+}
+
+.project-gantt__detail-card[data-placement='top-right'] {
+  transform: translate(16px, calc(-100% - 14px));
+  transform-origin: left bottom;
+}
+
+.project-gantt__detail-card[data-placement='top-left'] {
+  transform: translate(calc(-100% - 16px), calc(-100% - 14px));
+  transform-origin: right bottom;
+}
+
+.project-gantt__detail-card[data-placement='bottom-right'] {
+  transform: translate(16px, 14px);
+  transform-origin: left top;
+}
+
+.project-gantt__detail-card[data-placement='bottom-left'] {
+  transform: translate(calc(-100% - 16px), 14px);
+  transform-origin: right top;
+}
+
+.project-gantt__detail-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
 }
 
 .project-gantt__detail-eyebrow {
-  font-size: 0.72rem;
-  letter-spacing: 0.18em;
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: var(--text-soft);
 }
 
-.project-gantt__detail-card strong,
-.project-gantt__detail-card p,
-.project-gantt__detail-card dt,
-.project-gantt__detail-card dd {
+.project-gantt__detail-title,
+.project-gantt__detail-status,
+.project-gantt__detail-stat span,
+.project-gantt__detail-stat strong,
+.project-gantt__detail-stat small,
+.project-gantt__detail-grid dt,
+.project-gantt__detail-grid dd {
   margin: 0;
 }
 
-.project-gantt__detail-card strong {
-  font-size: 1.04rem;
+.project-gantt__detail-title {
+  font-size: 0.96rem;
+  line-height: 1.3;
   color: var(--text-main);
 }
 
-.project-gantt__detail-card p,
-.project-gantt__detail-card dt {
+.project-gantt__detail-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.project-gantt__detail-status--pending {
+  border-color: color-mix(in srgb, var(--text-muted) 24%, transparent);
+  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
   color: var(--text-soft);
 }
 
-.project-gantt__detail-card dl {
+.project-gantt__detail-status--active {
+  border-color: color-mix(in srgb, var(--accent-end) 72%, #0f2c5b 28%);
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 82%, #0d2754 18%), color-mix(in srgb, var(--accent-end) 70%, #0f2c5b 30%));
+  color: #f7fbff;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
+    0 10px 18px color-mix(in srgb, var(--accent-end) 16%, transparent);
+}
+
+.project-gantt__detail-status--done {
+  border-color: color-mix(in srgb, var(--accent-success) 28%, transparent);
+  background: color-mix(in srgb, var(--accent-success) 16%, transparent);
+  color: var(--accent-success);
+}
+
+.project-gantt__detail-status--delayed {
+  border-color: color-mix(in srgb, var(--accent-warning) 30%, transparent);
+  background: color-mix(in srgb, var(--accent-warning) 14%, transparent);
+  color: var(--accent-warning);
+}
+
+.project-gantt__detail-status--unknown {
+  border-color: color-mix(in srgb, var(--border-soft) 90%, transparent);
+  background: color-mix(in srgb, var(--panel-bg) 82%, transparent);
+  color: var(--text-soft);
+}
+
+.project-gantt__detail-stat {
   display: grid;
+  gap: 3px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, transparent);
+  border-radius: 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--app-bg)), color-mix(in srgb, var(--accent-end) 10%, var(--panel-bg)));
+}
+
+.project-gantt__detail-stat span {
+  color: var(--text-soft);
+  font-size: 0.68rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.project-gantt__detail-stat strong {
+  font-size: 1.12rem;
+  line-height: 1.1;
+  color: var(--text-main);
+}
+
+.project-gantt__detail-stat small {
+  color: var(--text-soft);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.project-gantt__detail-stat--pending {
+  border-color: color-mix(in srgb, var(--text-muted) 18%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 82%, transparent), color-mix(in srgb, var(--panel-bg) 66%, transparent)),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--text-muted) 18%, transparent), transparent 62%);
+}
+
+.project-gantt__detail-stat--active {
+  border-color: color-mix(in srgb, var(--accent-end) 24%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 82%, transparent), color-mix(in srgb, var(--panel-bg) 66%, transparent)),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent-end) 22%, transparent), transparent 58%);
+}
+
+.project-gantt__detail-stat--done {
+  border-color: color-mix(in srgb, var(--accent-success) 24%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 82%, transparent), color-mix(in srgb, var(--panel-bg) 66%, transparent)),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent-success) 18%, transparent), transparent 58%);
+}
+
+.project-gantt__detail-stat--delayed {
+  border-color: color-mix(in srgb, var(--accent-warning) 24%, transparent);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 82%, transparent), color-mix(in srgb, var(--panel-bg) 66%, transparent)),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent-warning) 20%, transparent), transparent 58%);
+}
+
+.project-gantt__detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 8px;
 }
 
-.project-gantt__detail-card dl div {
+.project-gantt__detail-grid-item {
   display: grid;
   gap: 4px;
+  min-height: 68px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--app-bg)), color-mix(in srgb, var(--accent-end) 10%, var(--panel-bg)));
 }
 
-.project-gantt__detail-card dd {
+.project-gantt__detail-grid-item dt {
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.project-gantt__detail-grid-item dd {
   color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.project-gantt__detail-grid-item--completion {
+  grid-column: 1 / -1;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-success) 10%, transparent), color-mix(in srgb, var(--panel-bg) 82%, transparent)),
+    color-mix(in srgb, var(--panel-bg) 82%, transparent);
+}
+
+.project-gantt__detail-grid-item--completion.is-empty {
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--text-muted) 10%, transparent), color-mix(in srgb, var(--panel-bg) 82%, transparent)),
+    color-mix(in srgb, var(--panel-bg) 82%, transparent);
 }
 
 @media (max-width: 1100px) {
@@ -546,6 +1049,24 @@ function clearNodeDetail(nodeId: number) {
   .project-gantt__toolbar {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .project-gantt__toolbar-actions {
+    width: 100%;
+    justify-items: stretch;
+  }
+
+  .project-gantt__perspective-switch {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .project-gantt__detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-gantt__detail-grid-item--completion {
+    grid-column: auto;
   }
 }
 </style>

@@ -131,23 +131,24 @@ const subtaskProgress = computed(() =>
 
 .project-overview-card__eyebrow {
   margin-bottom: 10px;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   letter-spacing: 0.18em;
   text-transform: uppercase;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text-main) 68%, var(--text-soft));
 }
 
 .project-overview-card__lead h2 {
   font-size: clamp(2rem, 3.2vw, 2.8rem);
-  line-height: 1.02;
-  color: color-mix(in srgb, var(--text-main) 86%, #ffffff 14%);
+  line-height: 1.06;
+  color: var(--text-main);
 }
 
 .project-overview-card__description {
   margin-top: 14px;
   max-width: 60ch;
+  font-size: 1rem;
   line-height: 1.68;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text-main) 78%, var(--text-soft));
 }
 
 .project-overview-card__metrics {
@@ -173,10 +174,10 @@ const subtaskProgress = computed(() =>
 }
 
 .project-overview-card__metric-label {
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text-main) 68%, var(--text-soft));
 }
 
 .project-overview-card__metric-value {
@@ -187,7 +188,8 @@ const subtaskProgress = computed(() =>
 
 .project-overview-card__metric-caption {
   margin: 0;
-  color: var(--text-soft);
+  font-size: 1rem;
+  color: color-mix(in srgb, var(--text-main) 72%, var(--text-soft));
 }
 
 .project-overview-card__metric--progress {
@@ -237,10 +239,10 @@ const subtaskProgress = computed(() =>
 }
 
 .project-overview-card__ring-core span {
-  font-size: 0.72rem;
+  font-size: 0.78rem;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text-main) 68%, var(--text-soft));
 }
 
 .project-overview-card__progress-copy {
@@ -278,10 +280,10 @@ const subtaskProgress = computed(() =>
 }
 
 .project-overview-card__meta-label {
-  font-size: 0.76rem;
+  font-size: 0.82rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text-main) 68%, var(--text-soft));
 }
 
 .project-overview-card__meta-value {

@@ -1,11 +1,21 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { mount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { beforeEach } from 'vitest'
 
 import AppShell from '@/layouts/AppShell.vue'
 import { useAuthStore } from '@/stores/auth'
 
 describe('AppShell', () => {
+  it('uses denser sidebar surfaces and stronger navigation contrast for comfortable reading', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/layouts/AppShell.vue'), 'utf8')
+
+    expect(source).toContain('background: linear-gradient(180deg, color-mix(in srgb, var(--sidebar-bg) 96%, transparent), color-mix(in srgb, var(--panel-bg-soft) 84%, transparent));')
+    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 78%, var(--text-soft));')
+    expect(source).toContain('font-size: 0.82rem;')
+  })
+
   beforeEach(() => {
     document.documentElement.className = 'light'
     localStorage.clear()

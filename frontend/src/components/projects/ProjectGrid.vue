@@ -239,9 +239,7 @@ defineEmits<{
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  background:
-    linear-gradient(135deg, rgba(255, 255, 255, 0.22), transparent 40%),
-    radial-gradient(circle at 85% 12%, rgba(0, 194, 255, 0.16), transparent 28%);
+  background: var(--card-sheen);
   opacity: 0;
   pointer-events: none;
   transition:
@@ -289,7 +287,7 @@ defineEmits<{
   font-weight: 700;
   line-height: 1.08;
   letter-spacing: -0.02em;
-  color: color-mix(in srgb, var(--text-main) 84%, #ffffff 16%);
+  color: color-mix(in srgb, var(--text-main) 92%, var(--accent-end) 8%);
   overflow: hidden;
   display: block;
   white-space: nowrap;
@@ -349,14 +347,14 @@ defineEmits<{
 
 .project-card__status--unknown {
   border-color: var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 85%, transparent);
+  background: var(--dialog-control-bg-strong);
   color: var(--text-soft);
 }
 
 .project-card__description {
   margin: 0;
   line-height: 1.56;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text-main) 72%, var(--text-soft));
   min-height: calc(1.56em * 3);
   max-height: calc(1.56em * 3);
   overflow: hidden;
@@ -403,16 +401,16 @@ defineEmits<{
   top: 10px;
   right: 10px;
   padding: 5px 8px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
+  border: 1px solid var(--dialog-control-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--glass-bg-strong) 94%, transparent);
+  background: var(--dialog-control-bg-strong);
   color: var(--text-main);
   font-size: 0.7rem;
   font-weight: 700;
   line-height: 1;
   letter-spacing: 0.05em;
   white-space: nowrap;
-  box-shadow: var(--shadow-panel);
+  box-shadow: var(--dialog-control-shadow);
   backdrop-filter: var(--backdrop-blur);
   opacity: 0;
   pointer-events: none;

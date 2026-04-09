@@ -65,7 +65,11 @@ defineEmits<{
       </dl>
     </header>
 
-    <div class="node-drawer__content" data-testid="node-drawer-content">
+    <div
+      v-smooth-wheel
+      class="node-drawer__content smooth-scroll-surface"
+      data-testid="node-drawer-content"
+    >
       <p v-if="isLoading" class="node-drawer__state loading-panel">节点任务加载中...</p>
 
       <SubtaskTable
@@ -93,12 +97,10 @@ defineEmits<{
   min-height: 0;
   height: 100%;
   padding: 22px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-surface-border);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), var(--glass-bg)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 14%, transparent), transparent 34%);
-  box-shadow: var(--shadow-panel);
+  background: var(--dialog-surface-glow), var(--drawer-surface-bg);
+  box-shadow: var(--dialog-surface-shadow);
   backdrop-filter: var(--backdrop-blur);
 }
 
@@ -132,9 +134,10 @@ defineEmits<{
 
 .node-drawer__phase {
   padding: 7px 12px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--panel-bg) 86%, transparent);
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
 }
 
 .node-drawer__title-row {
@@ -208,9 +211,10 @@ defineEmits<{
   display: grid;
   gap: 6px;
   padding: 12px 14px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--panel-bg) 84%, transparent);
+  background: var(--drawer-item-bg);
+  box-shadow: var(--dialog-control-shadow);
 }
 
 .node-drawer__metrics dt {
@@ -228,6 +232,7 @@ defineEmits<{
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   padding-right: 8px;
 }
 

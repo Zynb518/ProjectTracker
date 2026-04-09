@@ -21,6 +21,7 @@ vi.mock('vue-router', async () => {
 
 vi.mock('@/api/projects', () => ({
   getProjectDetail: vi.fn(),
+  getProjectGanttMembers: vi.fn(),
   getProjectGanttNodes: vi.fn(),
 }))
 
@@ -55,7 +56,7 @@ vi.mock('@/api/subtasks', () => ({
   listSubtaskProgressRecords: vi.fn(),
 }))
 
-import { getProjectDetail, getProjectGanttNodes } from '@/api/projects'
+import { getProjectDetail, getProjectGanttMembers, getProjectGanttNodes } from '@/api/projects'
 import { listProjectMembers, removeProjectMember } from '@/api/members'
 import {
   completeProjectNode,
@@ -189,6 +190,45 @@ const projectGanttFixture = {
       planned_start_date: '2026-03-26',
       planned_end_date: '2026-04-20',
       completed_at: null,
+    },
+  ],
+}
+
+const memberGanttFixture = {
+  project: projectGanttFixture.project,
+  member_rows: [
+    {
+      user_id: 18,
+      real_name: '王五',
+      subtasks: [
+        {
+          subtask_id: 3001,
+          name: '完成登录接口开发',
+          node_id: 2002,
+          node_name: '前端开发',
+          status: 2,
+          progress_percent: 60,
+          planned_start_date: '2026-03-27',
+          planned_end_date: '2026-03-31',
+          completed_at: null,
+        },
+        {
+          subtask_id: 3004,
+          name: '修复筛选状态条',
+          node_id: 2002,
+          node_name: '前端开发',
+          status: 1,
+          progress_percent: 0,
+          planned_start_date: '2026-03-29',
+          planned_end_date: '2026-04-02',
+          completed_at: null,
+        },
+      ],
+    },
+    {
+      user_id: 19,
+      real_name: '赵六',
+      subtasks: [],
     },
   ],
 }
@@ -677,6 +717,43 @@ describe('ProjectDetailView', () => {
     })
 
     expect(screen.getAllByText('完成登录接口开发').length).toBeGreaterThan(0)
+  })
+
+  it('lazily loads member gantt data only after switching to the member perspective', async () => {
+    mockWorkspaceData()
+    vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)
+    vi.mocked(getProjectGanttMembers).mockResolvedValue(memberGanttFixture)
+
+    const screen = render(ProjectDetailView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+    const user = userEvent.setup()
+
+    await screen.findByTestId('project-workspace-card')
+    await user.click(screen.getByRole('button', { name: '甘特图' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-view')).toBeTruthy()
+    })
+
+    expect(getProjectGanttMembers).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '人员 / 时间' }))
+
+    await waitFor(() => {
+      expect(getProjectGanttMembers).toHaveBeenCalledWith(1001)
+      expect(screen.getByTestId('project-member-gantt-view')).toBeTruthy()
+    })
+
+    expect(screen.getByText('王五')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: '阶段 / 时间' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-view')).toBeTruthy()
+    })
   })
 
   it('lets managers create and edit project nodes from the timeline panel', async () => {
@@ -1295,7 +1372,8 @@ describe('ProjectDetailView', () => {
 
     const slider = screen.getByTestId('subtask-progress-range')
 
-    expect(slider.getAttribute('min')).toBe('60')
+    expect(slider.getAttribute('min')).toBe('0')
+    expect((slider as HTMLInputElement).value).toBe('60')
     await fireEvent.update(slider, '30')
     await user.type(screen.getByLabelText('进度说明'), '推进到联调')
     await fireEvent.update(slider, '80')

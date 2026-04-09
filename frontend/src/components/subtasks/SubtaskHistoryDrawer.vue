@@ -69,8 +69,12 @@ defineProps<{
   display: flex;
   justify-content: flex-end;
   padding-left: 40px;
-  background:
-    linear-gradient(90deg, rgba(10, 14, 23, 0), rgba(10, 14, 23, 0.14) 22%, rgba(10, 14, 23, 0.28));
+  background: linear-gradient(
+    90deg,
+    rgba(5, 9, 18, 0),
+    color-mix(in srgb, var(--overlay-backdrop) 72%, transparent) 24%,
+    var(--overlay-backdrop)
+  );
   backdrop-filter: blur(6px);
 }
 
@@ -81,10 +85,8 @@ defineProps<{
   align-content: start;
   gap: 12px;
   padding: 24px;
-  border-left: 1px solid var(--border-soft);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-end) 12%, transparent), transparent 32%);
+  border-left: 1px solid var(--dialog-surface-border);
+  background: var(--dialog-surface-glow), var(--drawer-surface-bg);
   box-shadow: -24px 0 48px rgba(0, 0, 0, 0.22);
   backdrop-filter: var(--backdrop-blur);
 }
@@ -105,9 +107,10 @@ header p {
   display: grid;
   gap: 8px;
   padding: 14px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  background: var(--drawer-item-bg);
+  box-shadow: var(--dialog-control-shadow);
 }
 
 .history-drawer__item p,
@@ -117,10 +120,11 @@ header p {
 }
 
 button {
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 10px;
   padding: 10px 14px;
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  background: var(--dialog-control-bg-strong);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
   cursor: pointer;
 }

@@ -27,7 +27,7 @@ async function handleLogout() {
 
 <template>
   <div class="app-shell">
-    <aside class="app-shell__sidebar">
+    <aside v-smooth-wheel class="app-shell__sidebar smooth-scroll-surface">
       <div class="app-shell__brand">
         <div class="app-shell__brand-mark" aria-hidden="true">
           <span />
@@ -144,8 +144,8 @@ async function handleLogout() {
   padding: 24px 20px;
   border: 1px solid var(--border-soft);
   border-radius: 24px;
-  background: var(--sidebar-bg);
-  box-shadow: var(--shadow-panel);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sidebar-bg) 96%, transparent), color-mix(in srgb, var(--panel-bg-soft) 84%, transparent));
+  box-shadow: var(--shadow-glass);
   backdrop-filter: var(--backdrop-blur);
 }
 
@@ -186,20 +186,23 @@ async function handleLogout() {
 }
 
 .app-shell__brand h1 {
-  font-size: 1.75rem;
+  font-size: 1.88rem;
+  line-height: 1.06;
+  color: var(--text-main);
 }
 
 .app-shell__eyebrow {
   margin-bottom: 8px;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--text-soft);
-  font-size: 0.75rem;
+  color: color-mix(in srgb, var(--text-main) 66%, var(--text-soft));
+  font-size: 0.82rem;
 }
 
 .app-shell__brand-copy {
   margin-top: 10px;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text-main) 72%, var(--text-soft));
+  line-height: 1.62;
 }
 
 .app-shell__nav {
@@ -214,9 +217,10 @@ async function handleLogout() {
   gap: 12px;
   padding: 14px 16px;
   border-radius: 16px;
-  color: var(--text-soft);
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid transparent;
+  color: color-mix(in srgb, var(--text-main) 78%, var(--text-soft));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg-soft) 92%, transparent), color-mix(in srgb, var(--glass-bg) 84%, transparent));
+  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent);
 }
 
 .app-shell__link:hover,
@@ -234,7 +238,8 @@ async function handleLogout() {
   width: 34px;
   height: 34px;
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.08);
+  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 88%, transparent);
 }
 
 .app-shell__link-icon svg {
@@ -250,10 +255,10 @@ async function handleLogout() {
 
 .app-shell__foot-label {
   margin: 0;
-  font-size: 0.78rem;
+  font-size: 0.82rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--text-soft);
+  color: color-mix(in srgb, var(--text-main) 66%, var(--text-soft));
 }
 
 .app-shell__sidebar-account {
@@ -297,7 +302,7 @@ async function handleLogout() {
 }
 
 .app-shell__account-copy strong {
-  font-size: 1rem;
+  font-size: 1.06rem;
   line-height: 1.2;
 }
 
@@ -308,15 +313,15 @@ async function handleLogout() {
   border-radius: 999px;
   background: var(--gradient-primary-soft);
   color: var(--text-main);
-  font-size: 0.76rem;
+  font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.05em;
 }
 
 .app-shell__account-note {
   margin: 0;
-  color: var(--text-soft);
-  line-height: 1.55;
+  color: color-mix(in srgb, var(--text-main) 74%, var(--text-soft));
+  line-height: 1.62;
 }
 
 .app-shell__account-actions {
@@ -336,7 +341,7 @@ async function handleLogout() {
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 94%, transparent), var(--glass-bg-strong)),
     radial-gradient(circle at right top, rgba(255, 159, 67, 0.14), transparent 52%);
-  color: var(--text-main);
+  color: color-mix(in srgb, var(--text-main) 92%, var(--text-soft));
   font: inherit;
   font-weight: 600;
   cursor: pointer;

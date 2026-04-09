@@ -86,22 +86,41 @@ watch(
 .member-dialog__backdrop {
   position: fixed;
   inset: 0;
+  z-index: 40;
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(10, 14, 23, 0.38);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 18% 22%, rgba(10, 102, 255, 0.12), transparent 22%),
+    radial-gradient(circle at 82% 78%, rgba(0, 194, 255, 0.14), transparent 24%),
+    var(--overlay-backdrop);
   backdrop-filter: blur(16px);
 }
 
+.member-dialog__backdrop::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(var(--overlay-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--overlay-grid-line) 1px, transparent 1px);
+  background-size: 28px 28px;
+  opacity: 0.18;
+  pointer-events: none;
+}
+
 .member-dialog {
+  position: relative;
+  overflow: hidden;
   width: min(100%, 560px);
   display: grid;
   gap: 16px;
   padding: 24px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-surface-border);
   border-radius: 16px;
-  background: var(--glass-bg-strong);
-  box-shadow: var(--shadow-glass);
+  background: var(--dialog-surface-glow), var(--dialog-surface-bg);
+  box-shadow: var(--dialog-surface-shadow);
   backdrop-filter: var(--backdrop-blur);
 }
 
@@ -130,14 +149,16 @@ button {
 }
 
 input {
-  border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+  border: 1px solid var(--dialog-control-border);
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
 }
 
 button {
-  border: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  border: 1px solid var(--dialog-control-border);
+  background: var(--dialog-control-bg-strong);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
 }
 
@@ -150,7 +171,7 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  background: var(--drawer-item-bg);
   cursor: pointer;
 }
 
