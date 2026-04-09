@@ -12,6 +12,8 @@ add_executable(
     modules/project/controller/ProjectController.cpp
     modules/project/repository/ProjectRepository.cpp
     modules/project/service/ProjectService.cpp
+    modules/project_ai/controller/ProjectAiController.cpp
+    modules/project_ai/service/ProjectAiService.cpp
     modules/project_node/controller/ProjectNodeController.cpp
     modules/project_node/repository/ProjectNodeRepository.cpp
     modules/project_node/service/ProjectNodeService.cpp

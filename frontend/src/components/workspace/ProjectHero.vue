@@ -2,44 +2,21 @@
 import { computed } from 'vue'
 
 import type { ProjectDetail } from '@/types/project'
+import {
+  calculateProgressPercent,
+  getWorkStatusLabel,
+  getWorkStatusTone,
+} from '@/utils/display'
 
 const props = defineProps<{
   project: ProjectDetail
 }>()
 
-function statusLabel(status: number) {
-  return (
-    {
-      1: '未开始',
-      2: '进行中',
-      3: '已完成',
-      4: '已延期',
-    }[status] ?? '未知状态'
-  )
-}
-
-function statusTone(status: number) {
-  return (
-    {
-      1: 'pending',
-      2: 'active',
-      3: 'done',
-      4: 'delayed',
-    }[status] ?? 'unknown'
-  )
-}
-
-function progressValue(completed: number, total: number) {
-  if (total <= 0) {
-    return 0
-  }
-
-  return Math.max(0, Math.min(100, Math.round((completed / total) * 100)))
-}
-
-const nodeProgress = computed(() => progressValue(props.project.completed_node_count, props.project.node_count))
+const nodeProgress = computed(() =>
+  calculateProgressPercent(props.project.completed_node_count, props.project.node_count),
+)
 const subtaskProgress = computed(() =>
-  progressValue(props.project.completed_sub_task_count, props.project.sub_task_count),
+  calculateProgressPercent(props.project.completed_sub_task_count, props.project.sub_task_count),
 )
 </script>
 
@@ -104,10 +81,10 @@ const subtaskProgress = computed(() =>
           <span
             :class="[
               'project-overview-card__status',
-              `project-overview-card__status--${statusTone(project.status)}`,
+              `project-overview-card__status--${getWorkStatusTone(project.status)}`,
             ]"
           >
-            {{ statusLabel(project.status) }}
+            {{ getWorkStatusLabel(project.status) }}
           </span>
         </strong>
       </div>

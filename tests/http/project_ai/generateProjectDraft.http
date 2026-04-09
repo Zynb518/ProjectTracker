@@ -1,0 +1,60 @@
+@baseUrl = http://127.0.0.1:8080
+@username = admin
+@password = 123456
+
+### 提示：本接口调用本地 Python 模型，返回 project + nodes + subtasks 草案 JSON。
+### 输出内容依赖本地模型权重，不保证逐次完全一致。
+
+### 正常路径：登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：生成项目草案
+POST {{baseUrl}}/api/ai/project-draft/generate
+Content-Type: application/json
+
+{
+  "prompt": "做一个公司官网改版项目，包含设计、开发、测试上线三个阶段"
+}
+
+### 正常路径：登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录调用，预期 401
+POST {{baseUrl}}/api/ai/project-draft/generate
+Content-Type: application/json
+
+{
+  "prompt": "做一个公司官网改版项目，包含设计、开发、测试上线三个阶段"
+}
+
+### 正常路径：重新登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{username}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：prompt 缺失，预期 400
+POST {{baseUrl}}/api/ai/project-draft/generate
+Content-Type: application/json
+
+{}
+
+### 异常路径：prompt 为空字符串，预期 400
+POST {{baseUrl}}/api/ai/project-draft/generate
+Content-Type: application/json
+
+{
+  "prompt": ""
+}

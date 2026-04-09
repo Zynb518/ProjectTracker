@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import ProjectActionsMenu from '@/components/projects/ProjectActionsMenu.vue'
 import type { ProjectListItem } from '@/types/project'
+import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 
 defineProps<{
   projects: ProjectListItem[]
@@ -14,28 +15,6 @@ defineEmits<{
   reopen: [project: ProjectListItem]
   remove: [project: ProjectListItem]
 }>()
-
-function statusLabel(status: number) {
-  return (
-    {
-      1: '未开始',
-      2: '进行中',
-      3: '已完成',
-      4: '已延期',
-    }[status] ?? '未知状态'
-  )
-}
-
-function statusTone(status: number) {
-  return (
-    {
-      1: 'pending',
-      2: 'active',
-      3: 'done',
-      4: 'delayed',
-    }[status] ?? 'unknown'
-  )
-}
 </script>
 
 <template>
@@ -55,9 +34,9 @@ function statusTone(status: number) {
         </div>
 
         <span
-          :class="['project-card__status', `project-card__status--${statusTone(project.status)}`]"
+          :class="['project-card__status', `project-card__status--${getWorkStatusTone(project.status)}`]"
         >
-          {{ statusLabel(project.status) }}
+          {{ getWorkStatusLabel(project.status) }}
         </span>
       </div>
 

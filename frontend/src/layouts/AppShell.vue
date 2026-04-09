@@ -5,20 +5,11 @@ import ThemeToggle from '@/components/ThemeToggle.vue'
 import { getErrorMessage } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
 import { useNotificationStore } from '@/stores/notifications'
+import { getSystemRoleLabel } from '@/utils/display'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
-
-function roleLabel(systemRole?: number) {
-  return (
-    {
-      1: '管理员',
-      2: '项目经理',
-      3: '普通员工',
-    }[systemRole ?? 0] ?? '访客'
-  )
-}
 
 function userInitial(name?: string | null) {
   return name?.trim().charAt(0) || '访'
@@ -109,7 +100,7 @@ async function handleLogout() {
 
             <div class="app-shell__account-copy">
               <strong>{{ authStore.currentUser?.real_name ?? '未登录' }}</strong>
-              <span>{{ roleLabel(authStore.currentUser?.system_role) }}</span>
+              <span>{{ getSystemRoleLabel(authStore.currentUser?.system_role) }}</span>
             </div>
           </div>
 

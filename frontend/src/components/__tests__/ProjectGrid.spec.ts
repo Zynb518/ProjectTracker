@@ -42,7 +42,7 @@ describe('ProjectGrid', () => {
       'utf8',
     )
 
-    expect(source).toContain('grid-template-columns: repeat(auto-fill, 360px);')
+    expect(source).toContain('grid-template-columns: repeat(auto-fill, 400px);')
     expect(source).toContain('justify-content: start;')
     expect(source).toContain('.project-grid {\n    grid-template-columns: minmax(0, 1fr);')
   })

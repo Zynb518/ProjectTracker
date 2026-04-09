@@ -17,5 +17,10 @@
       "is_fast": false,
       "connection_number": 8
     }
-  ]
+  ],
+  "local_ai": {
+    "python_bin": "tools/ai_project_manager/.conda/bin/python",
+    "script_path": "tools/ai_project_manager/scripts/generate_once.py",
+    "model_dir": "tools/ai_project_manager/models/mt5-small-offline"
+  }
 }

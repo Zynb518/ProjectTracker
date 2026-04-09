@@ -4,6 +4,11 @@ import type { CSSProperties } from 'vue'
 
 import NodeActionsMenu from '@/components/workspace/NodeActionsMenu.vue'
 import type { ProjectNode } from '@/types/node'
+import {
+  calculateProgressPercent,
+  getWorkStatusLabel,
+  getWorkStatusTone,
+} from '@/utils/display'
 
 type NodeRailViewMode = 'compact' | 'full'
 
@@ -91,28 +96,6 @@ function mergeNodesByMovableIds(nodeIds: number[]) {
   })
 }
 
-function statusLabel(status: number) {
-  return (
-    {
-      1: '未开始',
-      2: '进行中',
-      3: '已完成',
-      4: '已延期',
-    }[status] ?? '未知状态'
-  )
-}
-
-function statusTone(status: number) {
-  return (
-    {
-      1: 'pending',
-      2: 'active',
-      3: 'done',
-      4: 'delayed',
-    }[status] ?? 'unknown'
-  )
-}
-
 function setDisplayMode(mode: NodeRailViewMode) {
   displayMode.value = mode
 }
@@ -123,14 +106,6 @@ function isInteractive(status: number) {
 
 function isDraggable(node: ProjectNode) {
   return props.canManage && node.status !== 3
-}
-
-function progressPercent(node: ProjectNode) {
-  if (node.sub_task_count === 0) {
-    return 0
-  }
-
-  return Math.round((node.completed_sub_task_count / node.sub_task_count) * 100)
 }
 
 function handleSelect(node: ProjectNode) {
@@ -402,7 +377,7 @@ onBeforeUnmount(() => {
         :data-testid="`node-row-${node.id}`"
         class="node-rail__row"
         :class="[
-          `node-rail__row--${statusTone(node.status)}`,
+          `node-rail__row--${getWorkStatusTone(node.status)}`,
           {
             'is-active': node.id === selectedNodeId,
             'is-complete': node.status === 3,
@@ -442,8 +417,8 @@ onBeforeUnmount(() => {
             <template v-if="isCompactView">
               <div class="node-rail__compact-head">
                 <strong class="node-rail__name node-rail__name--compact">{{ node.name }}</strong>
-                <span :class="['node-rail__status', `node-rail__status--${statusTone(node.status)}`]">
-                  {{ statusLabel(node.status) }}
+                <span :class="['node-rail__status', `node-rail__status--${getWorkStatusTone(node.status)}`]">
+                  {{ getWorkStatusLabel(node.status) }}
                 </span>
               </div>
             </template>
@@ -464,8 +439,8 @@ onBeforeUnmount(() => {
                     </svg>
                   </span>
                 </div>
-                <span :class="['node-rail__status', `node-rail__status--${statusTone(node.status)}`]">
-                  {{ statusLabel(node.status) }}
+                <span :class="['node-rail__status', `node-rail__status--${getWorkStatusTone(node.status)}`]">
+                  {{ getWorkStatusLabel(node.status) }}
                 </span>
               </div>
 
@@ -473,7 +448,7 @@ onBeforeUnmount(() => {
 
               <div class="node-rail__progress">
                 <span>{{ node.completed_sub_task_count }} / {{ node.sub_task_count }} 子任务完成</span>
-                <span>{{ progressPercent(node) }}%</span>
+                <span>{{ calculateProgressPercent(node.completed_sub_task_count, node.sub_task_count) }}%</span>
               </div>
 
               <NodeActionsMenu
@@ -504,10 +479,10 @@ onBeforeUnmount(() => {
             <span
               :class="[
                 'node-rail__hover-status',
-                `node-rail__hover-status--${statusTone(hoveredNode.status)}`,
+                `node-rail__hover-status--${getWorkStatusTone(hoveredNode.status)}`,
               ]"
             >
-              {{ statusLabel(hoveredNode.status) }}
+              {{ getWorkStatusLabel(hoveredNode.status) }}
             </span>
           </div>
           <p>{{ hoveredNode.description || '当前阶段暂无补充说明。' }}</p>

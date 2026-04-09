@@ -10,6 +10,14 @@ import type {
   UpdateUserPayload,
   UserListItem,
 } from '@/types/user'
+import {
+  formatDisplayDateTime,
+  getAccountStatusLabel,
+  getAccountStatusTone,
+  getSystemRoleLabel,
+  getSystemRoleTone,
+} from '@/utils/display'
+import { getTotalPages, getVisiblePages } from '@/utils/pagination'
 
 type UserFormValue = {
   username: string
@@ -41,15 +49,8 @@ const pagination = reactive({
   total: 0,
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(pagination.total / pagination.pageSize)))
-const visiblePages = computed(() => {
-  const windowSize = 5
-  const start = Math.max(1, pagination.page - 2)
-  const end = Math.min(totalPages.value, start + windowSize - 1)
-  const normalizedStart = Math.max(1, end - windowSize + 1)
-
-  return Array.from({ length: end - normalizedStart + 1 }, (_, index) => normalizedStart + index)
-})
+const totalPages = computed(() => getTotalPages(pagination.total, pagination.pageSize))
+const visiblePages = computed(() => getVisiblePages(pagination.page, totalPages.value))
 
 const enabledCount = computed(() => users.value.filter((user) => user.status === 1).length)
 
@@ -62,37 +63,6 @@ function defaultFormValue(): UserFormValue {
     email: '',
     phone: '',
   }
-}
-
-function roleLabel(systemRole: number) {
-  return (
-    {
-      1: '管理员',
-      2: '项目经理',
-      3: '普通员工',
-    }[systemRole] ?? '未知角色'
-  )
-}
-
-function statusLabel(status: number) {
-  return (
-    {
-      1: '启用',
-      2: '禁用',
-    }[status] ?? '未知状态'
-  )
-}
-
-function roleTone(systemRole: number) {
-  return systemRole === 1 ? 'admin' : systemRole === 2 ? 'manager' : 'member'
-}
-
-function statusTone(status: number) {
-  return status === 1 ? 'enabled' : 'disabled'
-}
-
-function formatDateTime(value: string) {
-  return value.replace('T', ' ').slice(0, 16)
 }
 
 function buildQuery(page = pagination.page) {
@@ -339,9 +309,9 @@ onMounted(loadUsers)
 
             <td>
               <span
-                :class="['user-management__pill', `user-management__pill--${roleTone(user.system_role)}`]"
+                :class="['user-management__pill', `user-management__pill--${getSystemRoleTone(user.system_role)}`]"
               >
-                {{ roleLabel(user.system_role) }}
+                {{ getSystemRoleLabel(user.system_role) }}
               </span>
             </td>
 
@@ -354,14 +324,14 @@ onMounted(loadUsers)
 
             <td>
               <span
-                :class="['user-management__pill', `user-management__pill--${statusTone(user.status)}`]"
+                :class="['user-management__pill', `user-management__pill--${getAccountStatusTone(user.status)}`]"
               >
-                {{ statusLabel(user.status) }}
+                {{ getAccountStatusLabel(user.status) }}
               </span>
             </td>
 
             <td class="user-management__timestamp">
-              {{ formatDateTime(user.updated_at) }}
+              {{ formatDisplayDateTime(user.updated_at) }}
             </td>
 
             <td>

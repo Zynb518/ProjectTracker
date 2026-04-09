@@ -1,4 +1,5 @@
 import { http, unwrapResponse } from '@/api/http'
+import type { ProjectNodeSubtaskGantt } from '@/types/gantt'
 import type { ProjectNode, ProjectNodePayload } from '@/types/node'
 
 export async function listProjectNodes(projectId: number): Promise<{ list: ProjectNode[] }> {
@@ -7,6 +8,13 @@ export async function listProjectNodes(projectId: number): Promise<{ list: Proje
 
 export async function getProjectNodeDetail(projectId: number, nodeId: number): Promise<ProjectNode> {
   return unwrapResponse<ProjectNode>(http.get(`/api/projects/${projectId}/nodes/${nodeId}`))
+}
+
+export async function getProjectNodeGantt(
+  projectId: number,
+  nodeId: number,
+): Promise<ProjectNodeSubtaskGantt> {
+  return unwrapResponse<ProjectNodeSubtaskGantt>(http.get(`/api/projects/${projectId}/nodes/${nodeId}/gantt`))
 }
 
 export async function createProjectNode(projectId: number, payload: ProjectNodePayload): Promise<ProjectNode> {

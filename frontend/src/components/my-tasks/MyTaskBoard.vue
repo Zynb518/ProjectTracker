@@ -1,31 +1,10 @@
 <script setup lang="ts">
 import type { Subtask } from '@/types/subtask'
+import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 
 defineProps<{
   tasks: Subtask[]
 }>()
-
-function statusLabel(status: number) {
-  return (
-    {
-      1: '未开始',
-      2: '进行中',
-      3: '已完成',
-      4: '已延期',
-    }[status] ?? '未知状态'
-  )
-}
-
-function statusTone(status: number) {
-  return (
-    {
-      1: 'pending',
-      2: 'active',
-      3: 'done',
-      4: 'delayed',
-    }[status] ?? 'unknown'
-  )
-}
 </script>
 
 <template>
@@ -36,8 +15,8 @@ function statusTone(status: number) {
           <p>{{ task.project_name }}</p>
           <h2>{{ task.name }}</h2>
         </div>
-        <span :class="['my-task-board__status', `my-task-board__status--${statusTone(task.status)}`]">
-          {{ statusLabel(task.status) }}
+        <span :class="['my-task-board__status', `my-task-board__status--${getWorkStatusTone(task.status)}`]">
+          {{ getWorkStatusLabel(task.status) }}
         </span>
       </div>
 

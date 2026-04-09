@@ -21,6 +21,7 @@ vi.mock('vue-router', async () => {
 
 vi.mock('@/api/projects', () => ({
   getProjectDetail: vi.fn(),
+  getProjectGanttNodes: vi.fn(),
 }))
 
 vi.mock('@/api/members', () => ({
@@ -32,6 +33,7 @@ vi.mock('@/api/members', () => ({
 
 vi.mock('@/api/nodes', () => ({
   getProjectNodeDetail: vi.fn(),
+  getProjectNodeGantt: vi.fn(),
   listProjectNodes: vi.fn(),
   createProjectNode: vi.fn(),
   updateProjectNode: vi.fn(),
@@ -53,13 +55,14 @@ vi.mock('@/api/subtasks', () => ({
   listSubtaskProgressRecords: vi.fn(),
 }))
 
-import { getProjectDetail } from '@/api/projects'
+import { getProjectDetail, getProjectGanttNodes } from '@/api/projects'
 import { listProjectMembers, removeProjectMember } from '@/api/members'
 import {
   completeProjectNode,
   createProjectNode,
   deleteProjectNode,
   getProjectNodeDetail,
+  getProjectNodeGantt,
   listProjectNodes,
   reorderProjectNodes,
   reopenProjectNode,
@@ -76,6 +79,147 @@ import {
 } from '@/api/subtasks'
 import { useNotificationStore } from '@/stores/notifications'
 import ProjectDetailView from '@/views/ProjectDetailView.vue'
+
+const projectDetailFixture = {
+  id: 1001,
+  name: '内部进度平台',
+  description: '用于内部项目进度跟踪',
+  owner_user_id: 1,
+  owner_real_name: '张三',
+  status: 2,
+  planned_start_date: '2026-03-20',
+  planned_end_date: '2026-06-30',
+  completed_at: null,
+  created_by: 1,
+  created_by_real_name: '张三',
+  created_at: '2026-03-19T11:00:00+08:00',
+  updated_at: '2026-03-27T09:30:00+08:00',
+  member_count: 5,
+  node_count: 3,
+  completed_node_count: 1,
+  sub_task_count: 12,
+  completed_sub_task_count: 4,
+  permissions: {
+    can_edit_basic: true,
+    can_manage_members: true,
+    can_manage_nodes: true,
+    can_transfer_owner: true,
+    can_delete: true,
+  },
+}
+
+const membersFixture = {
+  list: [
+    {
+      project_id: 1001,
+      user_id: 1,
+      username: 'zhangsan',
+      real_name: '张三',
+      system_role: 2,
+      status: 1,
+      joined_at: '2026-03-19T11:00:00+08:00',
+      is_owner: true,
+    },
+  ],
+}
+
+const nodesFixture = {
+  list: [
+    {
+      id: 2001,
+      project_id: 1001,
+      name: '需求分析',
+      description: '完成需求梳理',
+      sequence_no: 1,
+      status: 3,
+      planned_start_date: '2026-03-20',
+      planned_end_date: '2026-03-25',
+      completed_at: '2026-03-25T18:00:00+08:00',
+      created_by: 1,
+      created_at: '2026-03-19T11:20:00+08:00',
+      updated_at: '2026-03-25T18:00:00+08:00',
+      sub_task_count: 4,
+      completed_sub_task_count: 4,
+    },
+    {
+      id: 2002,
+      project_id: 1001,
+      name: '前端开发',
+      description: '完成项目界面与交互实现',
+      sequence_no: 2,
+      status: 2,
+      planned_start_date: '2026-03-26',
+      planned_end_date: '2026-04-20',
+      completed_at: null,
+      created_by: 1,
+      created_at: '2026-03-25T18:20:00+08:00',
+      updated_at: '2026-03-28T10:00:00+08:00',
+      sub_task_count: 6,
+      completed_sub_task_count: 2,
+    },
+  ],
+}
+
+const projectGanttFixture = {
+  project: {
+    id: 1001,
+    name: '内部进度平台',
+    owner_user_id: 1,
+    owner_real_name: '张三',
+    status: 2,
+    planned_start_date: '2026-03-20',
+    planned_end_date: '2026-06-30',
+    completed_at: null,
+  },
+  nodes: [
+    {
+      id: 2001,
+      name: '需求分析',
+      sequence_no: 1,
+      status: 3,
+      planned_start_date: '2026-03-20',
+      planned_end_date: '2026-03-25',
+      completed_at: '2026-03-25T18:00:00+08:00',
+    },
+    {
+      id: 2002,
+      name: '前端开发',
+      sequence_no: 2,
+      status: 2,
+      planned_start_date: '2026-03-26',
+      planned_end_date: '2026-04-20',
+      completed_at: null,
+    },
+  ],
+}
+
+const nodeGanttFixture = {
+  project: projectGanttFixture.project,
+  node: projectGanttFixture.nodes[1],
+  subtasks: [
+    {
+      id: 3001,
+      node_id: 2002,
+      node_name: '前端开发',
+      name: '完成登录接口开发',
+      responsible_user_id: 18,
+      responsible_real_name: '王五',
+      status: 2,
+      progress_percent: 60,
+      priority: 2,
+      planned_start_date: '2026-03-27',
+      planned_end_date: '2026-03-31',
+      completed_at: null,
+    },
+  ],
+}
+
+function mockWorkspaceData() {
+  vi.mocked(getProjectDetail).mockResolvedValue(projectDetailFixture)
+  vi.mocked(listProjectMembers).mockResolvedValue(membersFixture)
+  vi.mocked(listProjectNodes).mockResolvedValue(nodesFixture)
+  vi.mocked(listNodeSubtasks).mockResolvedValue({ list: [] })
+}
 
 describe('ProjectDetailView', () => {
   beforeEach(() => {
@@ -476,6 +620,63 @@ describe('ProjectDetailView', () => {
     expect(within(overviewCard).getByText('负责人')).toBeTruthy()
     expect(within(overviewCard).getByText('周期')).toBeTruthy()
     expect(screen.getByTestId('project-meta-panel')).toBeTruthy()
+  })
+
+  it('defaults to workspace view and only loads stage gantt data after switching tabs', async () => {
+    mockWorkspaceData()
+    vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)
+
+    const screen = render(ProjectDetailView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+    const user = userEvent.setup()
+
+    expect(await screen.findByTestId('project-workspace-card')).toBeTruthy()
+    expect(getProjectGanttNodes).not.toHaveBeenCalled()
+
+    await user.click(screen.getByRole('button', { name: '甘特图' }))
+
+    await waitFor(() => {
+      expect(getProjectGanttNodes).toHaveBeenCalledWith(1001)
+      expect(screen.getByTestId('project-gantt-view')).toBeTruthy()
+    })
+
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+
+    expect(screen.getByTestId('project-workspace-card')).toBeTruthy()
+  })
+
+  it('opens a node subtask gantt overlay on demand from the gantt view', async () => {
+    mockWorkspaceData()
+    vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)
+    vi.mocked(getProjectNodeGantt).mockResolvedValue(nodeGanttFixture)
+
+    const screen = render(ProjectDetailView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+    const user = userEvent.setup()
+
+    await screen.findByTestId('project-workspace-card')
+    await user.click(screen.getByRole('button', { name: '甘特图' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-stage-bar-2002')).toBeTruthy()
+    })
+
+    expect(getProjectNodeGantt).not.toHaveBeenCalled()
+
+    await user.click(screen.getByTestId('project-gantt-stage-bar-2002'))
+
+    await waitFor(() => {
+      expect(getProjectNodeGantt).toHaveBeenCalledWith(1001, 2002)
+      expect(screen.getByTestId('node-gantt-dialog')).toBeTruthy()
+    })
+
+    expect(screen.getAllByText('完成登录接口开发').length).toBeGreaterThan(0)
   })
 
   it('lets managers create and edit project nodes from the timeline panel', async () => {

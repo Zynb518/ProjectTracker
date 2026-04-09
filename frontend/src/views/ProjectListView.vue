@@ -17,6 +17,7 @@ import {
 import { getErrorMessage } from '@/api/http'
 import { useNotificationStore } from '@/stores/notifications'
 import type { ProjectFormPayload, ProjectListItem } from '@/types/project'
+import { getTotalPages, getVisiblePages } from '@/utils/pagination'
 
 const router = useRouter()
 
@@ -59,15 +60,8 @@ const pagination = reactive({
   total: 0,
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(pagination.total / pagination.pageSize)))
-const visiblePages = computed(() => {
-  const windowSize = 5
-  const start = Math.max(1, pagination.page - 2)
-  const end = Math.min(totalPages.value, start + windowSize - 1)
-  const normalizedStart = Math.max(1, end - windowSize + 1)
-
-  return Array.from({ length: end - normalizedStart + 1 }, (_, index) => normalizedStart + index)
-})
+const totalPages = computed(() => getTotalPages(pagination.total, pagination.pageSize))
+const visiblePages = computed(() => getVisiblePages(pagination.page, totalPages.value))
 
 async function loadProjects(page = pagination.page) {
   isLoading.value = true

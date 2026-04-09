@@ -1,0 +1,48 @@
+export type GanttScale = 'day' | 'week' | 'month'
+
+export interface GanttProjectSummary {
+  id: number
+  name: string
+  owner_user_id: number
+  owner_real_name: string
+  status: number
+  planned_start_date: string
+  planned_end_date: string
+  completed_at: string | null
+}
+
+export interface GanttNodeSummary {
+  id: number
+  name: string
+  sequence_no: number
+  status: number
+  planned_start_date: string
+  planned_end_date: string
+  completed_at: string | null
+}
+
+export interface GanttSubtaskSummary {
+  id: number
+  node_id: number
+  node_name: string
+  name: string
+  responsible_user_id: number
+  responsible_real_name: string
+  status: number
+  progress_percent: number
+  priority: number
+  planned_start_date: string
+  planned_end_date: string
+  completed_at: string | null
+}
+
+export interface ProjectStageGantt {
+  project: GanttProjectSummary
+  nodes: GanttNodeSummary[]
+}
+
+export interface ProjectNodeSubtaskGantt {
+  project: GanttProjectSummary
+  node: GanttNodeSummary
+  subtasks: GanttSubtaskSummary[]
+}

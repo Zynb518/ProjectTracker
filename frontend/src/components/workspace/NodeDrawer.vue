@@ -2,6 +2,11 @@
 import SubtaskTable from '@/components/subtasks/SubtaskTable.vue'
 import type { ProjectNode } from '@/types/node'
 import type { Subtask } from '@/types/subtask'
+import {
+  calculateProgressPercent,
+  getWorkStatusLabel,
+  getWorkStatusTone,
+} from '@/utils/display'
 
 withDefaults(defineProps<{
   canManage: boolean
@@ -21,36 +26,6 @@ defineEmits<{
   remove: [subtaskId: number]
   reopen: [subtaskId: number]
 }>()
-
-function statusLabel(status: number) {
-  return (
-    {
-      1: '未开始',
-      2: '进行中',
-      3: '已完成',
-      4: '已延期',
-    }[status] ?? '未知状态'
-  )
-}
-
-function statusTone(status: number) {
-  return (
-    {
-      1: 'pending',
-      2: 'active',
-      3: 'done',
-      4: 'delayed',
-    }[status] ?? 'unknown'
-  )
-}
-
-function progressPercent(node: ProjectNode) {
-  if (node.sub_task_count === 0) {
-    return 0
-  }
-
-  return Math.round((node.completed_sub_task_count / node.sub_task_count) * 100)
-}
 </script>
 
 <template>
@@ -69,8 +44,8 @@ function progressPercent(node: ProjectNode) {
           <h3>{{ node.name }}</h3>
           <p>{{ node.description || '当前阶段暂无补充说明。' }}</p>
         </div>
-        <span :class="['node-drawer__status', `node-drawer__status--${statusTone(node.status)}`]">
-          {{ statusLabel(node.status) }}
+        <span :class="['node-drawer__status', `node-drawer__status--${getWorkStatusTone(node.status)}`]">
+          {{ getWorkStatusLabel(node.status) }}
         </span>
       </div>
 
@@ -85,7 +60,7 @@ function progressPercent(node: ProjectNode) {
         </div>
         <div>
           <dt>完成率</dt>
-          <dd>{{ progressPercent(node) }}%</dd>
+          <dd>{{ calculateProgressPercent(node.completed_sub_task_count, node.sub_task_count) }}%</dd>
         </div>
       </dl>
     </header>
