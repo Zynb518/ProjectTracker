@@ -8,6 +8,7 @@ import ProjectDetailView from '@/views/ProjectDetailView.vue'
 import LoginView from '@/views/LoginView.vue'
 import MyTasksView from '@/views/MyTasksView.vue'
 import ProjectListView from '@/views/ProjectListView.vue'
+import UserManagementView from '@/views/UserManagementView.vue'
 
 export function createAppRouter(pinia: Pinia = appPinia) {
   const router = createRouter({
@@ -44,6 +45,14 @@ export function createAppRouter(pinia: Pinia = appPinia) {
             name: 'my-tasks',
             component: MyTasksView,
           },
+          {
+            path: 'users',
+            name: 'users',
+            component: UserManagementView,
+            meta: {
+              requiresAdmin: true,
+            },
+          },
         ],
       },
     ],
@@ -64,6 +73,10 @@ export function createAppRouter(pinia: Pinia = appPinia) {
 
     if (to.meta.requiresAuth && !authStore.currentUser) {
       return '/login'
+    }
+
+    if (to.meta.requiresAdmin && authStore.currentUser?.system_role !== 1) {
+      return '/projects'
     }
 
     if (to.path === '/login' && authStore.currentUser) {

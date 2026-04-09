@@ -23,6 +23,14 @@ namespace project_tracker::modules::project::controller {
                           "/api/projects/{project_id}",
                           drogon::Get,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::getProjectGanttNodes,
+                          "/api/projects/{project_id}/gantt/nodes",
+                          drogon::Get,
+                          filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectController::getProjectGanttMembers,
+                          "/api/projects/{project_id}/gantt/members",
+                          drogon::Get,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(ProjectController::listProjectOwnerCandidates,
                           "/api/projects/{project_id}/owner/candidates",
                           drogon::Get,
@@ -61,6 +69,12 @@ namespace project_tracker::modules::project::controller {
 
         drogon::Task<drogon::HttpResponsePtr>
         getProjectDetail(drogon::HttpRequestPtr request, std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        getProjectGanttNodes(drogon::HttpRequestPtr request, std::int64_t projectId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        getProjectGanttMembers(drogon::HttpRequestPtr request, std::int64_t projectId);
 
         drogon::Task<drogon::HttpResponsePtr>
         listProjectOwnerCandidates(drogon::HttpRequestPtr request, std::int64_t projectId);

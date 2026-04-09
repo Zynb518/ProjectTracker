@@ -40,6 +40,20 @@ namespace project_tracker::modules::project_node::repository {
         std::optional<dto::view::ProjectNodeDetailView> detail;
     };
 
+    // 阶段子任务/时间甘特图查询条件
+    struct ProjectNodeGanttQuery {
+        std::int64_t projectId;
+        std::int64_t nodeId;
+        std::int64_t currentUserId;
+        user::domain::SystemRole currentUserRole;
+    };
+
+    // 阶段子任务/时间甘特图查询结果
+    struct ProjectNodeGanttResult {
+        bool hasPermission;
+        std::optional<dto::view::ProjectNodeGanttView> detail;
+    };
+
     // 修改阶段节点基础信息前的校验信息
     struct ProjectNodeBasicInfoUpdateCheckResult {
         std::int64_t ownerUserId;
@@ -126,6 +140,11 @@ namespace project_tracker::modules::project_node::repository {
         drogon::Task<std::optional<ProjectNodeDetailResult>>
         findProjectNodeDetail(const common::db::SqlExecutorPtr &executor,
                               const ProjectNodeDetailQuery &query) const;
+
+        // 查询阶段子任务/时间甘特图数据
+        drogon::Task<std::optional<ProjectNodeGanttResult>>
+        findProjectNodeGantt(const common::db::SqlExecutorPtr &executor,
+                             const ProjectNodeGanttQuery &query) const;
 
         // 锁定项目行，供修改阶段节点基础信息写事务区分项目是否存在
         drogon::Task<std::optional<std::int64_t>>

@@ -13,6 +13,7 @@ type StatusOption = {
 }
 
 const props = defineProps<{
+  embedded?: boolean
   keyword: string
   status: string
 }>()
@@ -65,7 +66,7 @@ function emitCreateOrigin(event: MouseEvent) {
 </script>
 
 <template>
-  <section class="project-filters">
+  <section :class="['project-filters', { 'project-filters--embedded': embedded }]">
     <label class="project-filters__field">
       <span>项目关键字</span>
       <input
@@ -133,6 +134,15 @@ function emitCreateOrigin(event: MouseEvent) {
   background: var(--glass-bg);
   box-shadow: var(--shadow-panel);
   backdrop-filter: var(--backdrop-blur);
+}
+
+.project-filters--embedded {
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .project-filters__field {

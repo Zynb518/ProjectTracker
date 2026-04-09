@@ -308,7 +308,7 @@ onBeforeUnmount(() => {
     @mouseleave="clearHover()"
   >
     <header class="node-rail__header">
-      <div>
+      <div class="node-rail__header-copy">
         <p>阶段节点</p>
         <span>
           {{ isCompactView ? '默认精简视图，悬浮查看详情，点击展开节点内容。' : '拖拽未完成阶段即可自动挤占排序。' }}
@@ -321,48 +321,53 @@ onBeforeUnmount(() => {
             class="node-rail__view-button"
             :class="{ 'is-active': isCompactView }"
             :aria-pressed="isCompactView"
+            aria-label="精简视图"
+            data-tooltip="精简视图"
             type="button"
             @click="setDisplayMode('compact')"
           >
-            <svg aria-hidden="true" class="node-rail__view-icon" viewBox="0 0 24 24">
-              <path
-                d="M5 7.5h14M5 12h14M5 16.5h14"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-width="1.7"
-              />
-            </svg>
-            <span>精简</span>
+            <span class="node-rail__view-icon-shell" aria-hidden="true">
+              <svg class="node-rail__view-icon" viewBox="0 0 24 24">
+                <path
+                  d="M5 7.5h14M5 12h14M5 16.5h14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.7"
+                />
+              </svg>
+            </span>
           </button>
           <button
             data-testid="node-view-mode-full"
             class="node-rail__view-button"
             :class="{ 'is-active': !isCompactView }"
             :aria-pressed="!isCompactView"
+            aria-label="完整视图"
+            data-tooltip="完整视图"
             type="button"
             @click="setDisplayMode('full')"
           >
-            <svg aria-hidden="true" class="node-rail__view-icon" viewBox="0 0 24 24">
-              <path
-                d="M5 6.5h14M5 12h14M5 17.5h7"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-width="1.7"
-              />
-              <path
-                d="M16.5 16.25h2.25M19.875 16.25h.125M16.5 18.75h2.25M19.875 18.75h.125"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-width="1.7"
-              />
-            </svg>
-            <span>完整</span>
+            <span class="node-rail__view-icon-shell" aria-hidden="true">
+              <svg class="node-rail__view-icon" viewBox="0 0 24 24">
+                <path
+                  d="M5 6.5h14M5 12h14M5 17.5h7"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.7"
+                />
+                <path
+                  d="M16.5 16.25h2.25M19.875 16.25h.125M16.5 18.75h2.25M19.875 18.75h.125"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-linecap="round"
+                  stroke-width="1.7"
+                />
+              </svg>
+            </span>
           </button>
         </div>
-        <strong>{{ props.nodes.length }} 个节点</strong>
         <button
           v-if="canManage"
           data-testid="create-node"
@@ -556,58 +561,85 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
-.node-rail__header-side {
+.node-rail__header-copy {
   display: grid;
-  justify-items: end;
-  gap: 10px;
+  gap: 6px;
+}
+
+.node-rail__header-side {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
 }
 
 .node-rail__view-switch {
+  position: relative;
+  z-index: 12;
+  isolation: isolate;
+  overflow: visible;
   display: inline-grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  padding: 4px;
-  border: 1px solid var(--border-soft);
-  border-radius: 16px;
-  background: color-mix(in srgb, var(--panel-bg) 78%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--glass-bg-strong) 52%, transparent);
+  gap: 8px;
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, var(--border-soft));
+  border-radius: 20px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 94%, transparent), color-mix(in srgb, var(--panel-bg) 86%, transparent)),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-end) 14%, transparent), transparent 55%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, var(--glass-bg-strong) 68%, transparent),
+    0 14px 28px rgba(15, 23, 42, 0.12);
   backdrop-filter: var(--backdrop-blur);
 }
 
+.node-rail__view-switch::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.1), transparent 42%),
+    radial-gradient(circle at 85% 22%, rgba(0, 194, 255, 0.1), transparent 28%);
+  pointer-events: none;
+}
+
 .node-rail__view-button {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  min-height: 36px;
+  width: 46px;
+  height: 46px;
   border: none;
-  border-radius: 12px;
-  padding: 0 12px;
+  border-radius: 14px;
+  padding: 0;
   background: transparent;
   color: var(--text-soft);
   font: inherit;
-  font-size: 0.82rem;
-  font-weight: 700;
   cursor: pointer;
   transition:
     transform 200ms ease-out,
     color 200ms ease-out,
     background 200ms ease-out,
+    border-color 200ms ease-out,
     box-shadow 200ms ease-out;
 }
 
 .node-rail__view-button:hover {
   color: var(--text-main);
+  background: color-mix(in srgb, var(--glass-bg-strong) 46%, transparent);
 }
 
 .node-rail__view-button.is-active {
   background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 18%, transparent), color-mix(in srgb, var(--accent-end) 18%, transparent)),
-    color-mix(in srgb, var(--panel-bg) 86%, transparent);
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 16%, transparent), color-mix(in srgb, var(--accent-end) 24%, transparent)),
+    color-mix(in srgb, var(--glass-bg-strong) 94%, transparent);
   color: var(--text-main);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--accent-line) 18%, transparent),
-    0 8px 18px rgba(15, 23, 42, 0.12);
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-line) 28%, transparent),
+    0 10px 22px rgba(15, 23, 42, 0.14);
 }
 
 .node-rail__view-button:focus-visible {
@@ -619,44 +651,112 @@ onBeforeUnmount(() => {
     0 8px 18px rgba(15, 23, 42, 0.12);
 }
 
+.node-rail__view-button[data-tooltip]::before,
+.node-rail__view-button[data-tooltip]::after {
+  position: absolute;
+  left: 50%;
+  z-index: 24;
+  opacity: 0;
+  pointer-events: none;
+  transition:
+    opacity 180ms ease-out,
+    transform 180ms ease-out;
+}
+
+.node-rail__view-button[data-tooltip]::before {
+  content: '';
+  bottom: calc(100% + 5px);
+  width: 10px;
+  height: 10px;
+  border-left: 1px solid var(--border-soft);
+  border-bottom: 1px solid var(--border-soft);
+  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  transform: translate(-50%, 6px) rotate(-45deg);
+  z-index: 1;
+}
+
+.node-rail__view-button[data-tooltip]::after {
+  content: attr(data-tooltip);
+  bottom: calc(100% + 10px);
+  padding: 8px 10px;
+  border: 1px solid var(--border-soft);
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), color-mix(in srgb, var(--panel-bg) 92%, transparent)),
+    radial-gradient(circle at top right, rgba(0, 194, 255, 0.12), transparent 36%);
+  color: var(--text-main);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  box-shadow: var(--shadow-panel);
+  backdrop-filter: var(--backdrop-blur);
+  transform: translate(-50%, 8px);
+}
+
+.node-rail__view-button[data-tooltip]:hover::before,
+.node-rail__view-button[data-tooltip]:hover::after,
+.node-rail__view-button[data-tooltip]:focus-visible::before,
+.node-rail__view-button[data-tooltip]:focus-visible::after {
+  opacity: 1;
+}
+
+.node-rail__view-button[data-tooltip]:hover::before,
+.node-rail__view-button[data-tooltip]:focus-visible::before {
+  transform: translate(-50%, 0) rotate(-45deg);
+}
+
+.node-rail__view-button[data-tooltip]:hover::after,
+.node-rail__view-button[data-tooltip]:focus-visible::after {
+  transform: translate(-50%, 0);
+}
+
+.node-rail__view-icon-shell {
+  width: 32px;
+  height: 32px;
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, var(--border-soft));
+  border-radius: 12px;
+  background: color-mix(in srgb, var(--glass-bg-strong) 88%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+}
+
+.node-rail__view-button.is-active .node-rail__view-icon-shell {
+  border-color: transparent;
+  background: var(--gradient-primary);
+  color: var(--text-inverse);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 18px rgba(10, 102, 255, 0.22);
+}
+
 .node-rail__view-icon {
   width: 14px;
   height: 14px;
 }
 
-.node-rail__header div {
-  display: grid;
-  gap: 6px;
-}
-
-.node-rail__header p,
-.node-rail__header span,
-.node-rail__header strong {
+.node-rail__header-copy p,
+.node-rail__header-copy span {
   margin: 0;
 }
 
-.node-rail__header p {
+.node-rail__header-copy p {
   font-size: 1.05rem;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
 
-.node-rail__header span {
+.node-rail__header-copy span {
   color: var(--text-soft);
   font-size: 0.86rem;
 }
 
-.node-rail__header strong {
-  padding: 8px 12px;
-  border: 1px solid var(--border-soft);
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--panel-bg) 86%, transparent);
-  font-size: 0.84rem;
-  line-height: 1;
-}
-
 .node-rail__create {
   position: relative;
+  flex: none;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1073,6 +1173,27 @@ onBeforeUnmount(() => {
   font-size: 0.84rem;
   font-weight: 600;
   line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  .node-rail__header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .node-rail__header-side {
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 720px) {
+  .node-rail__header-side {
+    align-items: stretch;
+  }
+
+  .node-rail__view-switch {
+    width: auto;
+  }
 }
 
 .node-hover-card-enter-active,

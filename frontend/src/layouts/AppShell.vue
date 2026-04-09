@@ -77,6 +77,25 @@ async function handleLogout() {
           </span>
           <span>我的任务</span>
         </RouterLink>
+        <RouterLink
+          v-if="authStore.currentUser?.system_role === 1"
+          class="app-shell__link"
+          to="/users"
+        >
+          <span class="app-shell__link-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M15.5 18.5h4 M17.5 16.5v4 M4 19a4.5 4.5 0 0 1 9 0 M8.5 11.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z M17 10.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              />
+            </svg>
+          </span>
+          <span>用户管理</span>
+        </RouterLink>
       </nav>
 
       <div class="app-shell__sidebar-foot">

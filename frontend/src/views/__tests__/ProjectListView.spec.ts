@@ -66,6 +66,21 @@ describe('ProjectListView', () => {
     expect(screen.queryByRole('button', { name: '筛选项目' })).toBeNull()
   })
 
+  it('merges the overview and filter areas into one shared top panel', async () => {
+    const screen = render(ProjectListView)
+
+    await screen.findByText('内部进度平台')
+
+    const shell = screen.getByTestId('project-list-hero-shell')
+    const filters = shell.querySelector('.project-filters')
+
+    expect(shell.textContent).toContain('项目总览')
+    expect(filters).not.toBeNull()
+    expect(getComputedStyle(filters!).borderTopWidth).toBe('0px')
+    expect(getComputedStyle(filters!).backgroundImage).toBe('none')
+    expect(getComputedStyle(filters!).boxShadow).toBe('none')
+  })
+
   it('re-queries when pressing Enter in the keyword field', async () => {
     const screen = render(ProjectListView)
     const user = userEvent.setup()

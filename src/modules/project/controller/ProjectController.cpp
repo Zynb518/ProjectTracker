@@ -13,6 +13,8 @@
 namespace project_tracker::modules::project::controller {
     namespace api = project_tracker::common::api;
     namespace error = project_tracker::common::error;
+    namespace project_node_domain = modules::project_node::domain;
+    namespace task_domain = modules::task::domain;
     namespace user_domain = modules::user::domain;
     namespace util = project_tracker::common::util;
 
@@ -74,6 +76,74 @@ namespace project_tracker::modules::project::controller {
             permissions["can_transfer_owner"] = project.permissions.canTransferOwner;
             permissions["can_delete"] = project.permissions.canDelete;
             json["permissions"] = permissions;
+
+            return json;
+        }
+
+        Json::Value buildProjectGanttProjectJson(const dto::view::ProjectGanttProjectView &project) {
+            Json::Value json(Json::objectValue);
+            json["id"] = project.id;
+            json["name"] = project.name;
+            json["owner_user_id"] = project.ownerUserId;
+            json["owner_real_name"] = project.ownerRealName;
+            json["status"] = domain::toInt(project.status);
+            json["planned_start_date"] = project.plannedStartDate;
+            json["planned_end_date"] = project.plannedEndDate;
+            if (project.completedAt) {
+                json["completed_at"] = *project.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+
+            return json;
+        }
+
+        Json::Value buildProjectGanttNodeJson(const dto::view::ProjectGanttNodeItemView &node) {
+            Json::Value json(Json::objectValue);
+            json["id"] = node.id;
+            json["name"] = node.name;
+            json["sequence_no"] = node.sequenceNo;
+            json["status"] = project_node_domain::toInt(node.status);
+            json["planned_start_date"] = node.plannedStartDate;
+            json["planned_end_date"] = node.plannedEndDate;
+            if (node.completedAt) {
+                json["completed_at"] = *node.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+
+            return json;
+        }
+
+        Json::Value buildProjectGanttMemberTaskJson(
+            const dto::view::ProjectGanttMemberTaskItemView &task) {
+            Json::Value json(Json::objectValue);
+            json["subtask_id"] = task.subtaskId;
+            json["name"] = task.name;
+            json["node_id"] = task.nodeId;
+            json["node_name"] = task.nodeName;
+            json["status"] = task_domain::toInt(task.status);
+            json["progress_percent"] = task.progressPercent;
+            json["planned_start_date"] = task.plannedStartDate;
+            json["planned_end_date"] = task.plannedEndDate;
+            if (task.completedAt) {
+                json["completed_at"] = *task.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+
+            return json;
+        }
+
+        Json::Value buildProjectGanttMemberRowJson(
+            const dto::view::ProjectGanttMemberRowView &memberRow) {
+            Json::Value json(Json::objectValue);
+            json["user_id"] = memberRow.userId;
+            json["real_name"] = memberRow.realName;
+            json["subtasks"] = Json::Value(Json::arrayValue);
+            for (const auto &task : memberRow.subtasks) {
+                json["subtasks"].append(buildProjectGanttMemberTaskJson(task));
+            }
 
             return json;
         }
@@ -354,6 +424,136 @@ namespace project_tracker::modules::project::controller {
             }
 
             co_return api::ok(buildProjectDetailJson(*project));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectController::getProjectGanttNodes(drogon::HttpRequestPtr request,
+                                            std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await projectRepository_.findProjectGanttNodes(
+                dbClient,
+                repository::ProjectGanttNodesQuery{
+                    .projectId = projectId,
+                    .currentUserId = *userId,
+                    .currentUserRole = *systemRole
+                });
+
+            if (!result) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            if (!result->hasPermission) {
+                co_return api::fail(
+                    drogon::k403Forbidden,
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目成员");
+            }
+
+            if (!result->detail) {
+                co_return api::fail(
+                    drogon::k500InternalServerError,
+                    error::ErrorCode::InternalError,
+                    "项目甘特图数据查询失败");
+            }
+
+            Json::Value data(Json::objectValue);
+            data["project"] = buildProjectGanttProjectJson(result->detail->project);
+            data["nodes"] = Json::Value(Json::arrayValue);
+            for (const auto &node : result->detail->nodes) {
+                data["nodes"].append(buildProjectGanttNodeJson(node));
+            }
+
+            co_return api::ok(data);
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectController::getProjectGanttMembers(drogon::HttpRequestPtr request,
+                                              std::int64_t projectId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await projectRepository_.findProjectGanttMembers(
+                dbClient,
+                repository::ProjectGanttMembersQuery{
+                    .projectId = projectId,
+                    .currentUserId = *userId,
+                    .currentUserRole = *systemRole
+                });
+
+            if (!result) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            if (!result->hasPermission) {
+                co_return api::fail(
+                    drogon::k403Forbidden,
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目成员");
+            }
+
+            if (!result->detail) {
+                co_return api::fail(
+                    drogon::k500InternalServerError,
+                    error::ErrorCode::InternalError,
+                    "项目成员甘特图数据查询失败");
+            }
+
+            Json::Value data(Json::objectValue);
+            data["project"] = buildProjectGanttProjectJson(result->detail->project);
+            data["member_rows"] = Json::Value(Json::arrayValue);
+            for (const auto &memberRow : result->detail->memberRows) {
+                data["member_rows"].append(buildProjectGanttMemberRowJson(memberRow));
+            }
+
+            co_return api::ok(data);
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

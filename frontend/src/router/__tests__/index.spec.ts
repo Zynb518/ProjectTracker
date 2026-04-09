@@ -76,6 +76,54 @@ describe('app router', () => {
     expect(router.currentRoute.value.fullPath).toBe('/projects')
   })
 
+  it('allows administrators to access the user management route', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const store = useAuthStore(pinia)
+    store.currentUser = {
+      id: 1,
+      username: 'admin',
+      real_name: '系统管理员',
+      system_role: 1,
+      email: 'admin@example.com',
+      phone: '13800000000',
+      status: 1,
+      created_at: '2026-03-27T09:00:00+08:00',
+      updated_at: '2026-03-27T09:00:00+08:00',
+    }
+    store.isReady = true
+
+    const router = createAppRouter(pinia)
+    await router.push('/users')
+
+    expect(router.currentRoute.value.fullPath).toBe('/users')
+  })
+
+  it('redirects non-admin users away from the user management route', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const store = useAuthStore(pinia)
+    store.currentUser = {
+      id: 1,
+      username: 'zhangsan',
+      real_name: '张三',
+      system_role: 2,
+      email: 'zhangsan@example.com',
+      phone: '13800000000',
+      status: 1,
+      created_at: '2026-03-27T09:00:00+08:00',
+      updated_at: '2026-03-27T09:00:00+08:00',
+    }
+    store.isReady = true
+
+    const router = createAppRouter(pinia)
+    await router.push('/users')
+
+    expect(router.currentRoute.value.fullPath).toBe('/projects')
+  })
+
   it('allows navigation to login even if session bootstrap fails', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)

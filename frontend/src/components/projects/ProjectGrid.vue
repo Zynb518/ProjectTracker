@@ -226,7 +226,8 @@ function statusTone(status: number) {
 <style scoped>
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(320px, 100%), 1fr));
+  grid-template-columns: repeat(auto-fill, 400px);
+  justify-content: start;
   grid-auto-rows: 492px;
   gap: 18px;
 }
@@ -514,6 +515,10 @@ function statusTone(status: number) {
 }
 
 @media (max-width: 720px) {
+  .project-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .project-card__header {
     grid-template-columns: 1fr;
   }

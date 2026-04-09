@@ -36,6 +36,17 @@ describe('ProjectGrid', () => {
     expect(getComputedStyle(card).minHeight).toBe('492px')
   })
 
+  it('uses fixed-width project columns instead of stretching cards across the row', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),
+      'utf8',
+    )
+
+    expect(source).toContain('grid-template-columns: repeat(auto-fill, 360px);')
+    expect(source).toContain('justify-content: start;')
+    expect(source).toContain('.project-grid {\n    grid-template-columns: minmax(0, 1fr);')
+  })
+
   it('uses a dedicated non-white surface style for each project card so it does not blend into the inner meta cards', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),

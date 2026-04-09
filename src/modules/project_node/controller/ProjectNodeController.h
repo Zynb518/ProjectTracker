@@ -27,6 +27,10 @@ namespace project_tracker::modules::project_node::controller {
                           "/api/projects/{project_id}/nodes/{node_id}",
                           drogon::Get,
                           filters::LoginRequiredFilter::classTypeName());
+            ADD_METHOD_TO(ProjectNodeController::getProjectNodeGantt,
+                          "/api/projects/{project_id}/nodes/{node_id}/gantt",
+                          drogon::Get,
+                          filters::LoginRequiredFilter::classTypeName());
             ADD_METHOD_TO(ProjectNodeController::updateProjectNodeBasicInfo,
                           "/api/projects/{project_id}/nodes/{node_id}",
                           drogon::Patch,
@@ -69,6 +73,11 @@ namespace project_tracker::modules::project_node::controller {
         getProjectNodeDetail(drogon::HttpRequestPtr request,
                              std::int64_t projectId,
                              std::int64_t nodeId);
+
+        drogon::Task<drogon::HttpResponsePtr>
+        getProjectNodeGantt(drogon::HttpRequestPtr request,
+                            std::int64_t projectId,
+                            std::int64_t nodeId);
 
         drogon::Task<drogon::HttpResponsePtr>
         updateProjectNodeBasicInfo(drogon::HttpRequestPtr request,

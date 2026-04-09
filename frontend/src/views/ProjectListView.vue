@@ -186,25 +186,30 @@ onMounted(loadProjects)
 
 <template>
   <section class="project-list">
-    <header class="project-list__hero">
-      <div>
-        <p class="project-list__eyebrow">Portfolio Console</p>
-        <h2>项目总览</h2>
+    <section class="project-list__hero-shell" data-testid="project-list-hero-shell">
+      <header class="project-list__hero">
+        <div>
+          <p class="project-list__eyebrow">Portfolio Console</p>
+          <h2>项目总览</h2>
+        </div>
+
+        <p class="project-list__copy">
+          在这里统一筛选项目、拉起项目详情工作台，并对项目生命周期执行基础动作。
+        </p>
+      </header>
+
+      <div class="project-list__hero-filters">
+        <ProjectFilters
+          :embedded="true"
+          :keyword="filters.keyword"
+          :status="filters.status"
+          @create="openCreateDialog"
+          @submit="applyFilters"
+          @update:keyword="filters.keyword = $event"
+          @update:status="filters.status = $event"
+        />
       </div>
-
-      <p class="project-list__copy">
-        在这里统一筛选项目、拉起项目详情工作台，并对项目生命周期执行基础动作。
-      </p>
-    </header>
-
-    <ProjectFilters
-      :keyword="filters.keyword"
-      :status="filters.status"
-      @create="openCreateDialog"
-      @submit="applyFilters"
-      @update:keyword="filters.keyword = $event"
-      @update:status="filters.status = $event"
-    />
+    </section>
 
     <p v-if="isLoading && projects.length === 0" class="project-list__state loading-panel">
       项目列表加载中...
@@ -303,10 +308,9 @@ onMounted(loadProjects)
   padding: 0 8px 8px;
 }
 
-.project-list__hero {
+.project-list__hero-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-  gap: 18px;
+  gap: 20px;
   padding: 24px 26px;
   border: 1px solid var(--border-soft);
   border-radius: 20px;
@@ -315,6 +319,12 @@ onMounted(loadProjects)
     radial-gradient(circle at top right, rgba(0, 194, 255, 0.16), transparent 24%);
   box-shadow: var(--shadow-panel);
   backdrop-filter: var(--backdrop-blur);
+}
+
+.project-list__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 18px;
 }
 
 .project-list__hero h2,
@@ -339,6 +349,11 @@ onMounted(loadProjects)
   max-width: 520px;
   color: var(--text-soft);
   align-self: end;
+}
+
+.project-list__hero-filters {
+  padding-top: 20px;
+  border-top: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
 }
 
 .project-list__state {

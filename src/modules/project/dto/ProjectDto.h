@@ -8,6 +8,8 @@
 #include "modules/project/dto/command/UpdateProjectBasicInfoInput.h"
 #include "modules/project/dto/view/CreatedProjectView.h"
 #include "modules/project/dto/view/ProjectDetailView.h"
+#include "modules/project/dto/view/ProjectGanttMembersView.h"
+#include "modules/project/dto/view/ProjectGanttNodesView.h"
 #include "modules/project/dto/view/ProjectListItemView.h"
 #include "modules/project/dto/view/ProjectOwnerCandidateView.h"
 #include "modules/project/dto/view/TransferredProjectOwnerView.h"

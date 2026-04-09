@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
@@ -98,6 +100,31 @@ describe('NodeRail', () => {
     expect(activeCard.text()).toContain('Phase 2')
     expect(activeCard.text()).toContain('2 / 6 子任务完成')
     expect(activeCard.find('.node-rail__progress').exists()).toBe(true)
+  })
+
+  it('removes the node count copy and uses compact icon switchers with hover labels', () => {
+    const wrapper = mount(NodeRail, {
+      props: {
+        canManage: true,
+        nodes: sampleNodes,
+        selectedNodeId: null,
+      },
+    })
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeRail.vue'), 'utf8')
+
+    expect(wrapper.text()).not.toContain(`${sampleNodes.length} 个节点`)
+    expect(wrapper.get('[data-testid="node-view-mode-compact"]').attributes('aria-label')).toBe('精简视图')
+    expect(wrapper.get('[data-testid="node-view-mode-compact"]').attributes('data-tooltip')).toBe('精简视图')
+    expect(wrapper.get('[data-testid="node-view-mode-full"]').attributes('aria-label')).toBe('完整视图')
+    expect(wrapper.get('[data-testid="node-view-mode-full"]').attributes('data-tooltip')).toBe('完整视图')
+    expect(wrapper.get('[data-testid="node-view-mode-compact"]').text()).toBe('')
+    expect(wrapper.get('[data-testid="node-view-mode-full"]').text()).toBe('')
+    expect(source).toContain('overflow: visible;')
+    expect(source).toContain('z-index: 12;')
+    expect(source).toContain('z-index: 24;')
+    expect(source).toContain('.node-rail__view-button[data-tooltip]::before')
+    expect(source).toContain('.node-rail__view-button[data-tooltip]::after')
+    expect(source).not.toContain('{{ props.nodes.length }} 个节点')
   })
 
   it('shows a hover detail card as a fixed top-layer overlay on the right side of the hovered node', async () => {

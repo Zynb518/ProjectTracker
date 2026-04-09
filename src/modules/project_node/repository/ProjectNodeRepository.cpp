@@ -10,6 +10,8 @@
 
 namespace project_tracker::modules::project_node::repository {
     namespace error = project_tracker::common::error;
+    namespace project_domain = modules::project::domain;
+    namespace task_domain = modules::task::domain;
     namespace user_domain = modules::user::domain;
 
     namespace {
@@ -272,6 +274,208 @@ namespace project_tracker::modules::project_node::repository {
             };
 
             co_return detailResult;
+        } catch (const drogon::orm::DrogonDbException &) {
+            error::throwInternalError(
+                error::ErrorCode::InternalError,
+                "数据库操作失败");
+        }
+    }
+
+    drogon::Task<std::optional<ProjectNodeGanttResult>>
+    ProjectNodeRepository::findProjectNodeGantt(const common::db::SqlExecutorPtr &executor,
+                                                const ProjectNodeGanttQuery &query) const {
+        // 查询思路：
+        // 1. project_context 先确认项目是否存在，以及当前用户是否可见。
+        // 2. node_detail 只在有权限时定位目标阶段节点；阶段不存在时保持为空，供 controller 映射 404。
+        // 3. subtasks 仅在阶段存在时展开，并沿用节点下子任务列表的排序规则。
+        static const std::string findProjectNodeGanttSql = R"SQL(
+            WITH project_context AS (
+                SELECT
+                    p.id AS project_id,
+                    p.name AS project_name,
+                    p.owner_user_id,
+                    owner_user.real_name AS owner_real_name,
+                    p.status AS project_status,
+                    to_char(p.planned_start_date, 'YYYY-MM-DD') AS project_planned_start_date,
+                    to_char(p.planned_end_date, 'YYYY-MM-DD') AS project_planned_end_date,
+                    to_char(p.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS project_completed_at,
+                    CASE
+                        WHEN $3 = TRUE THEN TRUE
+                        WHEN EXISTS (
+                            SELECT 1
+                            FROM project_member self_pm
+                            WHERE self_pm.project_id = p.id AND
+                                self_pm.user_id = $4
+                        ) THEN TRUE
+                        ELSE FALSE
+                    END AS has_permission
+                FROM project p
+                JOIN sys_user owner_user ON owner_user.id = p.owner_user_id
+                WHERE p.id = $1
+            ),
+            node_detail AS (
+                SELECT
+                    pn.id,
+                    pn.name,
+                    pn.sequence_no,
+                    pn.status,
+                    to_char(pn.planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                    to_char(pn.planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
+                    to_char(pn.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at
+                FROM project_context pc
+                JOIN project_node pn ON pn.project_id = pc.project_id AND
+                    pn.id = $2
+                WHERE pc.has_permission
+            ),
+            subtasks AS (
+                SELECT
+                    st.id,
+                    st.node_id,
+                    nd.name AS node_name,
+                    st.name,
+                    st.responsible_user_id,
+                    responsible_user.real_name AS responsible_real_name,
+                    st.status,
+                    st.progress_percent,
+                    st.priority,
+                    to_char(st.planned_start_date, 'YYYY-MM-DD') AS planned_start_date,
+                    to_char(st.planned_end_date, 'YYYY-MM-DD') AS planned_end_date,
+                    to_char(st.completed_at AT TIME ZONE 'Asia/Shanghai', 'YYYY-MM-DD"T"HH24:MI:SS') || '+08:00' AS completed_at,
+                    st.planned_end_date AS planned_end_date_order
+                FROM node_detail nd
+                JOIN sub_task st ON st.node_id = nd.id
+                JOIN sys_user responsible_user ON responsible_user.id = st.responsible_user_id
+            )
+            SELECT
+                pc.has_permission,
+                pc.project_id,
+                pc.project_name,
+                pc.owner_user_id,
+                pc.owner_real_name,
+                pc.project_status,
+                pc.project_planned_start_date,
+                pc.project_planned_end_date,
+                pc.project_completed_at,
+                nd.id AS node_id,
+                nd.name AS node_name,
+                nd.sequence_no,
+                nd.status AS node_status,
+                nd.planned_start_date AS node_planned_start_date,
+                nd.planned_end_date AS node_planned_end_date,
+                nd.completed_at AS node_completed_at,
+                st.id AS subtask_id,
+                st.node_id AS subtask_node_id,
+                st.node_name AS subtask_node_name,
+                st.name AS subtask_name,
+                st.responsible_user_id,
+                st.responsible_real_name,
+                st.status AS subtask_status,
+                st.progress_percent,
+                st.priority,
+                st.planned_start_date AS subtask_planned_start_date,
+                st.planned_end_date AS subtask_planned_end_date,
+                st.completed_at AS subtask_completed_at
+            FROM project_context pc
+            LEFT JOIN node_detail nd ON TRUE
+            LEFT JOIN subtasks st ON TRUE
+            ORDER BY
+                st.priority DESC NULLS LAST,
+                st.planned_end_date_order ASC NULLS LAST,
+                st.id DESC NULLS LAST
+        )SQL";
+
+        const bool isAdmin = query.currentUserRole == user_domain::SystemRole::Admin;
+
+        try {
+            const auto result = co_await executor->execSqlCoro(
+                findProjectNodeGanttSql,
+                query.projectId,
+                query.nodeId,
+                isAdmin,
+                query.currentUserId);
+
+            if (result.empty()) {
+                co_return std::nullopt;
+            }
+
+            ProjectNodeGanttResult ganttResult{
+                .hasPermission = result.front()["has_permission"].as<bool>(),
+                .detail = std::nullopt
+            };
+
+            if (!ganttResult.hasPermission || result.front()["node_id"].isNull()) {
+                co_return ganttResult;
+            }
+
+            const auto &firstRow = result.front();
+
+            std::optional<std::string> projectCompletedAt;
+            if (!firstRow["project_completed_at"].isNull()) {
+                projectCompletedAt = firstRow["project_completed_at"].as<std::string>();
+            }
+
+            std::optional<std::string> nodeCompletedAt;
+            if (!firstRow["node_completed_at"].isNull()) {
+                nodeCompletedAt = firstRow["node_completed_at"].as<std::string>();
+            }
+
+            dto::view::ProjectNodeGanttView view{
+                .project = dto::view::ProjectNodeGanttProjectView{
+                    .id = firstRow["project_id"].as<std::int64_t>(),
+                    .name = firstRow["project_name"].as<std::string>(),
+                    .ownerUserId = firstRow["owner_user_id"].as<std::int64_t>(),
+                    .ownerRealName = firstRow["owner_real_name"].as<std::string>(),
+                    .status = static_cast<project_domain::ProjectStatus>(
+                        firstRow["project_status"].as<int>()),
+                    .plannedStartDate = firstRow["project_planned_start_date"].as<std::string>(),
+                    .plannedEndDate = firstRow["project_planned_end_date"].as<std::string>(),
+                    .completedAt = projectCompletedAt
+                },
+                .node = dto::view::ProjectNodeGanttNodeView{
+                    .id = firstRow["node_id"].as<std::int64_t>(),
+                    .name = firstRow["node_name"].as<std::string>(),
+                    .sequenceNo = firstRow["sequence_no"].as<int>(),
+                    .status = static_cast<domain::ProjectNodeStatus>(
+                        firstRow["node_status"].as<int>()),
+                    .plannedStartDate = firstRow["node_planned_start_date"].as<std::string>(),
+                    .plannedEndDate = firstRow["node_planned_end_date"].as<std::string>(),
+                    .completedAt = nodeCompletedAt
+                },
+                .subtasks = {}
+            };
+
+            view.subtasks.reserve(result.size());
+
+            for (const auto &row : result) {
+                if (row["subtask_id"].isNull()) {
+                    continue;
+                }
+
+                std::optional<std::string> subtaskCompletedAt;
+                if (!row["subtask_completed_at"].isNull()) {
+                    subtaskCompletedAt = row["subtask_completed_at"].as<std::string>();
+                }
+
+                view.subtasks.push_back(dto::view::ProjectNodeGanttTaskItemView{
+                    .id = row["subtask_id"].as<std::int64_t>(),
+                    .nodeId = row["subtask_node_id"].as<std::int64_t>(),
+                    .nodeName = row["subtask_node_name"].as<std::string>(),
+                    .name = row["subtask_name"].as<std::string>(),
+                    .responsibleUserId = row["responsible_user_id"].as<std::int64_t>(),
+                    .responsibleRealName = row["responsible_real_name"].as<std::string>(),
+                    .status = static_cast<task_domain::TaskStatus>(
+                        row["subtask_status"].as<int>()),
+                    .progressPercent = row["progress_percent"].as<int>(),
+                    .priority = static_cast<task_domain::TaskPriority>(
+                        row["priority"].as<int>()),
+                    .plannedStartDate = row["subtask_planned_start_date"].as<std::string>(),
+                    .plannedEndDate = row["subtask_planned_end_date"].as<std::string>(),
+                    .completedAt = subtaskCompletedAt
+                });
+            }
+
+            ganttResult.detail = std::move(view);
+            co_return ganttResult;
         } catch (const drogon::orm::DrogonDbException &) {
             error::throwInternalError(
                 error::ErrorCode::InternalError,

@@ -58,6 +58,32 @@ namespace project_tracker::modules::project::repository {
         ProjectOwnerCandidatePage page;
     };
 
+    // 项目阶段/时间甘特图查询条件
+    struct ProjectGanttNodesQuery {
+        std::int64_t projectId;
+        std::int64_t currentUserId;
+        user::domain::SystemRole currentUserRole;
+    };
+
+    // 项目阶段/时间甘特图查询结果
+    struct ProjectGanttNodesResult {
+        bool hasPermission;
+        std::optional<dto::view::ProjectGanttNodesView> detail;
+    };
+
+    // 项目员工/时间甘特图查询条件
+    struct ProjectGanttMembersQuery {
+        std::int64_t projectId;
+        std::int64_t currentUserId;
+        user::domain::SystemRole currentUserRole;
+    };
+
+    // 项目员工/时间甘特图查询结果
+    struct ProjectGanttMembersResult {
+        bool hasPermission;
+        std::optional<dto::view::ProjectGanttMembersView> detail;
+    };
+
     // 手动开始项目前的校验信息
     struct ProjectStartCheckResult {
         std::int64_t ownerUserId;
@@ -204,5 +230,15 @@ namespace project_tracker::modules::project::repository {
                           std::int64_t projectId,
                           std::int64_t currentUserId,
                           user::domain::SystemRole currentUserRole) const;
+
+        // 查询项目阶段/时间甘特图数据
+        drogon::Task<std::optional<ProjectGanttNodesResult>>
+        findProjectGanttNodes(const common::db::SqlExecutorPtr &executor,
+                              const ProjectGanttNodesQuery &query) const;
+
+        // 查询项目员工/时间甘特图数据
+        drogon::Task<std::optional<ProjectGanttMembersResult>>
+        findProjectGanttMembers(const common::db::SqlExecutorPtr &executor,
+                                const ProjectGanttMembersQuery &query) const;
     };
 } // namespace project_tracker::modules::project::repository

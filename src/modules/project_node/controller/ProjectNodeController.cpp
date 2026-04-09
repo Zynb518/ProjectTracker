@@ -13,6 +13,8 @@
 namespace project_tracker::modules::project_node::controller {
     namespace api = project_tracker::common::api;
     namespace error = project_tracker::common::error;
+    namespace project_domain = modules::project::domain;
+    namespace task_domain = modules::task::domain;
     namespace user_domain = modules::user::domain;
     namespace util = project_tracker::common::util;
 
@@ -61,6 +63,65 @@ namespace project_tracker::modules::project_node::controller {
             json["updated_at"] = node.updatedAt;
             json["sub_task_count"] = node.subTaskCount;
             json["completed_sub_task_count"] = node.completedSubTaskCount;
+
+            return json;
+        }
+
+        Json::Value buildProjectNodeGanttProjectJson(
+            const dto::view::ProjectNodeGanttProjectView &project) {
+            Json::Value json(Json::objectValue);
+            json["id"] = project.id;
+            json["name"] = project.name;
+            json["owner_user_id"] = project.ownerUserId;
+            json["owner_real_name"] = project.ownerRealName;
+            json["status"] = project_domain::toInt(project.status);
+            json["planned_start_date"] = project.plannedStartDate;
+            json["planned_end_date"] = project.plannedEndDate;
+            if (project.completedAt) {
+                json["completed_at"] = *project.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+
+            return json;
+        }
+
+        Json::Value buildProjectNodeGanttNodeJson(const dto::view::ProjectNodeGanttNodeView &node) {
+            Json::Value json(Json::objectValue);
+            json["id"] = node.id;
+            json["name"] = node.name;
+            json["sequence_no"] = node.sequenceNo;
+            json["status"] = domain::toInt(node.status);
+            json["planned_start_date"] = node.plannedStartDate;
+            json["planned_end_date"] = node.plannedEndDate;
+            if (node.completedAt) {
+                json["completed_at"] = *node.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
+
+            return json;
+        }
+
+        Json::Value buildProjectNodeGanttTaskJson(
+            const dto::view::ProjectNodeGanttTaskItemView &task) {
+            Json::Value json(Json::objectValue);
+            json["id"] = task.id;
+            json["node_id"] = task.nodeId;
+            json["node_name"] = task.nodeName;
+            json["name"] = task.name;
+            json["responsible_user_id"] = task.responsibleUserId;
+            json["responsible_real_name"] = task.responsibleRealName;
+            json["status"] = task_domain::toInt(task.status);
+            json["progress_percent"] = task.progressPercent;
+            json["priority"] = task_domain::toInt(task.priority);
+            json["planned_start_date"] = task.plannedStartDate;
+            json["planned_end_date"] = task.plannedEndDate;
+            if (task.completedAt) {
+                json["completed_at"] = *task.completedAt;
+            } else {
+                json["completed_at"] = Json::Value(Json::nullValue);
+            }
 
             return json;
         }
@@ -476,6 +537,81 @@ namespace project_tracker::modules::project_node::controller {
             }
 
             co_return api::ok(buildProjectNodeJson(*result->detail));
+        } catch (const error::BusinessException &exception) {
+            co_return api::fromException(exception);
+        }
+    }
+
+    drogon::Task<drogon::HttpResponsePtr>
+    ProjectNodeController::getProjectNodeGantt(drogon::HttpRequestPtr request,
+                                               std::int64_t projectId,
+                                               std::int64_t nodeId) {
+        const auto &session = request->getSession();
+        const auto userId = session->getOptional<std::int64_t>("user_id");
+        const auto systemRole = session->getOptional<user_domain::SystemRole>("system_role");
+
+        if (!userId || *userId <= 0 || !systemRole) {
+            co_return api::fail(
+                drogon::k401Unauthorized,
+                error::ErrorCode::Unauthorized,
+                "未登录或登录态失效");
+        }
+
+        if (projectId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "project_id 必须是大于 0 的整数");
+        }
+
+        if (nodeId <= 0) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "node_id 必须是大于 0 的整数");
+        }
+
+        try {
+            const auto dbClient = drogon::app().getDbClient();
+            const auto result = co_await projectNodeRepository_.findProjectNodeGantt(
+                dbClient,
+                repository::ProjectNodeGanttQuery{
+                    .projectId = projectId,
+                    .nodeId = nodeId,
+                    .currentUserId = *userId,
+                    .currentUserRole = *systemRole
+                });
+
+            if (!result) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::ProjectNotFound,
+                    "项目不存在");
+            }
+
+            if (!result->hasPermission) {
+                co_return api::fail(
+                    drogon::k403Forbidden,
+                    error::ErrorCode::Forbidden,
+                    "当前操作者不是管理员且不是项目成员");
+            }
+
+            if (!result->detail) {
+                co_return api::fail(
+                    drogon::k404NotFound,
+                    error::ErrorCode::PhaseNotFound,
+                    "阶段节点不存在");
+            }
+
+            Json::Value data(Json::objectValue);
+            data["project"] = buildProjectNodeGanttProjectJson(result->detail->project);
+            data["node"] = buildProjectNodeGanttNodeJson(result->detail->node);
+            data["subtasks"] = Json::Value(Json::arrayValue);
+            for (const auto &task : result->detail->subtasks) {
+                data["subtasks"].append(buildProjectNodeGanttTaskJson(task));
+            }
+
+            co_return api::ok(data);
         } catch (const error::BusinessException &exception) {
             co_return api::fromException(exception);
         }

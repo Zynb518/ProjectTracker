@@ -2098,9 +2098,10 @@ null
 说明：
 
 - 第一版甘特图主要由前端完成可视化，后端负责提供时间数据
-- 项目甘特图需要覆盖项目、阶段节点、子任务和成员维度数据
+- 项目甘特图数据按“项目+阶段”“单阶段+子任务”“项目+成员”三个视角拆分接口
+- 前端按页面或面板实际需要分别请求，避免单个接口同时返回多类大块数据
 
-### 15.1 获取项目甘特图数据
+### 15.1 获取项目阶段/时间甘特图数据
 
 **Method**
 
@@ -2108,7 +2109,7 @@ null
 
 **Path**
 
-`/api/projects/{project_id}/gantt`
+`/api/projects/{project_id}/gantt/nodes`
 
 **Success `data`**
 
@@ -2143,7 +2144,49 @@ null
       "planned_end_date": "2026-04-20",
       "completed_at": null
     }
-  ],
+  ]
+}
+```
+
+接口说明：
+
+- 返回项目总体时间轴和阶段节点时间轴
+- 不返回子任务，避免项目主甘特图在第一屏加载过多细粒度数据
+- 适用于项目总览、阶段主泳道、节点概览等按阶段层级展示的页面
+
+### 15.2 获取阶段子任务/时间甘特图数据
+
+**Method**
+
+`GET`
+
+**Path**
+
+`/api/projects/{project_id}/nodes/{node_id}/gantt`
+
+**Success `data`**
+
+```json
+{
+  "project": {
+    "id": 1001,
+    "name": "内部进度平台",
+    "owner_user_id": 1,
+    "owner_real_name": "张三",
+    "status": 2,
+    "planned_start_date": "2026-03-20",
+    "planned_end_date": "2026-06-30",
+    "completed_at": null
+  },
+  "node": {
+    "id": 2002,
+    "name": "开发实现",
+    "sequence_no": 2,
+    "status": 2,
+    "planned_start_date": "2026-03-26",
+    "planned_end_date": "2026-04-20",
+    "completed_at": null
+  },
   "subtasks": [
     {
       "id": 3001,
@@ -2159,7 +2202,40 @@ null
       "planned_end_date": "2026-03-31",
       "completed_at": null
     }
-  ],
+  ]
+}
+```
+
+接口说明：
+
+- 返回项目基础时间范围、目标阶段信息以及该阶段下的子任务时间轴
+- 只展开单个阶段，避免在项目级接口中平铺全部子任务
+- 适用于点击某阶段后查看阶段内部排期、子任务展开面板、阶段详情页
+
+### 15.3 获取项目员工/时间甘特图数据
+
+**Method**
+
+`GET`
+
+**Path**
+
+`/api/projects/{project_id}/gantt/members`
+
+**Success `data`**
+
+```json
+{
+  "project": {
+    "id": 1001,
+    "name": "内部进度平台",
+    "owner_user_id": 1,
+    "owner_real_name": "张三",
+    "status": 2,
+    "planned_start_date": "2026-03-20",
+    "planned_end_date": "2026-06-30",
+    "completed_at": null
+  },
   "member_rows": [
     {
       "user_id": 18,
@@ -2184,8 +2260,8 @@ null
 
 接口说明：
 
-- 同一个接口同时返回项目时间轴和成员任务视角数据，减少前端多次请求
-- 若后续页面性能需要优化，可再拆出成员甘特图专用接口
+- 返回项目基础时间范围和按成员分组的子任务时间轴
+- 适用于人员排期视图、成员负载视图、按员工横向比对的甘特图页面
 
 ---
 
