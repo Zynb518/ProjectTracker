@@ -170,6 +170,7 @@ defineEmits<{
   align-items: center;
   justify-content: center;
   padding: 8px 14px;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 0.82rem;
   font-weight: 700;
@@ -177,28 +178,33 @@ defineEmits<{
 }
 
 .node-drawer__status--pending {
-  background: color-mix(in srgb, var(--text-soft) 18%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--work-status-pending-color);
 }
 
 .node-drawer__status--active {
-  background: color-mix(in srgb, var(--accent-start) 18%, transparent);
-  color: var(--accent-start);
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
 }
 
 .node-drawer__status--done {
-  background: color-mix(in srgb, var(--text-soft) 18%, transparent);
-  color: color-mix(in srgb, var(--text-main) 66%, var(--text-soft));
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
 }
 
 .node-drawer__status--delayed {
-  background: color-mix(in srgb, var(--accent-warning) 18%, transparent);
-  color: var(--accent-warning);
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
 }
 
 .node-drawer__status--unknown {
-  background: color-mix(in srgb, var(--text-soft) 18%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-unknown-border);
+  background: var(--work-status-unknown-bg);
+  color: var(--work-status-unknown-color);
 }
 
 .node-drawer__metrics {

@@ -1018,18 +1018,33 @@ onBeforeUnmount(() => {
   height: 10px;
   border-radius: 50%;
   border: 2px solid color-mix(in srgb, var(--glass-bg-strong) 92%, transparent);
-  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent-start) 12%, transparent);
+  background: var(--work-status-unknown-strong);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--work-status-unknown-color) 14%, transparent);
+}
+
+.node-rail__row--pending .node-rail__dot {
+  background: var(--work-status-pending-strong);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--work-status-pending-color) 14%, transparent);
+}
+
+.node-rail__row--active .node-rail__dot {
+  background: var(--work-status-active-strong);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--work-status-active-color) 14%, transparent);
 }
 
 .node-rail__row--done .node-rail__dot {
-  background: color-mix(in srgb, var(--text-soft) 76%, var(--panel-bg));
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--text-soft) 10%, transparent);
+  background: var(--work-status-done-strong);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--work-status-done-color) 14%, transparent);
 }
 
 .node-rail__row--delayed .node-rail__dot {
-  background: var(--accent-warning);
-  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent-warning) 14%, transparent);
+  background: var(--work-status-delayed-strong);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--work-status-delayed-color) 14%, transparent);
+}
+
+.node-rail__row--unknown .node-rail__dot {
+  background: var(--work-status-unknown-strong);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--work-status-unknown-color) 14%, transparent);
 }
 
 .node-rail__item {
@@ -1080,8 +1095,8 @@ onBeforeUnmount(() => {
 
 .node-rail__row--done .node-rail__item {
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--text-soft)), color-mix(in srgb, var(--panel-bg) 98%, transparent));
-  color: color-mix(in srgb, var(--text-main) 70%, var(--text-soft));
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--work-status-done-bg)), color-mix(in srgb, var(--panel-bg) 98%, transparent));
+  color: var(--text-main);
 }
 
 .node-rail__item:focus-visible {
@@ -1143,6 +1158,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   gap: 6px;
   padding: 6px 12px;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 0.76rem;
   font-weight: 700;
@@ -1153,32 +1169,37 @@ onBeforeUnmount(() => {
 
 .node-rail__status--pending,
 .node-rail__hover-status--pending {
-  background: color-mix(in srgb, var(--text-soft) 18%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--work-status-pending-color);
 }
 
 .node-rail__status--active,
 .node-rail__hover-status--active {
-  background: color-mix(in srgb, var(--accent-start) 18%, transparent);
-  color: var(--accent-start);
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
 }
 
 .node-rail__status--done,
 .node-rail__hover-status--done {
-  background: color-mix(in srgb, var(--text-soft) 18%, transparent);
-  color: color-mix(in srgb, var(--text-main) 66%, var(--text-soft));
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
 }
 
 .node-rail__status--delayed,
 .node-rail__hover-status--delayed {
-  background: color-mix(in srgb, var(--accent-warning) 18%, transparent);
-  color: var(--accent-warning);
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
 }
 
 .node-rail__status--unknown,
 .node-rail__hover-status--unknown {
-  background: color-mix(in srgb, var(--text-soft) 18%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-unknown-border);
+  background: var(--work-status-unknown-bg);
+  color: var(--work-status-unknown-color);
 }
 
 .node-rail__name {

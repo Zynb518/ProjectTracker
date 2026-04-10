@@ -210,6 +210,18 @@ describe('NodeRail', () => {
     expect(source).toContain('text-overflow: ellipsis;')
   })
 
+  it('uses the shared semantic work-status tokens for node pills and timeline dots, including green completed nodes', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeRail.vue'), 'utf8')
+
+    expect(source).toContain('background: var(--work-status-active-strong);')
+    expect(source).toContain('background: var(--work-status-done-strong);')
+    expect(source).toContain('color: var(--work-status-done-color);')
+    expect(source).toContain('background: var(--work-status-pending-bg);')
+    expect(source).not.toContain(
+      ".node-rail__status--active,\n.node-rail__hover-status--active {\n  background: color-mix(in srgb, var(--accent-start) 18%, transparent);",
+    )
+  })
+
   it('shows a hover detail card as a fixed top-layer overlay on the right side of the hovered node', async () => {
     const wrapper = mount(NodeRail, {
       attachTo: document.body,

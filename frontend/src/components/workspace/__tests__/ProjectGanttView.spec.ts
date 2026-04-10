@@ -193,8 +193,29 @@ describe('ProjectGanttView', () => {
     expect(source).toContain(
       'background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--app-bg)), color-mix(in srgb, var(--accent-end) 10%, var(--panel-bg)));',
     )
-    expect(source).toContain(
-      'background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 82%, #0d2754 18%), color-mix(in srgb, var(--accent-end) 70%, #0f2c5b 30%));',
+    expect(source).toContain('background: var(--work-status-active-bg);')
+    expect(source).toContain('color: var(--work-status-active-color);')
+  })
+
+  it('uses shared work-status tokens for gantt pills and bars instead of gradients or neutral completed states', () => {
+    const projectSource = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+    const nodeSource = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeGanttDialog.vue'), 'utf8')
+    const memberSource = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
+
+    expect(projectSource).toContain('background: var(--work-status-active-strong);')
+    expect(projectSource).toContain('background: var(--work-status-done-strong);')
+    expect(projectSource).toContain('color: var(--work-status-done-color);')
+    expect(nodeSource).toContain('background: var(--work-status-active-strong);')
+    expect(nodeSource).toContain('background: var(--work-status-done-strong);')
+    expect(memberSource).toContain('background: var(--work-status-done-strong);')
+    expect(projectSource).not.toContain(
+      ".project-gantt__bar--active {\n  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));",
+    )
+    expect(nodeSource).not.toContain(
+      ".node-gantt-dialog__bar--active {\n  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));",
+    )
+    expect(memberSource).not.toContain(
+      ".project-member-gantt__bar--active {\n  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));",
     )
   })
 
@@ -353,6 +374,7 @@ describe('ProjectGanttView', () => {
     expect(source).toContain('.project-gantt__body-scroll {')
     expect(source).toContain('max-height: 80vh;')
     expect(source).toContain('overflow: auto;')
+    expect(source).toMatch(/v-else\s+v-smooth-wheel="\{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1\.3 \}"\s+class="project-gantt__body-scroll smooth-scroll-surface"/)
     expect(source).toContain('.project-gantt__axis-scroll {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('top: 0;')
@@ -370,6 +392,23 @@ describe('ProjectGanttView', () => {
     expect(source).toContain('.project-gantt__axis-scroll::-webkit-scrollbar {')
     expect(source).toContain('height: 12px;')
     expect(source).not.toContain('scrollbar-width: none;')
+  })
+
+  it('keeps the sticky stage axis free of backdrop blur and isolates each row paint to reduce scroll jank', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+    const axisBlock = source.match(/\.project-gantt__axis \{[\s\S]*?\n\}/)?.[0]
+    const rowBlock = source.match(/\.project-gantt__row \{[\s\S]*?\n\}/)?.[0]
+    const sidebarRowBlocks = [...source.matchAll(/\.project-gantt__sidebar-row \{[\s\S]*?\n\}/g)].map((match) => match[0])
+
+    expect(axisBlock).toBeTruthy()
+    expect(axisBlock).not.toContain('backdrop-filter')
+    expect(rowBlock).toBeTruthy()
+    expect(rowBlock).toContain('contain: layout paint;')
+    expect(rowBlock).toContain('content-visibility: auto;')
+    expect(rowBlock).toContain('contain-intrinsic-size: 62px;')
+    expect(sidebarRowBlocks.length).toBeGreaterThan(0)
+    expect(sidebarRowBlocks.some((block) => block.includes('content-visibility: auto;'))).toBe(true)
+    expect(sidebarRowBlocks.some((block) => block.includes('contain-intrinsic-size: 62px;'))).toBe(true)
   })
 
   it('keeps the sticky stage time axis horizontally synced with the rows scroller', () => {
@@ -514,9 +553,8 @@ describe('NodeGanttDialog', () => {
     expect(source).toContain(
       'background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--app-bg)), color-mix(in srgb, var(--accent-end) 10%, var(--panel-bg)));',
     )
-    expect(source).toContain(
-      'background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 82%, #0d2754 18%), color-mix(in srgb, var(--accent-end) 70%, #0f2c5b 30%));',
-    )
+    expect(source).toContain('background: var(--work-status-active-bg);')
+    expect(source).toContain('color: var(--work-status-active-color);')
   })
 
   it('uses the dialog surface palette for the main subtask gantt panel instead of the neutral glass background', () => {
@@ -689,6 +727,7 @@ describe('NodeGanttDialog', () => {
     expect(source).toContain('max-height: min(80vh, calc(100vh - 32px));')
     expect(source).toContain('.node-gantt-dialog__body-scroll {')
     expect(source).toContain('overflow: auto;')
+    expect(source).toMatch(/v-else\s+v-smooth-wheel="\{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1\.3 \}"\s+class="node-gantt-dialog__body-scroll smooth-scroll-surface"/)
     expect(source).toContain('.node-gantt-dialog__axis-scroll {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('top: 0;')
@@ -706,6 +745,23 @@ describe('NodeGanttDialog', () => {
     expect(source).toContain('.node-gantt-dialog__axis-scroll::-webkit-scrollbar {')
     expect(source).toContain('height: 12px;')
     expect(source).not.toContain('scrollbar-width: none;')
+  })
+
+  it('keeps the sticky subtask axis free of backdrop blur and isolates each row paint to reduce scroll jank', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeGanttDialog.vue'), 'utf8')
+    const axisBlock = source.match(/\.node-gantt-dialog__axis \{[\s\S]*?\n\}/)?.[0]
+    const rowBlock = source.match(/\.node-gantt-dialog__row \{[\s\S]*?\n\}/)?.[0]
+    const sidebarRowBlocks = [...source.matchAll(/\.node-gantt-dialog__sidebar-row \{[\s\S]*?\n\}/g)].map((match) => match[0])
+
+    expect(axisBlock).toBeTruthy()
+    expect(axisBlock).not.toContain('backdrop-filter')
+    expect(rowBlock).toBeTruthy()
+    expect(rowBlock).toContain('contain: layout paint;')
+    expect(rowBlock).toContain('content-visibility: auto;')
+    expect(rowBlock).toContain('contain-intrinsic-size: 62px;')
+    expect(sidebarRowBlocks.length).toBeGreaterThan(0)
+    expect(sidebarRowBlocks.some((block) => block.includes('content-visibility: auto;'))).toBe(true)
+    expect(sidebarRowBlocks.some((block) => block.includes('contain-intrinsic-size: 62px;'))).toBe(true)
   })
 
   it('keeps the sticky subtask time axis horizontally synced with the rows scroller', () => {
@@ -754,6 +810,119 @@ describe('NodeGanttDialog', () => {
 })
 
 describe('ProjectMemberGanttView', () => {
+  it('keeps member subtask hover detail cards out of normal layout flow so timeline hover stays stable', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
+
+    expect(source).toContain('<Teleport to="body">')
+    expect(source).toContain('.project-member-gantt__detail-card {')
+    expect(source).toContain('position: fixed;')
+    expect(source).toContain(":data-placement=\"hoveredSubtaskPlacement\"")
+    expect(source).toContain(':style="detailCardStyle"')
+    expect(source).toContain('max-height: calc(100vh - 48px);')
+    expect(source).toContain('pointer-events: auto;')
+    expect(source).toContain(".project-member-gantt__detail-card[data-placement='top-right'] {")
+    expect(source).not.toContain('right: 24px;')
+    expect(source).not.toContain('bottom: 24px;')
+    expect(source).not.toContain('translateY(calc(-50% - 1px))')
+  })
+
+  it('renders a color-coded member subtask hover detail card with owner, stage and progress emphasis', async () => {
+    const wrapper = mount(ProjectMemberGanttView, {
+      attachTo: document.body,
+      props: {
+        gantt: sampleMemberGantt,
+        perspective: 'member',
+        scale: 'week',
+      },
+    })
+
+    await wrapper.get('[data-testid="project-member-gantt-bar-4001"]').trigger('mouseenter')
+
+    const detailCard = document.body.querySelector('[data-testid="project-member-gantt-detail-card"]')
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
+
+    expect(detailCard).not.toBeNull()
+    expect(detailCard?.querySelector('.project-member-gantt__detail-status')?.className).toContain(
+      'project-member-gantt__detail-status--active',
+    )
+    expect(
+      detailCard?.querySelector('[data-testid="project-member-gantt-detail-progress-fill"]')?.getAttribute('style'),
+    ).toContain('width: 50%;')
+    expect(detailCard?.textContent).toContain('登录联调')
+    expect(detailCard?.textContent).toContain('前端开发')
+    expect(detailCard?.textContent).toContain('王五')
+    expect(detailCard?.textContent).toContain('50%')
+    expect(source).toContain('.project-member-gantt__detail-progress-track')
+    expect(source).toContain('.project-member-gantt__detail-status--active')
+
+    wrapper.unmount()
+  })
+
+  it('anchors the member subtask detail card to the hover point and flips placement near viewport edges', async () => {
+    const wrapper = mount(ProjectMemberGanttView, {
+      attachTo: document.body,
+      props: {
+        gantt: sampleMemberGantt,
+        perspective: 'member',
+        scale: 'week',
+      },
+    })
+
+    await wrapper.get('[data-testid="project-member-gantt-bar-4001"]').trigger('mouseenter', {
+      clientX: 360,
+      clientY: 300,
+    })
+
+    let detailCard = document.body.querySelector('[data-testid="project-member-gantt-detail-card"]') as HTMLElement | null
+
+    expect(detailCard).not.toBeNull()
+    expect(detailCard?.style.left).toBe('360px')
+    expect(detailCard?.style.top).toBe('300px')
+    expect(detailCard?.dataset.placement).toBe('top-right')
+
+    await wrapper.get('[data-testid="project-member-gantt-bar-4001"]').trigger('mouseenter', {
+      clientX: 980,
+      clientY: 72,
+    })
+
+    detailCard = document.body.querySelector('[data-testid="project-member-gantt-detail-card"]') as HTMLElement | null
+    expect(detailCard?.dataset.placement).toBe('bottom-left')
+
+    wrapper.unmount()
+  })
+
+  it('keeps the fixed member subtask detail card visible while moving from the bar into the card', async () => {
+    vi.useFakeTimers()
+
+    const wrapper = mount(ProjectMemberGanttView, {
+      attachTo: document.body,
+      props: {
+        gantt: sampleMemberGantt,
+        perspective: 'member',
+        scale: 'week',
+      },
+    })
+
+    await wrapper.get('[data-testid="project-member-gantt-bar-4001"]').trigger('mouseenter')
+
+    const detailCard = document.body.querySelector('[data-testid="project-member-gantt-detail-card"]')
+    expect(detailCard).not.toBeNull()
+
+    await wrapper.get('[data-testid="project-member-gantt-bar-4001"]').trigger('mouseleave')
+    expect(document.body.querySelector('[data-testid="project-member-gantt-detail-card"]')).not.toBeNull()
+
+    detailCard?.dispatchEvent(new MouseEvent('mouseenter', { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(240)
+    expect(document.body.querySelector('[data-testid="project-member-gantt-detail-card"]')).not.toBeNull()
+
+    detailCard?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
+    await vi.advanceTimersByTimeAsync(240)
+    expect(document.body.querySelector('[data-testid="project-member-gantt-detail-card"]')).toBeNull()
+
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
   it('renders fixed member rows and a matching time axis for the member gantt perspective', () => {
     const wrapper = mount(ProjectMemberGanttView, {
       props: {
@@ -804,6 +973,7 @@ describe('ProjectMemberGanttView', () => {
     expect(source).toContain('.project-member-gantt__body-scroll {')
     expect(source).toContain('max-height: 620px;')
     expect(source).toContain('overflow: auto;')
+    expect(source).toMatch(/v-else\s+v-smooth-wheel="\{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1\.3 \}"\s+class="project-member-gantt__body-scroll smooth-scroll-surface"/)
     expect(source).toContain('.project-member-gantt__axis-scroll {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('top: 0;')
@@ -876,5 +1046,21 @@ describe('ProjectMemberGanttView', () => {
     expect(source).toContain('.project-member-gantt__axis-scroll::-webkit-scrollbar {')
     expect(source).toContain('height: 12px;')
     expect(source).not.toContain('scrollbar-width: none;')
+  })
+
+  it('keeps the sticky member axis free of backdrop blur and isolates each row paint to reduce scroll jank', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
+    const axisBlock = source.match(/\.project-member-gantt__axis \{[\s\S]*?\n\}/)?.[0]
+    const rowBlock = source.match(/\.project-member-gantt__row \{[\s\S]*?\n\}/)?.[0]
+    const sidebarRowBlocks = [...source.matchAll(/\.project-member-gantt__sidebar-row \{[\s\S]*?\n\}/g)].map((match) => match[0])
+
+    expect(axisBlock).toBeTruthy()
+    expect(axisBlock).not.toContain('backdrop-filter')
+    expect(rowBlock).toBeTruthy()
+    expect(rowBlock).toContain('contain: layout paint;')
+    expect(rowBlock).toContain('content-visibility: auto;')
+    expect(sidebarRowBlocks.length).toBeGreaterThan(0)
+    expect(sidebarRowBlocks.some((block) => block.includes('content-visibility: auto;'))).toBe(true)
+    expect(sidebarRowBlocks.some((block) => block.includes('contain-intrinsic-size: 62px;'))).toBe(true)
   })
 })

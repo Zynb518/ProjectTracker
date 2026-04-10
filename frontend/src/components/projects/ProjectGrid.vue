@@ -250,9 +250,11 @@ defineEmits<{
 
 .project-card:hover,
 .project-card:focus-visible {
-  transform: translateY(-2px);
-  border-color: var(--accent-line);
-  box-shadow: var(--shadow-panel-hover);
+  transform: translateY(-4px);
+  border-color: color-mix(in srgb, var(--accent-line) 82%, #ffffff 18%);
+  box-shadow:
+    0 28px 54px color-mix(in srgb, #0f172a 18%, transparent),
+    0 12px 26px color-mix(in srgb, var(--accent-end) 16%, transparent);
 }
 
 .project-card:hover::after,
@@ -292,6 +294,15 @@ defineEmits<{
   display: block;
   white-space: nowrap;
   text-overflow: ellipsis;
+  transition:
+    color 200ms ease-out,
+    text-shadow 200ms ease-out;
+}
+
+.project-card:hover .project-card__name,
+.project-card:focus-visible .project-card__name {
+  color: color-mix(in srgb, var(--text-main) 98%, #ffffff 2%);
+  text-shadow: 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent);
 }
 
 .project-card__status {
@@ -309,6 +320,20 @@ defineEmits<{
   line-height: 1;
   white-space: nowrap;
   text-transform: uppercase;
+  transition:
+    transform 200ms ease-out,
+    box-shadow 200ms ease-out,
+    border-color 200ms ease-out,
+    background-color 200ms ease-out,
+    color 200ms ease-out;
+}
+
+.project-card:hover .project-card__status,
+.project-card:focus-visible .project-card__status {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent),
+    0 10px 18px color-mix(in srgb, var(--accent-end) 16%, transparent);
 }
 
 .project-card__status::before {
@@ -322,33 +347,33 @@ defineEmits<{
 }
 
 .project-card__status--pending {
-  border-color: color-mix(in srgb, var(--accent-neutral) 30%, transparent);
-  background: color-mix(in srgb, var(--accent-neutral) 18%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--work-status-pending-color);
 }
 
 .project-card__status--active {
-  border-color: rgba(0, 194, 255, 0.24);
-  background: var(--gradient-primary);
-  color: var(--text-inverse);
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
 }
 
 .project-card__status--done {
-  border-color: color-mix(in srgb, var(--accent-success) 28%, transparent);
-  background: color-mix(in srgb, var(--accent-success) 18%, transparent);
-  color: var(--accent-success);
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
 }
 
 .project-card__status--delayed {
-  border-color: color-mix(in srgb, var(--accent-warning) 28%, transparent);
-  background: color-mix(in srgb, var(--accent-warning) 18%, transparent);
-  color: var(--accent-warning);
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
 }
 
 .project-card__status--unknown {
-  border-color: var(--border-soft);
-  background: var(--dialog-control-bg-strong);
-  color: var(--text-soft);
+  border-color: var(--work-status-unknown-border);
+  background: var(--work-status-unknown-bg);
+  color: var(--work-status-unknown-color);
 }
 
 .project-card__description {
@@ -388,10 +413,10 @@ defineEmits<{
   align-content: start;
   gap: 2px;
   padding: 10px 12px;
-  border: 1px solid var(--meta-surface-border);
+  border: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);
   border-radius: 14px;
-  background: var(--meta-surface-bg), var(--meta-surface-glow);
-  box-shadow: var(--meta-surface-shadow);
+  background: var(--dialog-control-bg);
+  box-shadow: none;
   overflow: hidden;
 }
 

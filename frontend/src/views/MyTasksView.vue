@@ -1,12 +1,13 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 import { getErrorMessage } from '@/api/http'
 import MyTaskBoard from '@/components/my-tasks/MyTaskBoard.vue'
 import MyTaskFilters from '@/components/my-tasks/MyTaskFilters.vue'
-import { listMySubtasks } from '@/api/subtasks'
+import MyTaskProgressDialog from '@/components/my-tasks/MyTaskProgressDialog.vue'
+import { listMySubtasks, listSubtaskProgressRecords, submitSubtaskProgress } from '@/api/subtasks'
 import { useNotificationStore } from '@/stores/notifications'
-import type { Subtask } from '@/types/subtask'
+import type { Subtask, SubtaskProgressRecord } from '@/types/subtask'
 
 const filters = reactive({
   projectId: '',
@@ -16,7 +17,18 @@ const filters = reactive({
 const tasks = ref<Subtask[]>([])
 const isLoading = ref(false)
 const hasLoadError = ref(false)
+const showProgressDialog = ref(false)
+const selectedTaskId = ref<number | null>(null)
+const progressRecords = ref<SubtaskProgressRecord[]>([])
+const isHistoryLoading = ref(false)
+const historyLoadError = ref<string | null>(null)
+const isProgressSubmitting = ref(false)
 const notificationStore = useNotificationStore()
+let latestHistoryRequestId = 0
+
+const selectedTask = computed(
+  () => tasks.value.find((task) => task.id === selectedTaskId.value) ?? null,
+)
 
 async function loadTasks() {
   isLoading.value = true
@@ -33,6 +45,79 @@ async function loadTasks() {
     notificationStore.notifyError(getErrorMessage(error, '任务加载失败'))
   } finally {
     isLoading.value = false
+  }
+}
+
+function closeProgressDialog() {
+  latestHistoryRequestId += 1
+  showProgressDialog.value = false
+  selectedTaskId.value = null
+  progressRecords.value = []
+  historyLoadError.value = null
+  isHistoryLoading.value = false
+}
+
+function updateProgressDialogVisibility(value: boolean) {
+  if (value) {
+    showProgressDialog.value = true
+    return
+  }
+
+  closeProgressDialog()
+}
+
+async function openProgressDialog(subtaskId: number) {
+  selectedTaskId.value = subtaskId
+  showProgressDialog.value = true
+  progressRecords.value = []
+  historyLoadError.value = null
+  isHistoryLoading.value = true
+
+  const requestId = ++latestHistoryRequestId
+
+  try {
+    const response = await listSubtaskProgressRecords(subtaskId, {
+      page: 1,
+      page_size: 20,
+    })
+
+    if (requestId !== latestHistoryRequestId || selectedTaskId.value !== subtaskId) {
+      return
+    }
+
+    progressRecords.value = response.list
+  } catch (error) {
+    if (requestId !== latestHistoryRequestId || selectedTaskId.value !== subtaskId) {
+      return
+    }
+
+    historyLoadError.value = getErrorMessage(error, '历史记录加载失败')
+  } finally {
+    if (requestId === latestHistoryRequestId && selectedTaskId.value === subtaskId) {
+      isHistoryLoading.value = false
+    }
+  }
+}
+
+async function handleSubmitProgress(payload: {
+  subtaskId: number
+  progress_percent: number
+  progress_note: string
+}) {
+  isProgressSubmitting.value = true
+
+  try {
+    await submitSubtaskProgress(payload.subtaskId, {
+      progress_percent: payload.progress_percent,
+      progress_note: payload.progress_note,
+    })
+
+    closeProgressDialog()
+    await loadTasks()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '进度提交失败'))
+  } finally {
+    isProgressSubmitting.value = false
   }
 }
 
@@ -72,6 +157,18 @@ onMounted(loadTasks)
     <MyTaskBoard
       v-if="tasks.length > 0 || (!isLoading && !hasLoadError)"
       :tasks="tasks"
+      @open-progress="openProgressDialog"
+    />
+
+    <MyTaskProgressDialog
+      :model-value="showProgressDialog"
+      :subtask="selectedTask"
+      :records="progressRecords"
+      :is-history-loading="isHistoryLoading"
+      :history-load-error="historyLoadError"
+      :is-submitting="isProgressSubmitting"
+      @submit="handleSubmitProgress"
+      @update:model-value="updateProgressDialogVisibility"
     />
   </section>
 </template>

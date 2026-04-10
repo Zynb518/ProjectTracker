@@ -50,6 +50,16 @@ describe('ProjectHero', () => {
     expect(source).not.toContain('color-mix(in srgb, var(--project-card-bg)')
   })
 
+  it('uses the shared semantic work-status tokens for the project status pill instead of the brand gradient', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectHero.vue'), 'utf8')
+
+    expect(source).toContain('background: var(--work-status-active-bg);')
+    expect(source).toContain('color: var(--work-status-active-color);')
+    expect(source).toContain('background: var(--work-status-done-bg);')
+    expect(source).toContain('color: var(--work-status-done-color);')
+    expect(source).not.toContain(".project-overview-card__status--active {\n  background: var(--gradient-primary);")
+  })
+
   it('renders member summary, two circular progress indicators, and one grouped metadata panel', () => {
     const screen = render(ProjectHero, {
       props: {

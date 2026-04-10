@@ -1,5 +1,5 @@
 export type SmoothWheelAxis = 'horizontal' | 'vertical'
-export type SmoothWheelBehavior = 'block' | 'smooth'
+export type SmoothWheelBehavior = 'block' | 'instant' | 'native' | 'smooth'
 
 export type SmoothWheelOptions = {
   axis?: SmoothWheelAxis
@@ -55,6 +55,26 @@ function setScrollPosition(element: HTMLElement, axis: SmoothWheelAxis, value: n
   }
 
   element.scrollTop = value
+}
+
+function smoothScrollToPosition(element: HTMLElement, axis: SmoothWheelAxis, value: number) {
+  if (typeof element.scrollTo !== 'function') {
+    return false
+  }
+
+  if (axis === 'horizontal') {
+    element.scrollTo({
+      behavior: 'smooth',
+      left: value,
+    })
+    return true
+  }
+
+  element.scrollTo({
+    behavior: 'smooth',
+    top: value,
+  })
+  return true
 }
 
 function getMaxScrollPosition(element: HTMLElement, axis: SmoothWheelAxis) {
@@ -210,9 +230,14 @@ export function createSmoothWheelController(
     event.preventDefault()
     targetPosition = nextTarget
 
-    if (prefersReducedMotion()) {
+    if (options.wheelBehavior === 'instant' || prefersReducedMotion()) {
       stopAnimation()
       setScrollPosition(element, options.axis, targetPosition)
+      return
+    }
+
+    if (options.wheelBehavior === 'native' && smoothScrollToPosition(element, options.axis, targetPosition)) {
+      stopAnimation()
       return
     }
 

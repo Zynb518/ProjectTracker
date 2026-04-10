@@ -29,4 +29,16 @@ describe('theme typography tokens', () => {
     expect(baseSource).toContain("font-family: 'Noto Sans SC', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', 'Segoe UI', sans-serif;")
     expect(baseSource).toContain('font-synthesis: weight style;')
   })
+
+  it('defines a shared semantic work-status palette with blue active states in both themes', () => {
+    const themeSource = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8')
+
+    expect(themeSource).toContain('--work-status-pending-color:')
+    expect(themeSource).toContain('--work-status-active-color: #0a66ff;')
+    expect(themeSource).toContain('--work-status-done-color: var(--accent-success);')
+    expect(themeSource).toContain('--work-status-delayed-color: var(--accent-warning);')
+    expect(themeSource).toContain('--work-status-active-strong: #0a66ff;')
+    expect(themeSource).toContain('--work-status-active-color: #67b7ff;')
+    expect(themeSource).toContain('--work-status-active-strong: #67b7ff;')
+  })
 })

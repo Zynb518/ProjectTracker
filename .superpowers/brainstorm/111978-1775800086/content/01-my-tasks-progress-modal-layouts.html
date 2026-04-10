@@ -1,0 +1,229 @@
+<h2>我的任务 · 进度提交弹层方案</h2>
+<p class="subtitle">已按你的约束收口：整张卡片点击打开，左侧只提交进度百分比和进展说明，右侧显示最近 20 条历史记录，提交成功后自动关闭。</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>标准居中弹窗</h3>
+      <p>中等宽度，左右 6:4 分栏。结构直白，但历史区空间偏紧，长说明阅读一般。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>宽屏工作台弹窗</h3>
+      <p>更宽的双栏弹层，左侧提交区更像执行面板，右侧历史记录更稳定。我推荐这一版。</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>上下堆叠弹窗</h3>
+      <p>上面提交，下面滚动历史。移动端更自然，但桌面端切换视线距离更长，效率偏弱。</p>
+    </div>
+  </div>
+</div>
+
+<div class="cards">
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">A. 标准居中弹窗</div>
+        <div class="mockup-body" style="padding:20px;background:linear-gradient(180deg,#f6f8fb,#eef2f7);">
+          <div style="margin:0 auto;width:min(100%,780px);border:1px solid #d7dee8;border-radius:24px;background:#ffffff;box-shadow:0 24px 48px rgba(15,23,42,.16);overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:18px 22px;border-bottom:1px solid #e5ebf3;">
+              <div>
+                <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#7c8ba1;">任务进度</div>
+                <div style="margin-top:6px;font-size:22px;font-weight:700;color:#1b2430;">CRM 对接联调</div>
+              </div>
+              <div style="font-size:12px;color:#8c98aa;">提交后自动关闭</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1.1fr .9fr;min-height:420px;">
+              <div style="padding:22px;border-right:1px solid #e8edf4;background:#fbfcfe;">
+                <div style="display:grid;gap:16px;">
+                  <div style="padding:16px;border:1px solid #dce5f0;border-radius:18px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;color:#5c6b80;"><span>进度百分比</span><strong style="font-size:18px;color:#0f172a;">70%</strong></div>
+                    <div style="margin-top:14px;height:10px;border-radius:999px;background:#dfe7f3;overflow:hidden;">
+                      <div style="width:70%;height:100%;border-radius:999px;background:linear-gradient(90deg,#2f80ff,#1fb6ff);"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:#8b97a8;"><span>当前 60%</span><span>100%</span></div>
+                  </div>
+                  <div style="padding:16px;border:1px solid #dce5f0;border-radius:18px;background:#fff;">
+                    <div style="font-size:13px;color:#5c6b80;">进展说明</div>
+                    <div style="margin-top:10px;height:128px;border:1px dashed #d6deea;border-radius:14px;background:#f8fbff;"></div>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end;gap:12px;">
+                    <div style="padding:11px 16px;border:1px solid #d8e0eb;border-radius:12px;background:#fff;color:#415066;">取消</div>
+                    <div style="padding:11px 18px;border-radius:12px;background:linear-gradient(135deg,#1f70ff,#18b8ff);color:#fff;box-shadow:0 16px 24px rgba(31,112,255,.22);">提交进度</div>
+                  </div>
+                </div>
+              </div>
+              <div style="padding:22px;background:#f6f9fd;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <div style="font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7c8ba1;">最近 20 条</div>
+                  <div style="font-size:12px;color:#8b97a8;">可滚动</div>
+                </div>
+                <div style="display:grid;gap:12px;margin-top:14px;">
+                  <div style="padding:14px;border:1px solid #d9e3ef;border-radius:16px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><strong>张三</strong><span style="color:#8b97a8;">80%</span></div>
+                    <div style="margin-top:8px;font-size:13px;color:#5c6b80;">接口联调完成，待回归测试。</div>
+                  </div>
+                  <div style="padding:14px;border:1px solid #d9e3ef;border-radius:16px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><strong>李四</strong><span style="color:#8b97a8;">60%</span></div>
+                    <div style="margin-top:8px;font-size:13px;color:#5c6b80;">字段映射已确认，联调进行中。</div>
+                  </div>
+                  <div style="padding:14px;border:1px solid #d9e3ef;border-radius:16px;background:#fff;opacity:.72;">
+                    <div style="height:66px;border-radius:12px;background:linear-gradient(180deg,#f7f9fc,#eef3f8);"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 A</h3>
+      <p>风险最小，几乎可以直接复用现有子任务进度弹窗和历史抽屉的样式资产。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">B. 宽屏工作台弹窗</div>
+        <div class="mockup-body" style="padding:20px;background:linear-gradient(180deg,#eef5ff,#edf8f6);">
+          <div style="margin:0 auto;width:min(100%,980px);border:1px solid #d8e2ef;border-radius:28px;background:linear-gradient(180deg,#ffffff,#f9fbfd);box-shadow:0 28px 56px rgba(15,23,42,.18);overflow:hidden;">
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 26px;border-bottom:1px solid #e6edf6;background:linear-gradient(135deg,rgba(31,112,255,.07),rgba(24,184,255,.03));">
+              <div>
+                <div style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#6280a0;">Execution Desk</div>
+                <div style="margin-top:8px;font-size:24px;font-weight:700;color:#172230;">CRM 对接联调</div>
+                <div style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;">
+                  <span style="padding:6px 10px;border:1px solid #cfe0ff;border-radius:999px;background:#eef5ff;font-size:12px;color:#3566b2;">项目 A</span>
+                  <span style="padding:6px 10px;border:1px solid #d8e3ea;border-radius:999px;background:#f6f9fc;font-size:12px;color:#526275;">接口联调节点</span>
+                </div>
+              </div>
+              <div style="padding:10px 14px;border-radius:14px;background:#fff;border:1px solid #d9e4ef;color:#6f7f93;font-size:12px;">提交成功后自动关闭</div>
+            </div>
+            <div style="display:grid;grid-template-columns:1.35fr .85fr;min-height:470px;">
+              <div style="padding:26px 26px 24px;background:linear-gradient(180deg,#fbfdff,#f5f9fd);">
+                <div style="display:grid;gap:18px;">
+                  <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;">
+                    <div style="padding:16px 18px;border:1px solid #dce6f1;border-radius:18px;background:#fff;">
+                      <div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#7c8ba1;">当前进度</div>
+                      <div style="margin-top:10px;font-size:28px;font-weight:700;color:#172230;">60%</div>
+                    </div>
+                    <div style="padding:16px 18px;border:1px solid #dce6f1;border-radius:18px;background:#fff;">
+                      <div style="font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:#7c8ba1;">本次提交</div>
+                      <div style="margin-top:10px;font-size:28px;font-weight:700;color:#0a66ff;">70%</div>
+                    </div>
+                  </div>
+                  <div style="padding:18px;border:1px solid #dce6f1;border-radius:20px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;color:#5c6b80;"><span>进度滑杆</span><span>不可低于当前值</span></div>
+                    <div style="margin-top:14px;height:12px;border-radius:999px;background:#dee8f4;overflow:hidden;">
+                      <div style="width:60%;height:100%;background:#9ca8b6;float:left;"></div>
+                      <div style="width:10%;height:100%;background:linear-gradient(90deg,#2f80ff,#1fb6ff);float:left;"></div>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-top:10px;font-size:12px;color:#8b97a8;"><span>0%</span><span>当前 60%</span><span>100%</span></div>
+                  </div>
+                  <div style="padding:18px;border:1px solid #dce6f1;border-radius:20px;background:#fff;">
+                    <div style="font-size:13px;color:#5c6b80;">进展说明</div>
+                    <div style="margin-top:10px;height:154px;border:1px dashed #d8e3ef;border-radius:16px;background:linear-gradient(180deg,#fbfdff,#f4f8fc);"></div>
+                  </div>
+                  <div style="display:flex;justify-content:flex-end;gap:12px;">
+                    <div style="padding:12px 18px;border:1px solid #d8e0eb;border-radius:14px;background:#fff;color:#415066;">取消</div>
+                    <div style="padding:12px 20px;border-radius:14px;background:linear-gradient(135deg,#145fff,#18bbff);color:#fff;box-shadow:0 18px 28px rgba(20,95,255,.24);">提交进度</div>
+                  </div>
+                </div>
+              </div>
+              <div style="padding:24px;border-left:1px solid #e4ecf6;background:linear-gradient(180deg,#f4f8fc,#eef4f9);">
+                <div style="display:flex;align-items:end;justify-content:space-between;gap:12px;">
+                  <div>
+                    <div style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:#72859a;">Progress History</div>
+                    <div style="margin-top:8px;font-size:20px;font-weight:700;color:#1b2430;">最近 20 条提交</div>
+                  </div>
+                  <div style="font-size:12px;color:#8c98aa;">独立滚动</div>
+                </div>
+                <div style="display:grid;gap:12px;margin-top:18px;">
+                  <div style="padding:14px 14px 12px;border:1px solid #d7e3ef;border-radius:18px;background:#ffffff;box-shadow:0 10px 20px rgba(15,23,42,.04);">
+                    <div style="display:flex;justify-content:space-between;gap:12px;">
+                      <strong style="color:#172230;">张三</strong>
+                      <span style="padding:4px 8px;border-radius:999px;background:#eef5ff;color:#2462bf;font-size:12px;">80%</span>
+                    </div>
+                    <div style="margin-top:8px;font-size:13px;color:#526275;">接口联调完成，待产品回归确认。</div>
+                    <div style="margin-top:10px;font-size:12px;color:#8b97a8;">2026-04-10 11:20</div>
+                  </div>
+                  <div style="padding:14px 14px 12px;border:1px solid #d7e3ef;border-radius:18px;background:#ffffff;box-shadow:0 10px 20px rgba(15,23,42,.04);">
+                    <div style="display:flex;justify-content:space-between;gap:12px;">
+                      <strong style="color:#172230;">李四</strong>
+                      <span style="padding:4px 8px;border-radius:999px;background:#eef6f0;color:#2f7a4f;font-size:12px;">60%</span>
+                    </div>
+                    <div style="margin-top:8px;font-size:13px;color:#526275;">字段映射完成，开始联调。</div>
+                    <div style="margin-top:10px;font-size:12px;color:#8b97a8;">2026-04-09 18:02</div>
+                  </div>
+                  <div style="padding:14px;border:1px solid #d7e3ef;border-radius:18px;background:#fbfdff;opacity:.72;">
+                    <div style="height:176px;border-radius:14px;background:linear-gradient(180deg,#f7f9fc,#eef3f8);"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 B</h3>
+      <p>最符合“我的任务”执行台定位。提交与历史并列，桌面端效率最高，也最适合后续再加快捷动作。</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div class="mockup">
+        <div class="mockup-header">C. 上下堆叠弹窗</div>
+        <div class="mockup-body" style="padding:20px;background:linear-gradient(180deg,#f7f8fc,#f2f5fb);">
+          <div style="margin:0 auto;width:min(100%,760px);border:1px solid #d8e0eb;border-radius:24px;background:#fff;box-shadow:0 24px 48px rgba(15,23,42,.14);overflow:hidden;">
+            <div style="padding:18px 22px;border-bottom:1px solid #e6edf4;">
+              <div style="font-size:11px;letter-spacing:.18em;text-transform:uppercase;color:#7c8ba1;">任务进度</div>
+              <div style="margin-top:6px;font-size:22px;font-weight:700;color:#1b2430;">CRM 对接联调</div>
+            </div>
+            <div style="padding:20px;background:#fbfcfe;">
+              <div style="padding:18px;border:1px solid #dce6f1;border-radius:18px;background:#fff;">
+                <div style="display:flex;justify-content:space-between;font-size:13px;color:#5c6b80;"><span>进度百分比</span><strong>70%</strong></div>
+                <div style="margin-top:14px;height:10px;border-radius:999px;background:#dfe7f3;overflow:hidden;">
+                  <div style="width:70%;height:100%;background:linear-gradient(90deg,#2f80ff,#1fb6ff);"></div>
+                </div>
+                <div style="margin-top:16px;height:132px;border:1px dashed #d6deea;border-radius:14px;background:#f8fbff;"></div>
+                <div style="display:flex;justify-content:flex-end;gap:12px;margin-top:16px;">
+                  <div style="padding:11px 16px;border:1px solid #d8e0eb;border-radius:12px;background:#fff;color:#415066;">取消</div>
+                  <div style="padding:11px 18px;border-radius:12px;background:linear-gradient(135deg,#1f70ff,#18b8ff);color:#fff;">提交进度</div>
+                </div>
+              </div>
+              <div style="margin-top:16px;padding:18px;border:1px solid #dce6f1;border-radius:18px;background:#f5f9fd;">
+                <div style="display:flex;align-items:center;justify-content:space-between;">
+                  <div style="font-size:13px;letter-spacing:.14em;text-transform:uppercase;color:#7c8ba1;">最近 20 条历史</div>
+                  <div style="font-size:12px;color:#8b97a8;">向下滚动</div>
+                </div>
+                <div style="display:grid;gap:10px;margin-top:14px;">
+                  <div style="padding:14px;border:1px solid #d9e3ef;border-radius:16px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><strong>张三</strong><span style="color:#8b97a8;">80%</span></div>
+                    <div style="margin-top:8px;font-size:13px;color:#5c6b80;">接口联调完成，待回归测试。</div>
+                  </div>
+                  <div style="padding:14px;border:1px solid #d9e3ef;border-radius:16px;background:#fff;">
+                    <div style="display:flex;justify-content:space-between;font-size:13px;"><strong>李四</strong><span style="color:#8b97a8;">60%</span></div>
+                    <div style="margin-top:8px;font-size:13px;color:#5c6b80;">字段映射已确认，联调进行中。</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>方案 C</h3>
+      <p>视觉最稳，但右侧历史不再是独立信息带，桌面端会更像“一个表单下面跟着一个列表”。</p>
+    </div>
+  </div>
+</div>

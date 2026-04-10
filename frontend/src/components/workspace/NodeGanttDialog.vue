@@ -271,7 +271,7 @@ onBeforeUnmount(() => {
 
         <div
           v-else
-          v-smooth-wheel
+          v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"
           class="node-gantt-dialog__body-scroll smooth-scroll-surface"
         >
           <div class="node-gantt-dialog__body">
@@ -593,6 +593,8 @@ onBeforeUnmount(() => {
 
 .node-gantt-dialog__sidebar-row {
   overflow: hidden;
+  content-visibility: auto;
+  contain-intrinsic-size: 62px;
 }
 
 .node-gantt-dialog__sidebar-head {
@@ -621,6 +623,7 @@ onBeforeUnmount(() => {
   justify-content: center;
   min-width: 72px;
   padding: 8px 12px;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 0.78rem;
   font-weight: 600;
@@ -629,26 +632,27 @@ onBeforeUnmount(() => {
 }
 
 .node-gantt-dialog__status-pill--pending {
-  background: color-mix(in srgb, var(--text-muted) 18%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--work-status-pending-color);
 }
 
 .node-gantt-dialog__status-pill--active {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 78%, #0d2754 22%), color-mix(in srgb, var(--accent-end) 68%, #0f2c5b 32%));
-  color: #f7fbff;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent),
-    0 8px 16px color-mix(in srgb, var(--accent-end) 14%, transparent);
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
 }
 
 .node-gantt-dialog__status-pill--done {
-  background: color-mix(in srgb, var(--text-muted) 20%, transparent);
-  color: color-mix(in srgb, var(--text-soft) 94%, transparent);
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
 }
 
 .node-gantt-dialog__status-pill--delayed {
-  background: color-mix(in srgb, var(--accent-warning) 18%, transparent);
-  color: var(--accent-warning);
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
 }
 
 .node-gantt-dialog__timeline-shell {
@@ -700,7 +704,6 @@ onBeforeUnmount(() => {
   display: flex;
   min-height: 56px;
   background: color-mix(in srgb, var(--glass-bg) 96%, transparent);
-  backdrop-filter: blur(12px);
 }
 
 .node-gantt-dialog__axis-cell {
@@ -756,6 +759,9 @@ onBeforeUnmount(() => {
 
 .node-gantt-dialog__row {
   min-height: 62px;
+  contain: layout paint;
+  content-visibility: auto;
+  contain-intrinsic-size: 62px;
 }
 
 .node-gantt-dialog__track {
@@ -823,23 +829,23 @@ onBeforeUnmount(() => {
 }
 
 .node-gantt-dialog__bar--pending {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--text-muted) 36%, transparent), color-mix(in srgb, var(--text-soft) 22%, transparent));
-  color: var(--text-main);
+  background: var(--work-status-pending-strong);
+  color: var(--work-status-pending-contrast);
 }
 
 .node-gantt-dialog__bar--active {
-  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
-  color: #f6fbff;
+  background: var(--work-status-active-strong);
+  color: var(--work-status-active-contrast);
 }
 
 .node-gantt-dialog__bar--done {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--text-muted) 34%, transparent), color-mix(in srgb, var(--text-soft) 18%, transparent));
-  color: color-mix(in srgb, var(--text-main) 70%, transparent);
+  background: var(--work-status-done-strong);
+  color: var(--work-status-done-contrast);
 }
 
 .node-gantt-dialog__bar--delayed {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-warning) 76%, #ffffff 10%), color-mix(in srgb, var(--accent-warning) 58%, transparent));
-  color: #fffaf2;
+  background: var(--work-status-delayed-strong);
+  color: var(--work-status-delayed-contrast);
 }
 
 .node-gantt-dialog__detail-card {
@@ -926,36 +932,33 @@ onBeforeUnmount(() => {
 }
 
 .node-gantt-dialog__detail-status--pending {
-  border-color: color-mix(in srgb, var(--text-muted) 24%, transparent);
-  background: color-mix(in srgb, var(--text-muted) 16%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--work-status-pending-color);
 }
 
 .node-gantt-dialog__detail-status--active {
-  border-color: color-mix(in srgb, var(--accent-end) 72%, #0f2c5b 28%);
-  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 82%, #0d2754 18%), color-mix(in srgb, var(--accent-end) 70%, #0f2c5b 30%));
-  color: #f7fbff;
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
-    0 10px 18px color-mix(in srgb, var(--accent-end) 16%, transparent);
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
 }
 
 .node-gantt-dialog__detail-status--done {
-  border-color: color-mix(in srgb, var(--accent-success) 28%, transparent);
-  background: color-mix(in srgb, var(--accent-success) 16%, transparent);
-  color: var(--accent-success);
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
 }
 
 .node-gantt-dialog__detail-status--delayed {
-  border-color: color-mix(in srgb, var(--accent-warning) 30%, transparent);
-  background: color-mix(in srgb, var(--accent-warning) 14%, transparent);
-  color: var(--accent-warning);
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
 }
 
 .node-gantt-dialog__detail-status--unknown {
-  border-color: color-mix(in srgb, var(--border-soft) 90%, transparent);
-  background: color-mix(in srgb, var(--panel-bg) 82%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-unknown-border);
+  background: var(--work-status-unknown-bg);
+  color: var(--work-status-unknown-color);
 }
 
 .node-gantt-dialog__detail-meta {

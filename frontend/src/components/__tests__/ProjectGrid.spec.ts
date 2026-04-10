@@ -170,20 +170,47 @@ describe('ProjectGrid', () => {
     expect(styles.boxShadow).toBe('none')
   })
 
-  it('uses a dedicated tinted surface style for project meta cards so they stand apart from the main card', () => {
+  it('keeps project meta cards outlined and gives them a lighter dedicated surface instead of full transparency', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),
       'utf8',
     )
-    const themeSource = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8')
 
-    expect(source).toContain('border: 1px solid var(--meta-surface-border);')
-    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow);')
-    expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
-    expect(themeSource).toContain('--meta-surface-bg: linear-gradient(180deg, rgba(239, 245, 251, 0.96), rgba(226, 234, 245, 0.94));')
-    expect(themeSource).toContain('--meta-surface-glow: radial-gradient(circle at 100% 0%, rgba(0, 194, 255, 0.14), transparent 62%);')
-    expect(themeSource).toContain('--meta-surface-border:')
-    expect(themeSource).toContain('--meta-surface-shadow:')
+    expect(source).toContain('.project-card__meta-item {')
+    expect(source).toContain('border: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);')
+    expect(source).toContain('background: var(--dialog-control-bg);')
+    expect(source).toContain('box-shadow: none;')
+    expect(source).not.toContain('border: 1px solid var(--meta-surface-border);')
+    expect(source).not.toContain('background: var(--meta-surface-bg), var(--meta-surface-glow);')
+    expect(source).not.toContain('box-shadow: var(--meta-surface-shadow);')
+  })
+
+  it('uses a stronger layered hover elevation so project cards feel more responsive on pointer hover', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),
+      'utf8',
+    )
+
+    expect(source).toContain('.project-card:hover,')
+    expect(source).toContain('transform: translateY(-4px);')
+    expect(source).toContain('border-color: color-mix(in srgb, var(--accent-line) 82%, #ffffff 18%);')
+    expect(source).toContain('0 28px 54px color-mix(in srgb, #0f172a 18%, transparent),')
+    expect(source).toContain('0 12px 26px color-mix(in srgb, var(--accent-end) 16%, transparent);')
+  })
+
+  it('brightens the project title and sharpens the status pill on hover for clearer focus', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),
+      'utf8',
+    )
+
+    expect(source).toContain('.project-card:hover .project-card__name,')
+    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 98%, #ffffff 2%);')
+    expect(source).toContain('text-shadow: 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent);')
+    expect(source).toContain('.project-card:hover .project-card__status,')
+    expect(source).toContain('transform: translateY(-1px);')
+    expect(source).toContain('inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent),')
+    expect(source).toContain('0 10px 18px color-mix(in srgb, var(--accent-end) 16%, transparent);')
   })
 
   it('separates project meta content and actions into independent layout regions', () => {

@@ -1,4 +1,6 @@
 import { mount } from '@vue/test-utils'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 
 import ProjectFilters from '@/components/projects/ProjectFilters.vue'
@@ -24,6 +26,32 @@ describe('ProjectFilters', () => {
 
     expect(wrapper.emitted('update:status')).toEqual([['3']])
     expect(wrapper.emitted('submit')).toEqual([[]])
+  })
+
+  it('uses shared semantic work-status tokens for filter pills and selected states without the brand gradient', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectFilters.vue'), 'utf8')
+
+    expect(source).toContain('border-color: var(--work-status-active-border);')
+    expect(source).toContain('background: var(--work-status-active-bg);')
+    expect(source).toContain('background: var(--work-status-active-strong);')
+    expect(source).toContain('color: var(--work-status-done-color);')
+    expect(source).not.toContain(
+      ".project-filters__status-pill--active {\n  border-color: rgba(0, 194, 255, 0.22);\n  background: var(--gradient-primary-soft);",
+    )
+    expect(source).not.toContain(
+      ".project-filters__status-pill--active.project-filters__status-pill--selected {\n  border-color: rgba(0, 194, 255, 0.28);\n  background: var(--gradient-primary);",
+    )
+  })
+
+  it('keeps the project status filter container visually invisible so only the pills carry color', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectFilters.vue'), 'utf8')
+    const statusBarBlock = source.match(/\.project-filters__status-bar\s*\{([\s\S]*?)\n\}/)?.[0]
+
+    expect(statusBarBlock).toBeTruthy()
+    expect(statusBarBlock).toContain('padding: 0;')
+    expect(statusBarBlock).toContain('border: 1px solid transparent;')
+    expect(statusBarBlock).toContain('background: transparent;')
+    expect(statusBarBlock).toContain('box-shadow: none;')
   })
 
   it('emits the create trigger origin from the new project button', async () => {

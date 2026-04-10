@@ -258,4 +258,91 @@ describe('smoothWheel utils', () => {
     expect(animationFrames).toHaveLength(0)
     controller.destroy()
   })
+
+  it('can use a stronger smooth response without jumping straight to the final vertical position', () => {
+    const baselineElement = createScrollableElement({
+      clientHeight: 200,
+      scrollHeight: 600,
+      scrollTop: 0,
+    })
+    const tunedElement = createScrollableElement({
+      clientHeight: 200,
+      scrollHeight: 600,
+      scrollTop: 0,
+    })
+
+    const baselineController = createSmoothWheelController(baselineElement, {
+      axis: 'vertical',
+    })
+    const tunedController = createSmoothWheelController(tunedElement, {
+      axis: 'vertical',
+      easing: 0.36,
+      multiplier: 1.45,
+    })
+    baselineController.mount()
+    tunedController.mount()
+
+    const baselineEvent = new window.WheelEvent('wheel', {
+      cancelable: true,
+      deltaY: 48,
+    })
+    const tunedEvent = new window.WheelEvent('wheel', {
+      cancelable: true,
+      deltaY: 48,
+    })
+
+    baselineElement.dispatchEvent(baselineEvent)
+    tunedElement.dispatchEvent(tunedEvent)
+    flushAnimationFrames(1)
+
+    expect(baselineEvent.defaultPrevented).toBe(true)
+    expect(tunedEvent.defaultPrevented).toBe(true)
+    expect(tunedElement.scrollTop).toBeGreaterThan(baselineElement.scrollTop)
+    expect(tunedElement.scrollTop).toBeLessThan(69.6)
+    expect(animationFrames.length).toBeGreaterThan(0)
+    baselineController.destroy()
+    tunedController.destroy()
+  })
+
+  it('can hand off vertical wheel motion to browser-native smooth scrolling without scheduling js animation frames', () => {
+    const element = createScrollableElement({
+      clientHeight: 200,
+      scrollHeight: 600,
+      scrollTop: 0,
+    })
+    const scrollTo = vi.fn().mockImplementation((options: ScrollToOptions) => {
+      if (typeof options.top === 'number') {
+        element.scrollTop = options.top
+      }
+    })
+
+    Object.defineProperty(element, 'scrollTo', {
+      configurable: true,
+      value: scrollTo,
+    })
+
+    const controller = createSmoothWheelController(element, {
+      axis: 'vertical',
+      multiplier: 1.3,
+      wheelBehavior: 'native',
+    })
+    controller.mount()
+
+    const scrollEvent = new window.WheelEvent('wheel', {
+      cancelable: true,
+      deltaY: 48,
+    })
+
+    element.dispatchEvent(scrollEvent)
+
+    expect(scrollEvent.defaultPrevented).toBe(true)
+    expect(scrollTo).toHaveBeenCalledTimes(1)
+    expect(scrollTo.mock.calls[0]?.[0]).toMatchObject({
+      behavior: 'smooth',
+    })
+    expect((scrollTo.mock.calls[0]?.[0] as ScrollToOptions | undefined)?.top).toBeCloseTo(62.4, 5)
+    expect(element.scrollTop).toBeCloseTo(62.4, 5)
+    expect(animationFrames).toHaveLength(0)
+    controller.destroy()
+  })
 })

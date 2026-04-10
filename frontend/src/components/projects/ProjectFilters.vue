@@ -183,11 +183,11 @@ function emitCreateOrigin(event: MouseEvent) {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 6px;
-  border: 1px solid var(--border-soft);
+  padding: 0;
+  border: 1px solid transparent;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  background: transparent;
+  box-shadow: none;
 }
 
 .project-filters__status-pill {
@@ -243,27 +243,27 @@ function emitCreateOrigin(event: MouseEvent) {
 }
 
 .project-filters__status-pill--pending {
-  border-color: color-mix(in srgb, var(--accent-neutral) 30%, transparent);
-  background: color-mix(in srgb, var(--accent-neutral) 12%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--work-status-pending-color);
 }
 
 .project-filters__status-pill--active {
-  border-color: rgba(0, 194, 255, 0.22);
-  background: var(--gradient-primary-soft);
-  color: #53d4ff;
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
 }
 
 .project-filters__status-pill--done {
-  border-color: color-mix(in srgb, var(--accent-success) 28%, transparent);
-  background: color-mix(in srgb, var(--accent-success) 12%, transparent);
-  color: var(--accent-success);
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
 }
 
 .project-filters__status-pill--delayed {
-  border-color: color-mix(in srgb, var(--accent-warning) 28%, transparent);
-  background: color-mix(in srgb, var(--accent-warning) 12%, transparent);
-  color: var(--accent-warning);
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
 }
 
 .project-filters__status-pill--selected {
@@ -279,22 +279,27 @@ function emitCreateOrigin(event: MouseEvent) {
 }
 
 .project-filters__status-pill--pending.project-filters__status-pill--selected {
-  background: color-mix(in srgb, var(--accent-neutral) 18%, transparent);
-  color: var(--text-main);
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-strong);
+  color: var(--work-status-pending-contrast);
 }
 
 .project-filters__status-pill--active.project-filters__status-pill--selected {
-  border-color: rgba(0, 194, 255, 0.28);
-  background: var(--gradient-primary);
-  color: var(--text-inverse);
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-strong);
+  color: var(--work-status-active-contrast);
 }
 
 .project-filters__status-pill--done.project-filters__status-pill--selected {
-  background: color-mix(in srgb, var(--accent-success) 20%, transparent);
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-strong);
+  color: var(--work-status-done-contrast);
 }
 
 .project-filters__status-pill--delayed.project-filters__status-pill--selected {
-  background: color-mix(in srgb, var(--accent-warning) 20%, transparent);
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-strong);
+  color: var(--work-status-delayed-contrast);
 }
 
 .project-filters__actions {

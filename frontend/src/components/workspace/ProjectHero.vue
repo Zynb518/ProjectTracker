@@ -303,6 +303,7 @@ const subtaskProgress = computed(() =>
   align-items: center;
   gap: 8px;
   padding: 8px 12px;
+  border: 1px solid transparent;
   border-radius: 999px;
   font-size: 0.86rem;
   font-weight: 700;
@@ -321,28 +322,33 @@ const subtaskProgress = computed(() =>
 }
 
 .project-overview-card__status--pending {
-  background: color-mix(in srgb, var(--accent-neutral) 16%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--work-status-pending-color);
 }
 
 .project-overview-card__status--active {
-  background: var(--gradient-primary);
-  color: var(--text-inverse);
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
 }
 
 .project-overview-card__status--done {
-  background: color-mix(in srgb, var(--accent-success) 18%, transparent);
-  color: var(--accent-success);
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
 }
 
 .project-overview-card__status--delayed {
-  background: color-mix(in srgb, var(--accent-warning) 18%, transparent);
-  color: var(--accent-warning);
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
 }
 
 .project-overview-card__status--unknown {
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
-  color: var(--text-soft);
+  border-color: var(--work-status-unknown-border);
+  background: var(--work-status-unknown-bg);
+  color: var(--work-status-unknown-color);
 }
 
 @media (max-width: 1100px) {
