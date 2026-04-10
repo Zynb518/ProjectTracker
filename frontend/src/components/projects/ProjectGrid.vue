@@ -383,11 +383,11 @@ defineEmits<{
 .project-card__meta-item {
   position: relative;
   min-width: 0;
-  min-height: 74px;
-  display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  padding: 12px 12px;
+  min-height: 68px;
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  padding: 10px 12px;
   border: 1px solid var(--meta-surface-border);
   border-radius: 14px;
   background: var(--meta-surface-bg), var(--meta-surface-glow);
@@ -429,21 +429,23 @@ defineEmits<{
   display: flex;
   align-items: center;
   margin: 0;
+  min-height: 28px;
   color: var(--text-soft);
 }
 
 .project-card__meta dd {
-  margin: 6px 0 0;
-  padding-left: 4px;
+  margin: 2px 0 0;
+  padding-left: 2px;
   min-width: 0;
   font-size: 0.98rem;
   font-weight: 700;
+  line-height: 1.24;
   color: var(--text-main);
 }
 
 .project-card__meta-icon {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   display: inline-grid;
   place-items: center;
   border: 0;
@@ -454,8 +456,8 @@ defineEmits<{
 }
 
 .project-card__meta-icon svg {
-  width: 16px;
-  height: 16px;
+  width: 15px;
+  height: 15px;
 }
 
 .project-card__meta-value {
@@ -470,7 +472,7 @@ defineEmits<{
 
 .project-card__schedule {
   display: grid;
-  gap: 2px;
+  gap: 1px;
 }
 
 .project-card__schedule-line {

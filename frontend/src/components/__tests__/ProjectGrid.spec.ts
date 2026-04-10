@@ -216,7 +216,7 @@ describe('ProjectGrid', () => {
     expect(actionBar.classes()).not.toContain('project-actions--pair')
   })
 
-  it('keeps all project meta cards slightly taller for clearer spacing', () => {
+  it('keeps all project meta cards compact enough to pull text closer to the icons', () => {
     const wrapper = mount(ProjectGrid, {
       props: {
         projects: [sampleProject],
@@ -225,10 +225,10 @@ describe('ProjectGrid', () => {
 
     const metaCards = wrapper.findAll('.project-card__meta div')
 
-    expect(getComputedStyle(metaCards[0].element).minHeight).toBe('74px')
-    expect(getComputedStyle(metaCards[1].element).minHeight).toBe('74px')
-    expect(getComputedStyle(metaCards[2].element).minHeight).toBe('74px')
-    expect(getComputedStyle(metaCards[3].element).minHeight).toBe('74px')
+    expect(getComputedStyle(metaCards[0].element).minHeight).toBe('68px')
+    expect(getComputedStyle(metaCards[1].element).minHeight).toBe('68px')
+    expect(getComputedStyle(metaCards[2].element).minHeight).toBe('68px')
+    expect(getComputedStyle(metaCards[3].element).minHeight).toBe('68px')
   })
 
   it('anchors meta icons to the top of each info card even when content spans multiple lines', () => {
@@ -240,10 +240,10 @@ describe('ProjectGrid', () => {
 
     const metaCard = wrapper.get('.project-card__meta div').element
 
-    expect(getComputedStyle(metaCard).justifyContent).toBe('flex-start')
+    expect(getComputedStyle(metaCard).alignContent).toBe('start')
   })
 
-  it('tightens the icon-to-text spacing while pushing meta text slightly farther from the left edge', () => {
+  it('keeps meta text much closer to the icons while preserving a small left inset', () => {
     const wrapper = mount(ProjectGrid, {
       props: {
         projects: [sampleProject],
@@ -253,8 +253,8 @@ describe('ProjectGrid', () => {
     const metaText = wrapper.get('.project-card__meta dd').element
     const styles = getComputedStyle(metaText)
 
-    expect(styles.marginTop).toBe('6px')
-    expect(styles.paddingLeft).toBe('4px')
+    expect(styles.marginTop).toBe('2px')
+    expect(styles.paddingLeft).toBe('2px')
   })
 
   it('opens the project when a user clicks the card', async () => {
