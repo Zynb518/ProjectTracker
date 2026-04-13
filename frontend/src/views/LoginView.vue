@@ -1,18 +1,36 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ThemeToggle from '@/components/ThemeToggle.vue'
+import cat3Image from '@/assets/login/cat3.png'
+import skyImage from '@/assets/login/sky.png'
 import { getErrorMessage } from '@/api/http'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
+const themeStore = useThemeStore()
 
 const username = ref('')
 const password = ref('')
+const isDark = computed(() => themeStore.mode === 'dark')
+const activeBackgroundImage = computed(() => `url(${isDark.value ? cat3Image : skyImage})`)
+
+onMounted(() => {
+  if (typeof Image === 'undefined') {
+    return
+  }
+
+  for (const src of [skyImage, cat3Image]) {
+    const image = new Image()
+    image.decoding = 'async'
+    image.src = src
+  }
+})
 
 async function submitLogin() {
   try {
@@ -29,63 +47,55 @@ async function submitLogin() {
 
 <template>
   <section class="login-view">
+    <div
+      aria-hidden="true"
+      class="login-view__background"
+      data-testid="login-background"
+      :style="{ backgroundImage: activeBackgroundImage }"
+    />
+    <div
+      aria-hidden="true"
+      :class="['login-view__scrim', { 'login-view__scrim--dark': isDark }]"
+    />
+
     <header class="login-view__toolbar">
       <p class="login-view__brand">Project Tracker</p>
       <ThemeToggle />
     </header>
 
-    <div class="login-shell">
-      <section class="login-card login-card--hero">
-        <p class="login-eyebrow">Control Surface</p>
-        <h1>进入项目台</h1>
-        <p class="login-copy">科技感、通透、轻量化的项目控制面板，统一查看项目、节点、成员与任务状态。</p>
-
-        <div class="login-highlights">
-          <article>
-            <strong>双主题</strong>
-            <span>浅色与深色模式平滑切换</span>
-          </article>
-          <article>
-            <strong>高密度</strong>
-            <span>保持信息聚合而不牺牲层次</span>
-          </article>
-          <article>
-            <strong>实时调度</strong>
-            <span>从项目到子任务的统一工作流</span>
-          </article>
-        </div>
-      </section>
-
-      <section class="login-card login-card--form">
+    <section class="login-card">
+      <div class="login-card__header">
         <p class="login-card__caption">账号登录</p>
-        <form class="login-form" @submit.prevent="submitLogin">
-          <label class="login-label" for="username">用户名</label>
-          <input
-            id="username"
-            v-model="username"
-            data-testid="login-username"
-            class="login-input"
-            autocomplete="username"
-            name="username"
-            placeholder="输入用户名"
-            type="text"
-          />
+        <h1>进入项目台</h1>
+      </div>
 
-          <label class="login-label" for="password">密码</label>
-          <input
-            id="password"
-            v-model="password"
-            data-testid="login-password"
-            class="login-input"
-            autocomplete="current-password"
-            name="password"
-            placeholder="输入登录密码"
-            type="password"
-          />
-          <button class="login-button" type="submit">进入项目台</button>
-        </form>
-      </section>
-    </div>
+      <form class="login-form" @submit.prevent="submitLogin">
+        <label class="login-label" for="username">用户名</label>
+        <input
+          id="username"
+          v-model="username"
+          data-testid="login-username"
+          class="login-input"
+          autocomplete="username"
+          name="username"
+          placeholder="输入用户名"
+          type="text"
+        />
+
+        <label class="login-label" for="password">密码</label>
+        <input
+          id="password"
+          v-model="password"
+          data-testid="login-password"
+          class="login-input"
+          autocomplete="current-password"
+          name="password"
+          placeholder="输入登录密码"
+          type="password"
+        />
+        <button class="login-button" type="submit">进入项目台</button>
+      </form>
+    </section>
   </section>
 </template>
 
@@ -93,181 +103,188 @@ async function submitLogin() {
 .login-view {
   min-height: 100vh;
   display: grid;
+  justify-items: center;
   align-content: center;
-  gap: 20px;
-  padding: 28px;
+  gap: 24px;
+  padding: 32px 24px;
+  position: relative;
+  isolation: isolate;
+}
+
+.login-view__background,
+.login-view__scrim {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.login-view__background {
+  background-position: center;
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-color: color-mix(in srgb, var(--panel-bg-soft) 68%, #ffffff 32%);
+}
+
+.login-view__scrim {
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--accent-start) 8%, transparent), transparent 26%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(228, 237, 247, 0.2));
+}
+
+.login-view__scrim--dark {
+  background:
+    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--accent-end) 12%, transparent), transparent 28%),
+    linear-gradient(180deg, rgba(7, 10, 20, 0.1), rgba(7, 10, 20, 0.34));
 }
 
 .login-view__toolbar {
-  width: min(100%, 1120px);
-  margin: 0 auto;
+  width: min(100%, 420px);
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: 12px;
+  position: relative;
+  z-index: 1;
 }
 
 .login-view__brand {
   margin: 0;
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.18em;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--text-soft);
 }
 
-.login-shell {
-  width: min(100%, 1120px);
-  margin: 0 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(360px, 420px);
-  gap: 20px;
-}
-
 .login-card {
+  width: min(100%, 420px);
   position: relative;
   overflow: hidden;
   display: grid;
-  gap: 16px;
-  padding: 32px;
-  border: 1px solid var(--border-soft);
-  border-radius: 24px;
-  background: var(--glass-bg);
-  box-shadow: var(--shadow-glass);
+  gap: 22px;
+  padding: 30px 28px 28px;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 96%, transparent);
+  border-radius: 26px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 92%, #ffffff 8%), color-mix(in srgb, var(--glass-bg) 94%, transparent)),
+    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-end) 12%, transparent), transparent 34%);
+  box-shadow:
+    0 22px 44px color-mix(in srgb, #0f172a 12%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 34%, transparent);
   backdrop-filter: var(--backdrop-blur);
+  z-index: 1;
 }
 
 .login-card::after {
   content: '';
   position: absolute;
-  inset: auto -10% -35% 38%;
-  height: 180px;
-  background: radial-gradient(circle, rgba(0, 194, 255, 0.18), transparent 65%);
-  filter: blur(12px);
+  inset: auto -18% -32% 42%;
+  height: 160px;
+  background: radial-gradient(circle, color-mix(in srgb, var(--accent-end) 18%, transparent), transparent 64%);
+  filter: blur(14px);
   pointer-events: none;
 }
 
-.login-card--hero {
-  align-content: start;
-  min-height: 520px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 86%, transparent), var(--glass-bg)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.14), transparent 28%);
-}
-
-.login-card--form {
-  align-content: center;
-}
-
-.login-eyebrow {
-  margin: 0;
-  font-size: 0.8rem;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  color: var(--text-soft);
+.login-card__header {
+  display: grid;
+  gap: 10px;
 }
 
 h1 {
   margin: 0;
-  font-size: clamp(2rem, 4vw, 3rem);
-}
-
-.login-copy {
-  margin: 0;
-  max-width: 44ch;
-  color: var(--text-soft);
-}
-
-.login-highlights {
-  display: grid;
-  gap: 12px;
-  margin-top: 12px;
-}
-
-.login-highlights article {
-  display: grid;
-  gap: 6px;
-  padding: 14px 16px;
-  border: 1px solid var(--border-soft);
-  border-radius: 18px;
-  background: var(--panel-bg-soft);
-}
-
-.login-highlights strong {
-  font-size: 1rem;
-}
-
-.login-highlights span,
-.login-card__caption {
-  color: var(--text-soft);
+  font-size: clamp(1.8rem, 4vw, 2.3rem);
+  line-height: 1.05;
 }
 
 .login-card__caption {
   margin: 0;
-  font-size: 0.8rem;
-  font-weight: 600;
-  letter-spacing: 0.16em;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
+  color: var(--text-soft);
 }
 
 .login-form {
   display: grid;
   gap: 14px;
+  padding-top: 2px;
 }
 
 .login-label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.08em;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
   color: var(--text-soft);
 }
 
 .login-input {
-  min-height: 48px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
-  padding: 0 14px;
-  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+  min-height: 50px;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 96%, transparent);
+  border-radius: 14px;
+  padding: 0 16px;
+  background: color-mix(in srgb, var(--panel-bg) 90%, #ffffff 10%);
   color: var(--text-main);
   font: inherit;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 40%, transparent);
+  transition:
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out,
+    background-color 180ms ease-out;
 }
 
 .login-input::placeholder {
-  color: var(--text-muted);
+  color: color-mix(in srgb, var(--text-muted) 92%, transparent);
 }
 
 .login-input:focus {
-  border-color: var(--accent-line);
-  box-shadow: 0 0 0 4px rgba(10, 102, 255, 0.12);
+  border-color: color-mix(in srgb, var(--accent-line) 62%, transparent);
+  background: color-mix(in srgb, var(--glass-bg-strong) 96%, #ffffff 4%);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 52%, transparent),
+    0 0 0 4px color-mix(in srgb, var(--accent-start) 8%, transparent);
 }
 
 .login-button {
-  min-height: 48px;
-  margin-top: 8px;
+  min-height: 52px;
+  margin-top: 10px;
   border: none;
-  border-radius: 10px;
+  border-radius: 14px;
   padding: 12px 18px;
   background: var(--gradient-primary);
   color: var(--text-inverse);
   font: inherit;
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.03em;
   cursor: pointer;
-  box-shadow: 0 16px 30px rgba(10, 102, 255, 0.22);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 18%, transparent),
+    0 16px 30px color-mix(in srgb, var(--accent-start) 22%, transparent);
+  transition:
+    transform 180ms ease-out,
+    box-shadow 180ms ease-out,
+    filter 180ms ease-out;
 }
 
 .login-button:hover {
   transform: translateY(-2px);
-  box-shadow: 0 20px 34px rgba(10, 102, 255, 0.28);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
+    0 22px 36px color-mix(in srgb, var(--accent-start) 26%, transparent);
+  filter: saturate(1.03);
 }
 
-@media (max-width: 920px) {
-  .login-shell {
-    grid-template-columns: 1fr;
+@media (max-width: 560px) {
+  .login-view {
+    padding: 24px 16px;
+    gap: 18px;
   }
 
-  .login-card--hero {
-    min-height: auto;
+  .login-card {
+    padding: 24px 20px 20px;
+    border-radius: 22px;
   }
 }
 </style>
