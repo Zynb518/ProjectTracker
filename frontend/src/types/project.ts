@@ -24,6 +24,21 @@ export interface ProjectListQuery {
   page_size?: number
 }
 
+export interface ProjectOwnerCandidateQuery {
+  keyword?: string
+  page?: number
+  page_size?: number
+}
+
+export interface ProjectOwnerCandidate {
+  id: number
+  username: string
+  real_name: string
+  system_role: number
+  status: number
+  is_project_member: boolean
+}
+
 export interface ProjectPermissions {
   can_edit_basic: boolean
   can_manage_members: boolean
@@ -70,4 +85,13 @@ export interface ProjectMutationResult {
   planned_end_date?: string
   completed_at?: string | null
   updated_at?: string
+}
+
+export interface ProjectOwnerTransferResult {
+  project_id: number
+  previous_owner_user_id: number
+  owner_user_id: number
+  owner_real_name: string
+  auto_added_as_member: boolean
+  updated_at: string
 }

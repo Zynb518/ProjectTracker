@@ -23,6 +23,8 @@ vi.mock('@/api/projects', () => ({
   getProjectDetail: vi.fn(),
   getProjectGanttMembers: vi.fn(),
   getProjectGanttNodes: vi.fn(),
+  listProjectOwnerCandidates: vi.fn(),
+  transferProjectOwner: vi.fn(),
 }))
 
 vi.mock('@/api/members', () => ({
@@ -56,7 +58,13 @@ vi.mock('@/api/subtasks', () => ({
   listSubtaskProgressRecords: vi.fn(),
 }))
 
-import { getProjectDetail, getProjectGanttMembers, getProjectGanttNodes } from '@/api/projects'
+import {
+  getProjectDetail,
+  getProjectGanttMembers,
+  getProjectGanttNodes,
+  listProjectOwnerCandidates,
+  transferProjectOwner,
+} from '@/api/projects'
 import { listProjectMembers, removeProjectMember } from '@/api/members'
 import {
   completeProjectNode,
@@ -1811,5 +1819,103 @@ describe('ProjectDetailView', () => {
     expect(screen.getByText('内部进度平台')).toBeTruthy()
     expect(screen.getByText('李四')).toBeTruthy()
     expect(screen.getByText('工作台刷新中...')).toBeTruthy()
+  })
+
+  it('loads owner candidates and transfers the project owner from the member panel', async () => {
+    vi.mocked(getProjectDetail)
+      .mockResolvedValueOnce(projectDetailFixture)
+      .mockResolvedValueOnce({
+        ...projectDetailFixture,
+        owner_user_id: 12,
+        owner_real_name: '李四',
+        member_count: 2,
+      })
+
+    vi.mocked(listProjectMembers)
+      .mockResolvedValueOnce(membersFixture)
+      .mockResolvedValueOnce({
+        list: [
+          {
+            project_id: 1001,
+            user_id: 12,
+            username: 'lisi',
+            real_name: '李四',
+            system_role: 2,
+            status: 1,
+            joined_at: '2026-04-10T09:00:00+08:00',
+            is_owner: true,
+          },
+          {
+            project_id: 1001,
+            user_id: 1,
+            username: 'zhangsan',
+            real_name: '张三',
+            system_role: 2,
+            status: 1,
+            joined_at: '2026-03-19T11:00:00+08:00',
+            is_owner: false,
+          },
+        ],
+      })
+
+    vi.mocked(listProjectNodes).mockResolvedValue(nodesFixture)
+    vi.mocked(listNodeSubtasks).mockResolvedValue({ list: [] })
+    vi.mocked(listProjectOwnerCandidates).mockResolvedValue({
+      list: [
+        {
+          id: 12,
+          username: 'lisi',
+          real_name: '李四',
+          system_role: 2,
+          status: 1,
+          is_project_member: false,
+        },
+      ],
+      total: 1,
+      page: 1,
+      page_size: 20,
+    })
+    vi.mocked(transferProjectOwner).mockResolvedValue({
+      project_id: 1001,
+      previous_owner_user_id: 1,
+      owner_user_id: 12,
+      owner_real_name: '李四',
+      auto_added_as_member: true,
+      updated_at: '2026-04-10T09:30:00+08:00',
+    })
+
+    const screen = render(ProjectDetailView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+    const user = userEvent.setup()
+
+    expect(await screen.findByTestId('transfer-owner-1')).toBeTruthy()
+
+    await user.click(screen.getByTestId('transfer-owner-1'))
+
+    await waitFor(() => {
+      expect(listProjectOwnerCandidates).toHaveBeenCalledWith(1001, {
+        keyword: '',
+        page: 1,
+        page_size: 20,
+      })
+    })
+
+    await user.click(await screen.findByTestId('owner-candidate-12'))
+    await user.click(screen.getByRole('button', { name: '确认转交' }))
+
+    await waitFor(() => {
+      expect(transferProjectOwner).toHaveBeenCalledWith(1001, 12)
+    })
+
+    await waitFor(() => {
+      expect(getProjectDetail).toHaveBeenCalledTimes(2)
+      expect(listProjectMembers).toHaveBeenCalledTimes(2)
+    })
+
+    expect(await screen.findByTestId('transfer-owner-12')).toBeTruthy()
+    expect(screen.queryByText('转交项目负责人')).toBeNull()
   })
 })

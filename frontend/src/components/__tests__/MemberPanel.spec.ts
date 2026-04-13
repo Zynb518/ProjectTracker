@@ -3,6 +3,31 @@ import { mount } from '@vue/test-utils'
 import MemberPanel from '@/components/members/MemberPanel.vue'
 
 describe('MemberPanel', () => {
+  it('emits transfer-owner when an operator clicks the owner transfer button', async () => {
+    const wrapper = mount(MemberPanel, {
+      props: {
+        canManage: true,
+        canTransferOwner: true,
+        members: [
+          {
+            project_id: 1001,
+            user_id: 1,
+            username: 'zhangsan',
+            real_name: '张三',
+            system_role: 2,
+            status: 1,
+            joined_at: '2026-03-19T09:00:00+08:00',
+            is_owner: true,
+          },
+        ],
+      },
+    })
+
+    await wrapper.get('[data-testid="transfer-owner-1"]').trigger('click')
+
+    expect(wrapper.emitted('transfer-owner')).toEqual([[]])
+  })
+
   it('emits remove when an operator clicks the remove button', async () => {
     const wrapper = mount(MemberPanel, {
       props: {

@@ -133,18 +133,35 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
 .my-task-board__card {
   --task-card-accent: color-mix(in srgb, var(--accent-neutral) 12%, transparent);
   --task-card-accent-line: var(--accent-neutral);
+  --task-card-border: color-mix(in srgb, var(--border-soft) 92%, transparent);
+  --task-card-hover-border: color-mix(in srgb, var(--task-card-accent-line) 26%, var(--accent-line));
+  --task-card-bg:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--panel-bg) 96%, var(--glass-bg)),
+      color-mix(in srgb, var(--glass-bg) 94%, transparent)
+    ),
+    radial-gradient(circle at top right, var(--task-card-accent), transparent 42%);
+  --task-card-shadow: var(--shadow-panel);
+  --task-card-hover-shadow:
+    0 26px 48px color-mix(in srgb, #0f172a 16%, transparent),
+    0 10px 24px color-mix(in srgb, var(--task-card-accent-line) 14%, transparent);
+  --task-card-pill-bg: color-mix(in srgb, var(--dialog-control-bg) 98%, transparent);
+  --task-card-pill-border: color-mix(in srgb, var(--border-soft) 92%, transparent);
+  --task-card-subsurface-bg: color-mix(in srgb, var(--panel-bg) 90%, transparent);
+  --task-card-subsurface-border: color-mix(in srgb, var(--border-soft) 90%, transparent);
+  --task-card-sheen-opacity: 0;
   position: relative;
+  isolation: isolate;
   overflow: hidden;
   display: grid;
   gap: 16px;
   padding: 20px;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
+  border: 1px solid var(--task-card-border);
   border-radius: 20px;
   cursor: pointer;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 96%, var(--glass-bg)), color-mix(in srgb, var(--glass-bg) 94%, transparent)),
-    radial-gradient(circle at top right, var(--task-card-accent), transparent 42%);
-  box-shadow: var(--shadow-panel);
+  background: var(--task-card-bg);
+  box-shadow: var(--task-card-shadow);
   backdrop-filter: var(--backdrop-blur);
   transition:
     transform 200ms ease-out,
@@ -160,22 +177,65 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
   height: 4px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--task-card-accent-line) 84%, #ffffff 16%), transparent);
   opacity: 0.9;
+  pointer-events: none;
+  z-index: 2;
+}
+
+.my-task-board__card::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, #ffffff 54%, transparent), transparent 38%),
+    radial-gradient(
+      circle at top right,
+      color-mix(in srgb, var(--task-card-accent-line) 24%, #ffffff 76%),
+      transparent 34%
+    );
+  opacity: var(--task-card-sheen-opacity);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.my-task-board__card > * {
+  position: relative;
+  z-index: 1;
+}
+
+:global(html.light) .my-task-board__card {
+  --task-card-border: rgba(108, 140, 186, 0.18);
+  --task-card-hover-border: color-mix(in srgb, var(--task-card-accent-line) 28%, rgba(255, 255, 255, 0.42));
+  --task-card-bg:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.96) 0%, rgba(239, 246, 254, 0.94) 54%, rgba(232, 241, 251, 0.9) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0) 30%),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--task-card-accent-line) 22%, #7ddcff 78%), transparent 36%);
+  --task-card-shadow:
+    0 22px 40px rgba(49, 76, 116, 0.11),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 0 0 1px rgba(108, 140, 186, 0.08);
+  --task-card-hover-shadow:
+    0 30px 52px rgba(35, 65, 103, 0.16),
+    0 14px 26px color-mix(in srgb, var(--task-card-accent-line) 18%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.92);
+  --task-card-pill-bg: linear-gradient(180deg, rgba(247, 250, 255, 0.88), rgba(238, 245, 252, 0.76));
+  --task-card-pill-border: rgba(110, 140, 184, 0.18);
+  --task-card-subsurface-bg: linear-gradient(180deg, rgba(248, 251, 255, 0.86), rgba(239, 246, 253, 0.74));
+  --task-card-subsurface-border: rgba(119, 146, 184, 0.13);
+  --task-card-sheen-opacity: 1;
+  backdrop-filter: blur(18px);
 }
 
 .my-task-board__card:hover {
   transform: translateY(-4px);
-  border-color: color-mix(in srgb, var(--task-card-accent-line) 26%, var(--accent-line));
-  box-shadow:
-    0 26px 48px color-mix(in srgb, #0f172a 16%, transparent),
-    0 10px 24px color-mix(in srgb, var(--task-card-accent-line) 14%, transparent);
+  border-color: var(--task-card-hover-border);
+  box-shadow: var(--task-card-hover-shadow);
 }
 
 .my-task-board__card:focus-visible {
   outline: none;
-  border-color: color-mix(in srgb, var(--task-card-accent-line) 32%, var(--accent-line));
+  border-color: color-mix(in srgb, var(--task-card-accent-line) 32%, var(--task-card-hover-border));
   box-shadow:
-    0 26px 48px color-mix(in srgb, #0f172a 16%, transparent),
-    0 10px 24px color-mix(in srgb, var(--task-card-accent-line) 14%, transparent),
+    var(--task-card-hover-shadow),
     0 0 0 4px rgba(10, 102, 255, 0.12);
 }
 
@@ -252,9 +312,10 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
   white-space: nowrap;
   min-height: 30px;
   padding: 0 10px;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
+  border: 1px solid var(--task-card-pill-border);
   border-radius: 999px;
-  background: color-mix(in srgb, var(--dialog-control-bg) 98%, transparent);
+  background: var(--task-card-pill-bg);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 52%, transparent);
   color: var(--text-main);
   font-size: 0.76rem;
   font-weight: 700;
@@ -283,6 +344,7 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 26%, transparent);
   transition:
     transform 200ms ease-out,
     box-shadow 200ms ease-out;
@@ -338,34 +400,48 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
   justify-content: center;
   min-height: 34px;
   padding: 0 12px;
-  border: 1px solid var(--dialog-control-border);
+  border: 1px solid var(--task-card-pill-border);
   border-radius: 999px;
   font-size: 0.8rem;
   font-weight: 700;
   line-height: 1;
-  box-shadow: var(--dialog-control-shadow);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 44%, transparent),
+    0 10px 18px color-mix(in srgb, #0f172a 6%, transparent);
 }
 
 .my-task-board__priority--low {
-  background: color-mix(in srgb, var(--accent-success) 14%, var(--dialog-control-bg));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-success) 10%, #ffffff 90%),
+    color-mix(in srgb, var(--accent-success) 14%, var(--task-card-pill-bg))
+  );
   border-color: color-mix(in srgb, var(--accent-success) 28%, transparent);
   color: color-mix(in srgb, var(--accent-success) 72%, var(--text-main));
 }
 
 .my-task-board__priority--medium {
-  background: color-mix(in srgb, var(--accent-start) 16%, var(--dialog-control-bg));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-start) 12%, #ffffff 88%),
+    color-mix(in srgb, var(--accent-start) 16%, var(--task-card-pill-bg))
+  );
   border-color: color-mix(in srgb, var(--accent-start) 28%, transparent);
   color: color-mix(in srgb, var(--accent-start) 70%, var(--text-main));
 }
 
 .my-task-board__priority--high {
-  background: color-mix(in srgb, var(--accent-warning) 16%, var(--dialog-control-bg));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-warning) 10%, #ffffff 90%),
+    color-mix(in srgb, var(--accent-warning) 16%, var(--task-card-pill-bg))
+  );
   border-color: color-mix(in srgb, var(--accent-warning) 28%, transparent);
   color: color-mix(in srgb, var(--accent-warning) 74%, var(--text-main));
 }
 
 .my-task-board__priority--unknown {
-  background: var(--dialog-control-bg);
+  background: var(--task-card-pill-bg);
   color: var(--text-soft);
 }
 
@@ -391,9 +467,12 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
   display: grid;
   gap: 8px;
   padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);
+  border: 1px solid var(--task-card-subsurface-border);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--panel-bg) 90%, transparent);
+  background: var(--task-card-subsurface-bg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 52%, transparent),
+    0 12px 20px color-mix(in srgb, #0f172a 4%, transparent);
 }
 
 .my-task-board__progress-head {
@@ -420,8 +499,10 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
   overflow: hidden;
   height: 8px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--panel-bg) 80%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-line) 18%, transparent);
+  background: color-mix(in srgb, var(--panel-bg) 80%, rgba(255, 255, 255, 0.4));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--accent-line) 18%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 44%, transparent);
 }
 
 .my-task-board__progress-fill {
@@ -443,9 +524,12 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
 
 .my-task-board__meta div {
   padding: 12px 14px;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 90%, transparent);
+  border: 1px solid var(--task-card-subsurface-border);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--dialog-control-bg) 96%, transparent);
+  background: var(--task-card-subsurface-bg);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 52%, transparent),
+    0 10px 18px color-mix(in srgb, #0f172a 4%, transparent);
 }
 
 .my-task-board__meta dt {

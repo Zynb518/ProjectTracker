@@ -10,11 +10,13 @@ import { useNotificationStore } from '@/stores/notifications'
 import type { Subtask, SubtaskProgressRecord } from '@/types/subtask'
 
 const filters = reactive({
-  projectId: '',
+  projectKeyword: '',
+  appliedProjectKeyword: '',
   status: '',
 })
 
 const tasks = ref<Subtask[]>([])
+const projectCandidates = ref<string[]>([])
 const isLoading = ref(false)
 const hasLoadError = ref(false)
 const showProgressDialog = ref(false)
@@ -30,22 +32,79 @@ const selectedTask = computed(
   () => tasks.value.find((task) => task.id === selectedTaskId.value) ?? null,
 )
 
+const filteredProjectCandidates = computed(() => {
+  const keyword = filters.projectKeyword.trim().toLocaleLowerCase()
+  if (keyword === '') {
+    return projectCandidates.value
+  }
+
+  return projectCandidates.value.filter((projectName) =>
+    projectName.toLocaleLowerCase().includes(keyword),
+  )
+})
+
+function extractProjectCandidates(taskList: Subtask[]) {
+  const uniqueProjectNames = new Set<string>()
+  for (const task of taskList) {
+    const projectName = task.project_name?.trim()
+    if (!projectName) {
+      continue
+    }
+
+    uniqueProjectNames.add(projectName)
+  }
+
+  return [...uniqueProjectNames]
+}
+
 async function loadTasks() {
   isLoading.value = true
   hasLoadError.value = false
+  const normalizedProjectKeyword = filters.appliedProjectKeyword.trim()
 
   try {
     const response = await listMySubtasks({
-      project_id: filters.projectId ? Number(filters.projectId) : undefined,
+      project_keyword: normalizedProjectKeyword || undefined,
       status: filters.status ? Number(filters.status) : undefined,
     })
     tasks.value = response.list
+
+    if (normalizedProjectKeyword === '') {
+      projectCandidates.value = extractProjectCandidates(response.list)
+    }
   } catch (error) {
     hasLoadError.value = true
     notificationStore.notifyError(getErrorMessage(error, '任务加载失败'))
   } finally {
     isLoading.value = false
   }
+}
+
+async function loadProjectCandidates() {
+  try {
+    const response = await listMySubtasks({
+      status: filters.status ? Number(filters.status) : undefined,
+    })
+    projectCandidates.value = extractProjectCandidates(response.list)
+  } catch {
+    projectCandidates.value = []
+  }
+}
+
+async function handleStatusSubmit() {
+  if (filters.appliedProjectKeyword) {
+    await Promise.all([loadTasks(), loadProjectCandidates()])
+    return
+  }
+
+  await loadTasks()
+}
+
+async function handleProjectKeywordApply(value: string) {
+  const normalizedValue = value.trim()
+  filters.projectKeyword = normalizedValue
+  filters.appliedProjectKeyword = normalizedValue
+  await loadTasks()
 }
 
 function closeProgressDialog() {
@@ -135,10 +194,12 @@ onMounted(loadTasks)
     </header>
 
     <MyTaskFilters
-      :project-id="filters.projectId"
+      :project-candidates="filteredProjectCandidates"
+      :project-keyword="filters.projectKeyword"
       :status="filters.status"
-      @submit="loadTasks"
-      @update:project-id="filters.projectId = $event"
+      @apply-project-keyword="handleProjectKeywordApply"
+      @submit="handleStatusSubmit"
+      @update:project-keyword="filters.projectKeyword = $event"
       @update:status="filters.status = $event"
     />
 

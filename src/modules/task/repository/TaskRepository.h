@@ -36,7 +36,7 @@ namespace project_tracker::modules::task::repository {
     struct MyTaskListQuery {
         std::int64_t currentUserId;
         std::optional<domain::TaskStatus> status;
-        std::optional<std::int64_t> projectId;
+        std::string projectKeyword;
     };
 
     // 子任务进度记录列表查询条件

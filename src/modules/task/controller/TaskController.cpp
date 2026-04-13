@@ -459,11 +459,15 @@ namespace project_tracker::modules::task::controller {
             query.status = static_cast<domain::TaskStatus>(*statusValue);
         }
 
-        if (!util::readPositiveQueryInt64(request, "project_id", query.projectId)) {
+        if (request->getParameters().find("project_id") != request->getParameters().end()) {
             co_return api::fail(
                 drogon::k400BadRequest,
                 error::ErrorCode::InvalidParameter,
-                "project_id 必须是大于 0 的整数");
+                "project_id 已废弃，请改用 project_keyword");
+        }
+
+        if (const auto projectKeyword = util::readQueryString(request, "project_keyword")) {
+            query.projectKeyword = *projectKeyword;
         }
 
         try {

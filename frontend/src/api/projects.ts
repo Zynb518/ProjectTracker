@@ -6,6 +6,9 @@ import type {
   ProjectFormPayload,
   ProjectListItem,
   ProjectListQuery,
+  ProjectOwnerCandidate,
+  ProjectOwnerCandidateQuery,
+  ProjectOwnerTransferResult,
   ProjectMutationResult,
 } from '@/types/project'
 
@@ -50,4 +53,24 @@ export async function completeProject(projectId: number): Promise<ProjectMutatio
 
 export async function reopenProject(projectId: number): Promise<ProjectMutationResult> {
   return unwrapResponse<ProjectMutationResult>(http.post(`/api/projects/${projectId}/reopen`, {}))
+}
+
+export async function listProjectOwnerCandidates(
+  projectId: number,
+  query: ProjectOwnerCandidateQuery,
+): Promise<PaginatedList<ProjectOwnerCandidate>> {
+  return unwrapResponse<PaginatedList<ProjectOwnerCandidate>>(
+    http.get(`/api/projects/${projectId}/owner/candidates`, { params: query }),
+  )
+}
+
+export async function transferProjectOwner(
+  projectId: number,
+  targetUserId: number,
+): Promise<ProjectOwnerTransferResult> {
+  return unwrapResponse<ProjectOwnerTransferResult>(
+    http.post(`/api/projects/${projectId}/owner/transfer`, {
+      target_user_id: targetUserId,
+    }),
+  )
 }

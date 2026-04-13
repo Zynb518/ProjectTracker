@@ -3,15 +3,18 @@ import type { ProjectMember } from '@/types/member'
 
 withDefaults(defineProps<{
   canManage: boolean
+  canTransferOwner?: boolean
   fixedHeight?: boolean
   members: ProjectMember[]
 }>(), {
+  canTransferOwner: false,
   fixedHeight: false,
 })
 
 defineEmits<{
   add: []
   remove: [userId: number]
+  'transfer-owner': []
 }>()
 </script>
 
@@ -47,6 +50,14 @@ defineEmits<{
         </div>
         <div class="member-panel__actions">
           <span>{{ member.is_owner ? '负责人' : '成员' }}</span>
+          <button
+            v-if="canTransferOwner && member.is_owner"
+            :data-testid="`transfer-owner-${member.user_id}`"
+            type="button"
+            @click="$emit('transfer-owner')"
+          >
+            转交负责人
+          </button>
           <button
             v-if="canManage && !member.is_owner"
             :data-testid="`remove-member-${member.user_id}`"

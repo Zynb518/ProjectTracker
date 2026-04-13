@@ -175,7 +175,7 @@ namespace project_tracker::modules::task::repository {
                                 const MyTaskListQuery &query) const {
         // 查询思路：
         // 1. 只返回当前用户负责的子任务，并关联补齐所属项目和阶段节点名称。
-        // 2. 支持按状态和项目筛选，排序继续与节点下子任务列表保持一致。
+        // 2. 支持按状态和项目名称关键字筛选，排序继续与节点下子任务列表保持一致。
         static const std::string listMyTasksSql = R"SQL(
             SELECT
                 st.id,
@@ -197,7 +197,7 @@ namespace project_tracker::modules::task::repository {
             JOIN project p ON p.id = pn.project_id
             WHERE st.responsible_user_id = $1
                 AND ($2 = 0 OR st.status = $2)
-                AND ($3 = 0::bigint OR p.id = $3)
+                AND ($3 = '' OR p.name ILIKE $3)
             ORDER BY
                 st.priority DESC,
                 planned_end_date_order ASC,
@@ -205,14 +205,16 @@ namespace project_tracker::modules::task::repository {
         )SQL";
 
         const int status = query.status ? domain::toInt(*query.status) : 0;
-        const std::int64_t projectId = query.projectId.value_or(0);
+        const std::string projectKeyword = query.projectKeyword.empty()
+                                               ? ""
+                                               : "%" + query.projectKeyword + "%";
 
         try {
             const auto queryResult = co_await executor->execSqlCoro(
                 listMyTasksSql,
                 query.currentUserId,
                 status,
-                projectId);
+                projectKeyword);
 
             std::vector<dto::view::MyTaskListItemView> list;
             list.reserve(queryResult.size());

@@ -17,7 +17,7 @@ export async function listNodeSubtasks(
   )
 }
 
-export async function listMySubtasks(query: { status?: number; project_id?: number }): Promise<{ list: Subtask[] }> {
+export async function listMySubtasks(query: { status?: number; project_keyword?: string }): Promise<{ list: Subtask[] }> {
   return unwrapResponse<{ list: Subtask[] }>(http.get('/api/my/subtasks', { params: query }))
 }
 

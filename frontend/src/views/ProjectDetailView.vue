@@ -5,6 +5,7 @@ import { useRoute } from 'vue-router'
 
 import AddMemberDialog from '@/components/members/AddMemberDialog.vue'
 import MemberPanel from '@/components/members/MemberPanel.vue'
+import ProjectOwnerTransferDialog from '@/components/projects/ProjectOwnerTransferDialog.vue'
 import SubtaskFormDialog from '@/components/subtasks/SubtaskFormDialog.vue'
 import SubtaskHistoryDrawer from '@/components/subtasks/SubtaskHistoryDrawer.vue'
 import SubtaskProgressDialog from '@/components/subtasks/SubtaskProgressDialog.vue'
@@ -28,7 +29,7 @@ import {
   startProjectNode,
   updateProjectNode,
 } from '@/api/nodes'
-import { getProjectGanttMembers, getProjectGanttNodes } from '@/api/projects'
+import { getProjectGanttMembers, getProjectGanttNodes, transferProjectOwner } from '@/api/projects'
 import {
   createSubtask,
   deleteSubtask,
@@ -61,6 +62,7 @@ const { isLoading, isSubtasksLoading, members, nodes, project, selectedNodeId, s
 
 const projectId = Number(route.params.projectId)
 const showAddMemberDialog = ref(false)
+const showOwnerTransferDialog = ref(false)
 const showNodeDialog = ref(false)
 const showSubtaskDialog = ref(false)
 const showProgressDialog = ref(false)
@@ -93,6 +95,7 @@ const isMemberGanttLoading = ref(false)
 const nodeGantt = ref<ProjectNodeSubtaskGantt | null>(null)
 const nodeGanttLoadError = ref<string | null>(null)
 const isNodeGanttLoading = ref(false)
+const isOwnerTransferSubmitting = ref(false)
 const nodeGanttCache = ref<Record<number, ProjectNodeSubtaskGantt>>({})
 const subtaskFormInitial = ref<SubtaskPayload>({
   name: '',
@@ -112,6 +115,7 @@ const isWorkspaceView = computed(() => currentViewMode.value === 'workspace')
 
 const canManageMembers = computed(() => project.value?.permissions.can_manage_members ?? false)
 const canManageNodes = computed(() => project.value?.permissions.can_manage_nodes ?? false)
+const canTransferOwner = computed(() => project.value?.permissions.can_transfer_owner ?? false)
 const projectStartDate = computed(() => project.value?.planned_start_date)
 const projectEndDate = computed(() => project.value?.planned_end_date)
 const selectedNodeStartDate = computed(() => drawerNode.value?.planned_start_date ?? projectStartDate.value)
@@ -308,6 +312,20 @@ async function handleRemoveMember(userId: number) {
     await refreshWorkspace()
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '移除成员失败'))
+  }
+}
+
+async function handleTransferOwner(userId: number) {
+  isOwnerTransferSubmitting.value = true
+
+  try {
+    await transferProjectOwner(projectId, userId)
+    showOwnerTransferDialog.value = false
+    await refreshWorkspace()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '负责人转交失败'))
+  } finally {
+    isOwnerTransferSubmitting.value = false
   }
 }
 
@@ -682,10 +700,12 @@ async function openHistoryDrawer(subtaskId: number) {
         <div class="project-detail__members">
           <MemberPanel
             :can-manage="canManageMembers"
+            :can-transfer-owner="canTransferOwner"
             :fixed-height="true"
             :members="members"
             @add="showAddMemberDialog = true"
             @remove="handleRemoveMember"
+            @transfer-owner="showOwnerTransferDialog = true"
           />
         </div>
       </div>
@@ -721,6 +741,14 @@ async function openHistoryDrawer(subtaskId: number) {
       v-model="showAddMemberDialog"
       :project-id="project.id"
       @select="handleAddMember"
+    />
+
+    <ProjectOwnerTransferDialog
+      v-if="project"
+      v-model="showOwnerTransferDialog"
+      :is-submitting="isOwnerTransferSubmitting"
+      :project-id="project.id"
+      @submit="handleTransferOwner"
     />
 
     <NodeFormDialog

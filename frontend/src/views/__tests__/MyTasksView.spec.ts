@@ -76,7 +76,7 @@ describe('MyTasksView', () => {
     })
   })
 
-  it('loads my subtasks and re-queries when the status filter changes', async () => {
+  it('loads my subtasks and immediately re-queries when the status filter changes', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -89,7 +89,7 @@ describe('MyTasksView', () => {
 
     await waitFor(() => {
       expect(listMySubtasks).toHaveBeenCalledWith({
-        project_id: undefined,
+        project_keyword: undefined,
         status: undefined,
       })
     })
@@ -98,17 +98,16 @@ describe('MyTasksView', () => {
     expect(screen.getByText('内部进度平台')).toBeTruthy()
 
     await user.click(screen.getByRole('button', { name: '进行中' }))
-    await user.click(screen.getByRole('button', { name: '刷新任务' }))
 
     await waitFor(() => {
       expect(listMySubtasks).toHaveBeenLastCalledWith({
-        project_id: undefined,
+        project_keyword: undefined,
         status: 2,
       })
     })
   })
 
-  it('keeps the current task cards visible while refreshing tasks', async () => {
+  it('keeps the current task cards visible while refreshing tasks triggered from the project keyword combobox', async () => {
     vi.mocked(listMySubtasks)
       .mockResolvedValueOnce({
         list: [
@@ -145,17 +144,51 @@ describe('MyTasksView', () => {
 
     expect(await screen.findByText('完成登录接口开发')).toBeTruthy()
 
-    await user.click(screen.getByRole('button', { name: '刷新任务' }))
+    const projectKeywordInput = screen.getByPlaceholderText('输入项目名称后按回车，或直接选择候选')
+    await user.clear(projectKeywordInput)
+    await user.type(projectKeywordInput, '平台{enter}')
 
     await waitFor(() => {
       expect(listMySubtasks).toHaveBeenLastCalledWith({
-        project_id: undefined,
+        project_keyword: '平台',
         status: undefined,
       })
     })
 
     expect(screen.getByText('完成登录接口开发')).toBeTruthy()
     expect(screen.getByText('任务列表刷新中...')).toBeTruthy()
+  })
+
+  it('re-queries all tasks when the project keyword input is cleared and then blurred', async () => {
+    const screen = render(MyTasksView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+    const user = userEvent.setup()
+
+    await screen.findByText('完成登录接口开发')
+
+    const projectKeywordInput = screen.getByPlaceholderText('输入项目名称后按回车，或直接选择候选')
+    await user.type(projectKeywordInput, '平台')
+    await user.keyboard('{Enter}')
+
+    await waitFor(() => {
+      expect(listMySubtasks).toHaveBeenLastCalledWith({
+        project_keyword: '平台',
+        status: undefined,
+      })
+    })
+
+    await user.clear(projectKeywordInput)
+    await fireEvent.blur(projectKeywordInput)
+
+    await waitFor(() => {
+      expect(listMySubtasks).toHaveBeenLastCalledWith({
+        project_keyword: undefined,
+        status: undefined,
+      })
+    })
   })
 
   it('opens the task progress dialog from a task card and loads the latest 20 history records', async () => {
@@ -247,7 +280,7 @@ describe('MyTasksView', () => {
 
     await waitFor(() => {
       expect(listMySubtasks).toHaveBeenLastCalledWith({
-        project_id: undefined,
+        project_keyword: undefined,
         status: undefined,
       })
     })

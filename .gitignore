@@ -29,6 +29,10 @@ config/config.dev.json
 .env
 .env.*
 
+# 本地 AI / agent 临时产物
+.superpowers/
+**/__pycache__/
+
 # 日志
 *.log
 
