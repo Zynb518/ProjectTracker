@@ -92,6 +92,51 @@ describe('ProjectListView', () => {
     expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
+  it('uses fog-white light-theme surfaces so the project hero, cards and pagination feel like a light overlay over the shared sky background', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/ProjectListView.vue'), 'utf8')
+
+    expect(source).toContain('html.light .project-list__hero-shell,')
+    expect(source).toContain('--project-list-sky-panel: linear-gradient(180deg, rgba(247, 251, 255, 0.84), rgba(235, 243, 252, 0.72));')
+    expect(source).toContain('--project-list-sky-card: linear-gradient(180deg, rgba(249, 252, 255, 0.82), rgba(238, 245, 253, 0.68));')
+    expect(source).toContain('--project-list-sky-text: #21324b;')
+    expect(source).toContain('html.light .project-list .project-card,')
+    expect(source).toContain('html.light .project-list__pagination,')
+  })
+
+  it('keeps distinct status colors in the project filter pills and reuses the shared work-status tokens so they match project cards and other status pills', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/ProjectListView.vue'), 'utf8')
+
+    expect(source).toContain('html.light .project-list .project-filters__status-pill--pending,')
+    expect(source).toContain('html.light .project-list .project-filters__status-pill--active,')
+    expect(source).toContain('html.light .project-list .project-filters__status-pill--done,')
+    expect(source).toContain('html.light .project-list .project-filters__status-pill--delayed,')
+    expect(source).toContain('background: var(--work-status-pending-bg);')
+    expect(source).toContain('background: var(--work-status-active-bg);')
+    expect(source).toContain('background: var(--work-status-done-bg);')
+    expect(source).toContain('background: var(--work-status-delayed-bg);')
+    expect(source).toContain('background: var(--work-status-active-strong);')
+    expect(source).toContain('color: var(--work-status-active-contrast);')
+  })
+
+  it('keeps light-theme project card hover from bleaching the fog-white surface and uses a separate streak layer instead', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/ProjectListView.vue'), 'utf8')
+
+    expect(source).toContain('html.light .project-list .project-card::before,')
+    expect(source).not.toContain('background: var(--project-list-sky-card-strong), var(--project-list-sky-fill);')
+  })
+
+  it('gives every project action button a more solid light-theme surface so the three-card action row feels visually unified', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/ProjectListView.vue'), 'utf8')
+
+    expect(source).toContain('html.light .project-list .project-actions__button--start,')
+    expect(source).toContain('html.light .project-list .project-actions__button--success,')
+    expect(source).toContain('html.light .project-list .project-actions__button--warning,')
+    expect(source).toContain('html.light .project-list .project-actions__button--danger,')
+    expect(source).toContain('html.light .project-list .project-actions__button--neutral,')
+    expect(source).toContain('background: linear-gradient(180deg, rgba(236, 246, 255, 0.9), rgba(213, 232, 249, 0.74));')
+    expect(source).toContain('background: linear-gradient(180deg, rgba(255, 240, 219, 0.92), rgba(244, 215, 173, 0.78));')
+  })
+
   it('re-queries when pressing Enter in the keyword field', async () => {
     const screen = render(ProjectListView)
     const user = userEvent.setup()

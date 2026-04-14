@@ -17,6 +17,16 @@ describe('AppShell', () => {
     expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
+  it('pins sky.png to the viewport in light theme so long authenticated pages do not stretch the background image', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/layouts/AppShell.vue'), 'utf8')
+
+    expect(source).toContain("url('../assets/login/sky.png')")
+    expect(source).toContain('html.light .app-shell::before,')
+    expect(source).toContain('position: fixed;')
+    expect(source).toContain('background-size: cover;')
+    expect(source).toContain('background-attachment: scroll;')
+  })
+
   beforeEach(() => {
     document.documentElement.className = 'light'
     localStorage.clear()
