@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 
 describe('theme typography tokens', () => {
@@ -41,5 +41,16 @@ describe('theme typography tokens', () => {
     expect(themeSource).toContain('--work-status-active-strong: #0a66ff;')
     expect(themeSource).toContain('--work-status-active-color: #67b7ff;')
     expect(themeSource).toContain('--work-status-active-strong: #67b7ff;')
+  })
+
+  it('uses the relocated night sky photo as the global dark background', () => {
+    const themeSource = readFileSync(resolve(process.cwd(), 'src/styles/theme.css'), 'utf8')
+
+    expect(existsSync(resolve(process.cwd(), 'src/assets/backgrounds/night-sky.jpg'))).toBe(true)
+    expect(themeSource).toContain('html.dark body::before {')
+    expect(themeSource).toContain('html.dark body {')
+    expect(themeSource).toContain('background-color: #02050d;')
+    expect(themeSource).toContain('background: none;')
+    expect(themeSource).not.toContain("url('../assets/backgrounds/night-sky.jpg')")
   })
 })

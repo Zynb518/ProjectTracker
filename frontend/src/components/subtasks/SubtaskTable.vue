@@ -275,11 +275,12 @@ function emitAction(key: ActionKey, subtaskId: number) {
   gap: 12px;
   min-width: 0;
   padding: 18px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 18px;
-  background: var(--glass-bg);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow:
+    var(--meta-surface-shadow),
+    0 18px 34px rgba(2, 6, 18, 0.18);
   overflow-x: hidden;
 }
 
@@ -354,9 +355,9 @@ function emitAction(key: ActionKey, subtaskId: number) {
   bottom: calc(100% + 5px);
   width: 10px;
   height: 10px;
-  border-left: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  border-left: 1px solid var(--meta-surface-border);
+  border-bottom: 1px solid var(--meta-surface-border);
+  background: var(--dialog-control-bg-strong);
   transform: translate(-50%, 6px) rotate(-45deg);
   z-index: 1;
 }
@@ -365,16 +366,15 @@ function emitAction(key: ActionKey, subtaskId: number) {
   content: attr(data-tooltip);
   bottom: calc(100% + 11px);
   padding: 7px 10px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   color: var(--text-main);
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--meta-surface-shadow);
   transform: translate(-50%, 6px);
   z-index: 2;
 }
@@ -410,9 +410,9 @@ function emitAction(key: ActionKey, subtaskId: number) {
   gap: 14px 16px;
   min-width: 0;
   padding: 14px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 14px;
-  background: var(--drawer-item-bg);
+  background: var(--drawer-item-bg), var(--card-sheen);
   box-shadow: var(--dialog-control-shadow);
 }
 
@@ -470,7 +470,7 @@ function emitAction(key: ActionKey, subtaskId: number) {
 }
 
 .subtask-table__metric-chip {
-  background: var(--dialog-control-bg);
+  background: var(--dialog-control-bg), var(--card-sheen);
   color: var(--text-soft);
 }
 
@@ -497,7 +497,7 @@ function emitAction(key: ActionKey, subtaskId: number) {
 }
 
 .subtask-table__priority--unknown {
-  background: var(--dialog-control-bg);
+  background: var(--dialog-control-bg), var(--card-sheen);
   color: var(--text-soft);
 }
 
@@ -511,7 +511,7 @@ function emitAction(key: ActionKey, subtaskId: number) {
   padding: 10px 12px;
   border: 1px solid var(--dialog-control-border);
   border-radius: 12px;
-  background: var(--dialog-control-bg);
+  background: var(--dialog-control-bg), var(--card-sheen);
   box-shadow: var(--dialog-control-shadow);
 }
 
@@ -565,10 +565,10 @@ function emitAction(key: ActionKey, subtaskId: number) {
 }
 
 .subtask-table__flow-button {
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 10px;
   padding: 8px 12px;
-  background: color-mix(in srgb, var(--accent-start) 12%, transparent);
+  background: var(--dialog-control-bg), var(--card-sheen);
   color: var(--text-main);
   cursor: pointer;
 }
@@ -593,7 +593,7 @@ function emitAction(key: ActionKey, subtaskId: number) {
   border: 1px solid transparent;
   border-radius: 12px;
   padding: 0;
-  background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
+  background: var(--dialog-control-bg), var(--card-sheen);
   color: var(--text-main);
   cursor: pointer;
   transition:
@@ -668,9 +668,9 @@ function emitAction(key: ActionKey, subtaskId: number) {
   bottom: calc(100% + 4px);
   width: 10px;
   height: 10px;
-  border-left: 1px solid var(--border-soft);
-  border-bottom: 1px solid var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  border-left: 1px solid var(--meta-surface-border);
+  border-bottom: 1px solid var(--meta-surface-border);
+  background: var(--dialog-control-bg-strong);
   transform: translate(-50%, 6px) rotate(-45deg);
   z-index: 1;
 }
@@ -679,16 +679,15 @@ function emitAction(key: ActionKey, subtaskId: number) {
   content: attr(data-tooltip);
   bottom: calc(100% + 10px);
   padding: 7px 10px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   color: var(--text-main);
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--meta-surface-shadow);
   transform: translate(-50%, 6px);
   z-index: 2;
 }

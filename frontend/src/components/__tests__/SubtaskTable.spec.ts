@@ -211,4 +211,16 @@ describe('SubtaskTable', () => {
     expect(wrapper.get('.subtask-table__priority').classes()).toContain('subtask-table__priority--high')
     expect(wrapper.get('.subtask-table__progress-fill').attributes('style')).toContain('width: 70%;')
   })
+
+  it('uses galaxy meta surfaces for the shell and removes the old glass blur wrappers from table chrome and tooltips', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/subtasks/SubtaskTable.vue'),
+      'utf8',
+    )
+
+    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
+    expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
+    expect(source).toContain('background: var(--dialog-control-bg), var(--card-sheen);')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
+  })
 })

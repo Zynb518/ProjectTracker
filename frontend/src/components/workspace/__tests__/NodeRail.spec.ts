@@ -222,6 +222,15 @@ describe('NodeRail', () => {
     )
   })
 
+  it('uses galaxy surfaces for the rail shell, switcher, and hover card without persistent backdrop blur', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeRail.vue'), 'utf8')
+
+    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
+    expect(source).toContain('var(--meta-surface-shadow),')
+    expect(source).toContain('background: var(--dialog-control-bg), var(--card-sheen);')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
+  })
+
   it('shows a hover detail card as a fixed top-layer overlay on the right side of the hovered node', async () => {
     const wrapper = mount(NodeRail, {
       attachTo: document.body,

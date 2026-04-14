@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { onMounted } from 'vue'
 
+import MeteorSkyOverlay from '@/components/backgrounds/MeteorSkyOverlay.vue'
+import SkyBackdrop from '@/components/backgrounds/SkyBackdrop.vue'
 import GlobalNoticeLayer from '@/components/GlobalNoticeLayer.vue'
 import { useThemeStore } from '@/stores/theme'
 
@@ -13,12 +15,16 @@ onMounted(() => {
 
 <template>
   <div class="app-root">
-    <GlobalNoticeLayer />
-    <RouterView v-slot="{ Component, route }">
-      <Transition mode="out-in" name="route-fade">
-        <component :is="Component" :key="route.fullPath" />
-      </Transition>
-    </RouterView>
+    <SkyBackdrop />
+    <MeteorSkyOverlay />
+    <div class="app-root__content">
+      <GlobalNoticeLayer />
+      <RouterView v-slot="{ Component, route }">
+        <Transition mode="out-in" name="route-fade">
+          <component :is="Component" :key="route.fullPath" />
+        </Transition>
+      </RouterView>
+    </div>
   </div>
 </template>
 
@@ -27,6 +33,12 @@ onMounted(() => {
   min-height: 100vh;
   position: relative;
   isolation: isolate;
+}
+
+.app-root__content {
+  position: relative;
+  z-index: 2;
+  min-height: 100vh;
 }
 
 .route-fade-enter-active,

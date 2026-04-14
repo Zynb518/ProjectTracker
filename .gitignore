@@ -31,6 +31,8 @@ config/config.dev.json
 
 # 本地 AI / agent 临时产物
 .superpowers/
+# AI / agent 过程文档
+docs/superpowers/
 **/__pycache__/
 
 # 日志

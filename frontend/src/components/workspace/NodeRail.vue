@@ -626,13 +626,12 @@ onBeforeUnmount(() => {
   min-height: 0;
   height: 100%;
   padding: 22px 20px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 94%, transparent), var(--glass-bg)),
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-start) 16%, transparent), transparent 38%);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow:
+    var(--meta-surface-shadow),
+    0 22px 42px rgba(2, 6, 18, 0.24);
 }
 
 .node-rail--embedded {
@@ -675,16 +674,12 @@ onBeforeUnmount(() => {
   gap: 0;
   min-width: 116px;
   padding: 4px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
+  border: 1px solid var(--dialog-control-border);
   border-radius: 16px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 98%, transparent), color-mix(in srgb, var(--panel-bg) 92%, transparent)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 16%, transparent), transparent 52%),
-    radial-gradient(circle at left center, color-mix(in srgb, var(--accent-tertiary) 10%, transparent), transparent 42%);
+  background: var(--dialog-control-bg), var(--card-sheen);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--glass-bg-strong) 74%, transparent),
+    var(--dialog-control-shadow),
     0 14px 28px rgba(15, 23, 42, 0.12);
-  backdrop-filter: var(--backdrop-blur);
 }
 
 .node-rail__view-switch::before {
@@ -890,12 +885,9 @@ onBeforeUnmount(() => {
 .node-rail__control-tooltip {
   min-width: 88px;
   padding: 8px 11px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
+  border: 1px solid var(--meta-surface-border);
   border-radius: 10px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 98%, transparent), color-mix(in srgb, var(--panel-bg) 94%, transparent)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 14%, transparent), transparent 40%),
-    radial-gradient(circle at left center, color-mix(in srgb, var(--accent-tertiary) 10%, transparent), transparent 34%);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   color: var(--text-main);
   font-size: 0.74rem;
   font-weight: 700;
@@ -904,9 +896,9 @@ onBeforeUnmount(() => {
   white-space: nowrap;
   text-align: center;
   box-shadow:
+    var(--meta-surface-shadow),
     var(--shadow-panel-hover),
     0 0 0 1px color-mix(in srgb, var(--accent-line) 12%, transparent);
-  backdrop-filter: var(--backdrop-blur);
   transform: translateX(-50%);
 }
 
@@ -916,9 +908,9 @@ onBeforeUnmount(() => {
   left: 50%;
   width: 10px;
   height: 10px;
-  border-left: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
-  background: color-mix(in srgb, var(--glass-bg-strong) 98%, transparent);
+  border-left: 1px solid var(--meta-surface-border);
+  border-bottom: 1px solid var(--meta-surface-border);
+  background: var(--dialog-control-bg-strong);
   transform: translateX(-50%) rotate(-45deg);
 }
 
@@ -1017,7 +1009,7 @@ onBeforeUnmount(() => {
   width: 10px;
   height: 10px;
   border-radius: 50%;
-  border: 2px solid color-mix(in srgb, var(--glass-bg-strong) 92%, transparent);
+  border: 2px solid color-mix(in srgb, var(--dialog-control-bg-strong) 92%, transparent);
   background: var(--work-status-unknown-strong);
   box-shadow: 0 0 0 6px color-mix(in srgb, var(--work-status-unknown-color) 14%, transparent);
 }
@@ -1054,12 +1046,10 @@ onBeforeUnmount(() => {
   gap: 12px;
   text-align: left;
   padding: 16px 18px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 86%, transparent), color-mix(in srgb, var(--panel-bg) 96%, transparent)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 12%, transparent), transparent 38%);
-  box-shadow: 0 10px 20px rgba(15, 23, 42, 0.06);
+  background: var(--dialog-control-bg), var(--card-sheen);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
   transition:
     transform 200ms ease-out,
@@ -1095,7 +1085,12 @@ onBeforeUnmount(() => {
 
 .node-rail__row--done .node-rail__item {
   background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--work-status-done-bg)), color-mix(in srgb, var(--panel-bg) 98%, transparent));
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--work-status-done-bg) 42%, var(--dialog-control-bg)),
+      var(--dialog-control-bg)
+    ),
+    var(--card-sheen);
   color: var(--text-main);
 }
 
@@ -1229,13 +1224,12 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 12px;
   padding: 16px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 26%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--meta-surface-border));
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-end) 14%, transparent), transparent 40%);
-  box-shadow: 0 18px 34px rgba(15, 23, 42, 0.16);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow:
+    var(--meta-surface-shadow),
+    0 18px 34px rgba(15, 23, 42, 0.16);
   transform: translate3d(0, 0, 0);
   isolation: isolate;
 }
@@ -1247,9 +1241,9 @@ onBeforeUnmount(() => {
   right: calc(100% - 7px);
   width: 14px;
   height: 14px;
-  border-left: 1px solid color-mix(in srgb, var(--accent-line) 26%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 26%, transparent);
-  background: color-mix(in srgb, var(--glass-bg-strong) 98%, transparent);
+  border-left: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--meta-surface-border));
+  border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--meta-surface-border));
+  background: var(--dialog-control-bg-strong);
   transform: rotate(45deg);
 }
 
@@ -1283,9 +1277,9 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 4px;
   padding: 10px 12px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 14px;
-  background: color-mix(in srgb, var(--panel-bg) 82%, transparent);
+  background: var(--dialog-control-bg), var(--card-sheen);
 }
 
 .node-rail__hover-meta dt {

@@ -466,13 +466,12 @@ onBeforeUnmount(() => {
   display: grid;
   gap: 18px;
   padding: 24px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 34%, var(--border-soft));
+  border: 1px solid var(--meta-surface-border);
   border-radius: 28px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), color-mix(in srgb, var(--glass-bg) 88%, transparent)),
-    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent-end) 16%, transparent), transparent 32%);
-  box-shadow: var(--shadow-panel-hover);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow:
+    var(--meta-surface-shadow),
+    0 24px 48px rgba(2, 6, 18, 0.24);
 }
 
 .project-member-gantt::before {
@@ -540,9 +539,9 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 6px;
   padding: 6px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 22%, var(--border-soft));
+  border: 1px solid var(--dialog-control-border);
   border-radius: 999px;
-  background: var(--dialog-control-bg);
+  background: var(--dialog-control-bg), var(--card-sheen);
   box-shadow: var(--dialog-control-shadow);
 }
 
@@ -579,7 +578,7 @@ onBeforeUnmount(() => {
   padding: 24px;
   border: 1px solid var(--meta-surface-border);
   border-radius: 22px;
-  background: var(--meta-surface-bg), var(--meta-surface-glow);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   box-shadow: var(--meta-surface-shadow);
   color: var(--text-soft);
 }
@@ -636,7 +635,7 @@ onBeforeUnmount(() => {
   padding: 14px 16px;
   border: 1px solid var(--dialog-control-border);
   border-radius: 18px;
-  background: var(--dialog-control-bg), var(--meta-surface-glow);
+  background: var(--dialog-control-bg), var(--meta-surface-glow), var(--card-sheen);
   box-shadow: var(--dialog-control-shadow);
 }
 
@@ -726,7 +725,7 @@ onBeforeUnmount(() => {
 .project-member-gantt__axis {
   display: flex;
   min-height: 56px;
-  background: color-mix(in srgb, var(--glass-bg) 96%, transparent);
+  background: var(--dialog-control-bg), var(--card-sheen);
 }
 
 .project-member-gantt__axis-cell {
@@ -742,12 +741,20 @@ onBeforeUnmount(() => {
   color: var(--text-soft);
   white-space: nowrap;
   overflow: hidden;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 16%, transparent), color-mix(in srgb, var(--glass-bg) 92%, transparent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-end) 10%, var(--dialog-control-bg)),
+    var(--dialog-control-bg)
+  );
   box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
 }
 
 .project-member-gantt__axis-cell:nth-child(even) {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 14%, transparent), color-mix(in srgb, var(--glass-bg) 90%, transparent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-start) 8%, var(--dialog-control-bg)),
+    var(--dialog-control-bg)
+  );
 }
 
 .project-member-gantt__axis-cell--day {
@@ -794,7 +801,11 @@ onBeforeUnmount(() => {
   overflow: hidden;
   border: 1px solid color-mix(in srgb, var(--accent-line) 18%, transparent);
   border-radius: 18px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 74%, transparent), transparent);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-end) 6%, var(--dialog-control-bg)),
+    color-mix(in srgb, var(--accent-start) 2%, var(--panel-bg))
+  );
 }
 
 .project-member-gantt__track-grid {
@@ -808,15 +819,27 @@ onBeforeUnmount(() => {
   flex: 0 0 auto;
   height: 100%;
   border-right: 1px solid color-mix(in srgb, var(--accent-line) 14%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 10%, transparent), color-mix(in srgb, var(--glass-bg) 92%, transparent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-end) 8%, var(--dialog-control-bg)),
+    var(--dialog-control-bg)
+  );
 }
 
 .project-member-gantt__track-cell:nth-child(even) {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 8%, transparent), color-mix(in srgb, var(--glass-bg) 90%, transparent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-start) 6%, var(--dialog-control-bg)),
+    var(--dialog-control-bg)
+  );
 }
 
 .project-member-gantt__track-cell--day {
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 12%, transparent), color-mix(in srgb, var(--glass-bg) 90%, transparent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-end) 9%, var(--dialog-control-bg)),
+    var(--dialog-control-bg)
+  );
 }
 
 .project-member-gantt__bar {

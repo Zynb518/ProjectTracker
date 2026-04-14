@@ -210,32 +210,17 @@ body::after {
 }
 
 html.dark body {
-  background:
-    radial-gradient(circle at 18% 16%, rgba(124, 211, 255, 0.14), transparent 20%),
-    radial-gradient(circle at 84% 18%, rgba(141, 120, 255, 0.16), transparent 22%),
-    radial-gradient(circle at 74% 78%, rgba(217, 171, 255, 0.08), transparent 18%),
-    linear-gradient(180deg, #060916 0%, #091020 52%, #0d1426 100%);
+  background-color: #02050d;
 }
 
 html.dark body::before {
-  background:
-    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.78) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 24% 72%, rgba(255, 255, 255, 0.44) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.54) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 66% 22%, rgba(255, 255, 255, 0.62) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 82% 30%, rgba(255, 255, 255, 0.48) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 74% 82%, rgba(255, 255, 255, 0.34) 0 1px, transparent 1.6px),
-    radial-gradient(circle at 16% 88%, rgba(255, 255, 255, 0.28) 0 1px, transparent 1.6px);
-  background-repeat: no-repeat;
+  background: none;
   mask-image: none;
 }
 
 html.dark body::after {
-  background:
-    radial-gradient(circle at 84% 12%, rgba(124, 211, 255, 0.16), transparent 16%),
-    radial-gradient(circle at 14% 24%, rgba(141, 120, 255, 0.16), transparent 18%),
-    radial-gradient(circle at 72% 86%, rgba(124, 211, 255, 0.08), transparent 20%);
-  opacity: 0.85;
+  background: none;
+  opacity: 1;
   filter: none;
 }
 

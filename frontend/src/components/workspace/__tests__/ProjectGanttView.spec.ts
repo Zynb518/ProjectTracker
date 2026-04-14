@@ -345,7 +345,9 @@ describe('ProjectGanttView', () => {
     expect(trailingWeekCell?.attributes('style')).toContain('width: 84px;')
     expect(source).toContain('.project-gantt__axis-cell--day {')
     expect(source).toContain('font-variant-numeric: tabular-nums;')
-    expect(source).toContain('linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 16%, transparent), color-mix(in srgb, var(--glass-bg) 92%, transparent))')
+    expect(source).toContain('background: var(--dialog-control-bg), var(--card-sheen);')
+    expect(source).toContain('color-mix(in srgb, var(--accent-end) 10%, var(--dialog-control-bg))')
+    expect(source).toContain('color-mix(in srgb, var(--accent-start) 8%, var(--dialog-control-bg))')
     expect(source).not.toContain('.project-gantt__axis-cell--tail {')
     expect(source).not.toContain('padding-right: 28px;')
   })
@@ -409,6 +411,21 @@ describe('ProjectGanttView', () => {
     expect(sidebarRowBlocks.length).toBeGreaterThan(0)
     expect(sidebarRowBlocks.some((block) => block.includes('content-visibility: auto;'))).toBe(true)
     expect(sidebarRowBlocks.some((block) => block.includes('contain-intrinsic-size: 62px;'))).toBe(true)
+  })
+
+  it('uses galaxy meta surfaces for the project and member gantt workspace shells instead of the old frosted glass wrappers', () => {
+    const projectSource = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+    const memberSource = readFileSync(
+      resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'),
+      'utf8',
+    )
+
+    expect(projectSource).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
+    expect(projectSource).toContain('box-shadow: var(--meta-surface-shadow);')
+    expect(projectSource).not.toContain('backdrop-filter: var(--backdrop-blur);')
+    expect(memberSource).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
+    expect(memberSource).toContain('box-shadow: var(--meta-surface-shadow);')
+    expect(memberSource).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
   it('keeps the sticky stage time axis horizontally synced with the rows scroller', () => {
@@ -1046,6 +1063,13 @@ describe('ProjectMemberGanttView', () => {
     expect(source).toContain('.project-member-gantt__axis-scroll::-webkit-scrollbar {')
     expect(source).toContain('height: 12px;')
     expect(source).not.toContain('scrollbar-width: none;')
+  })
+
+  it('uses token-based axis and track surfaces for the member gantt instead of old glass-bg mixes', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
+
+    expect(source).toContain('background: var(--dialog-control-bg), var(--card-sheen);')
+    expect(source).not.toContain('color-mix(in srgb, var(--glass-bg) 96%, transparent)')
   })
 
   it('keeps the sticky member axis free of backdrop blur and isolates each row paint to reduce scroll jank', () => {
