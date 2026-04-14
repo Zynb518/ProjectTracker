@@ -1,6 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { fireEvent, render, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('vue-router', async () => {
@@ -272,6 +274,15 @@ function mockWorkspaceData() {
 describe('ProjectDetailView', () => {
   beforeEach(() => {
     vi.resetAllMocks()
+  })
+
+  it('uses lighter galaxy workspace shells without blur-driven placeholder motion', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/ProjectDetailView.vue'), 'utf8')
+
+    expect(source).toContain('.project-detail__workspace-card {')
+    expect(source).toContain('background: var(--gradient-surface), var(--project-card-glow);')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
+    expect(source).not.toContain('animation: placeholder-float')
   })
 
   it('shows an error message when the workspace fails to load', async () => {

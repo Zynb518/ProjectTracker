@@ -40,21 +40,19 @@ const { notices } = storeToRefs(notificationStore)
 }
 
 .notice-card {
+  position: relative;
+  overflow: hidden;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   gap: 12px;
   align-items: start;
   margin-bottom: 12px;
   padding: 14px 16px;
-  border: 1px solid color-mix(in srgb, var(--accent-danger) 28%, transparent);
-  border-radius: 12px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 98%, transparent), color-mix(in srgb, var(--panel-bg) 92%, transparent)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 18%, transparent), transparent 36%),
-    radial-gradient(circle at 10% 0%, color-mix(in srgb, var(--accent-tertiary) 14%, transparent), transparent 30%);
-  box-shadow: var(--dialog-surface-shadow);
+  border: 1px solid color-mix(in srgb, var(--accent-danger) 24%, var(--meta-surface-border));
+  border-radius: 14px;
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow: var(--meta-surface-shadow);
   color: var(--text-main);
-  backdrop-filter: blur(16px);
 }
 
 .notice-card__icon {
@@ -115,9 +113,9 @@ const { notices } = storeToRefs(notificationStore)
 
 :global(html.dark) .notice-card {
   box-shadow:
-    var(--dialog-surface-shadow),
-    0 0 24px rgba(0, 240, 255, 0.12),
-    0 0 26px rgba(157, 0, 255, 0.12);
+    var(--meta-surface-shadow),
+    0 18px 32px rgba(2, 6, 18, 0.32),
+    0 0 22px color-mix(in srgb, var(--accent-danger) 10%, transparent);
 }
 
 :global(html.dark) .notice-card__message {

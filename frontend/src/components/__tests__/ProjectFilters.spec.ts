@@ -54,6 +54,14 @@ describe('ProjectFilters', () => {
     expect(statusBarBlock).toContain('box-shadow: none;')
   })
 
+  it('uses the shared galaxy meta surface for the filter shell and removes the old frosted blur wrapper', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectFilters.vue'), 'utf8')
+
+    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
+    expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
+  })
+
   it('emits the create trigger origin from the new project button', async () => {
     const wrapper = mount(ProjectFilters, {
       props: {

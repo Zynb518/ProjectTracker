@@ -142,11 +142,10 @@ async function handleLogout() {
   align-content: start;
   gap: 24px;
   padding: 24px 20px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 24px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--sidebar-bg) 96%, transparent), color-mix(in srgb, var(--panel-bg-soft) 84%, transparent));
-  box-shadow: var(--shadow-glass);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .app-shell__brand {
@@ -220,10 +219,12 @@ async function handleLogout() {
   gap: 12px;
   padding: 14px 16px;
   border-radius: 16px;
-  color: color-mix(in srgb, var(--text-main) 78%, var(--text-soft));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg-soft) 92%, transparent), color-mix(in srgb, var(--glass-bg) 84%, transparent));
-  border: 1px solid color-mix(in srgb, var(--border-soft) 86%, transparent);
-  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 18%, transparent);
+  color: color-mix(in srgb, var(--text-main) 82%, var(--text-soft));
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 96%, transparent), color-mix(in srgb, var(--panel-bg-soft) 84%, transparent)),
+    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent-start) 10%, transparent), transparent 46%);
+  border: 1px solid color-mix(in srgb, var(--meta-surface-border) 90%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 10%, transparent);
 }
 
 .app-shell__link:hover,
@@ -231,7 +232,9 @@ async function handleLogout() {
   transform: translateY(-2px);
   color: var(--text-main);
   border-color: var(--accent-line);
-  background: var(--gradient-primary-soft);
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 12%, var(--panel-bg)), color-mix(in srgb, var(--accent-end) 8%, var(--panel-bg-soft))),
+    var(--card-sheen);
   box-shadow: var(--shadow-panel-hover);
 }
 
@@ -277,15 +280,10 @@ async function handleLogout() {
   gap: 12px;
   align-items: center;
   padding: 14px;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 88%, rgba(255, 255, 255, 0.08));
+  border: 1px solid var(--meta-surface-border);
   border-radius: 18px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 96%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-start) 18%, transparent), transparent 46%),
-    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--accent-tertiary) 14%, transparent), transparent 40%);
-  box-shadow:
-    inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 8%, transparent),
-    0 18px 30px rgba(3, 10, 24, 0.12);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .app-shell__account-avatar {
@@ -343,13 +341,10 @@ async function handleLogout() {
 
 .app-shell__logout {
   width: 100%;
-  border: 1px solid var(--border-soft);
+  border: 1px solid color-mix(in srgb, var(--accent-warning) 18%, var(--meta-surface-border));
   border-radius: 14px;
   padding: 12px 14px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg-strong) 94%, transparent), var(--glass-bg-strong)),
-    radial-gradient(circle at right top, color-mix(in srgb, var(--accent-warning) 18%, transparent), transparent 52%),
-    radial-gradient(circle at left center, color-mix(in srgb, var(--accent-tertiary) 10%, transparent), transparent 44%);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   color: color-mix(in srgb, var(--text-main) 92%, var(--text-soft));
   font: inherit;
   font-weight: 600;
@@ -365,6 +360,7 @@ async function handleLogout() {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--accent-warning) 36%, transparent);
   box-shadow:
+    var(--meta-surface-shadow),
     0 14px 30px rgba(3, 10, 24, 0.18),
     0 0 0 1px color-mix(in srgb, var(--accent-warning) 14%, transparent);
 }
@@ -375,18 +371,13 @@ async function handleLogout() {
 
 :global(html.dark) .app-shell__sidebar {
   box-shadow:
-    var(--shadow-glass),
-    inset 0 1px 0 rgba(224, 224, 255, 0.05),
-    0 0 34px rgba(157, 0, 255, 0.14);
+    var(--meta-surface-shadow),
+    0 22px 52px rgba(2, 6, 18, 0.34);
 }
 
 :global(html.dark) .app-shell__brand-copy,
 :global(html.dark) .app-shell__account-note {
   color: color-mix(in srgb, var(--text-main) 82%, var(--text-soft));
-}
-
-:global(html.dark) .app-shell__link {
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.05);
 }
 
 :global(html.dark) .app-shell__link:hover,
@@ -403,8 +394,8 @@ async function handleLogout() {
 :global(html.dark) .app-shell__account-card,
 :global(html.dark) .app-shell__logout {
   box-shadow:
-    var(--shadow-panel),
-    inset 0 1px 0 rgba(224, 224, 255, 0.05);
+    var(--meta-surface-shadow),
+    0 18px 38px rgba(2, 6, 18, 0.28);
 }
 
 @media (max-width: 1100px) {

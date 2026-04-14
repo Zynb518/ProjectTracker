@@ -809,11 +809,8 @@ async function openHistoryDrawer(subtaskId: number) {
   padding: 6px;
   border: 1px solid color-mix(in srgb, var(--accent-line) 26%, var(--border-soft));
   border-radius: 999px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), color-mix(in srgb, var(--glass-bg) 82%, transparent)),
-    radial-gradient(circle at top, color-mix(in srgb, var(--accent-end) 12%, transparent), transparent 64%);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .project-detail__view-button {
@@ -865,11 +862,8 @@ async function openHistoryDrawer(subtaskId: number) {
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
   border: 1px solid var(--border-soft);
   border-radius: 28px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), var(--glass-bg)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-end) 12%, transparent), transparent 34%);
+  background: var(--gradient-surface), var(--project-card-glow);
   box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
 }
 
 .project-detail__workspace-rail,
@@ -881,9 +875,7 @@ async function openHistoryDrawer(subtaskId: number) {
 .project-detail__workspace-rail {
   padding: 22px 18px 22px 22px;
   border-right: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 68%, transparent), transparent),
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-start) 10%, transparent), transparent 36%);
+  background: var(--meta-surface-bg), var(--meta-surface-glow);
 }
 
 .project-detail__workspace-main {
@@ -899,10 +891,9 @@ async function openHistoryDrawer(subtaskId: number) {
   padding: 18px 20px;
   border: 1px solid var(--border-soft);
   border-radius: 18px;
-  background: var(--glass-bg);
+  background: var(--meta-surface-bg), var(--meta-surface-glow);
   color: var(--text-soft);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .project-detail__refreshing {
@@ -910,10 +901,9 @@ async function openHistoryDrawer(subtaskId: number) {
   padding: 12px 16px;
   border: 1px solid var(--border-soft);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--glass-bg) 86%, transparent);
+  background: var(--meta-surface-bg), var(--meta-surface-glow);
   color: var(--text-soft);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .project-detail__placeholder {
@@ -926,12 +916,8 @@ async function openHistoryDrawer(subtaskId: number) {
   padding: 28px;
   border: 1px solid var(--border-soft);
   border-radius: 24px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, transparent), var(--glass-bg)),
-    radial-gradient(circle at 78% 22%, color-mix(in srgb, var(--accent-end) 14%, transparent), transparent 28%),
-    radial-gradient(circle at 18% 82%, color-mix(in srgb, var(--accent-start) 12%, transparent), transparent 34%);
+  background: var(--gradient-surface), var(--project-card-glow);
   box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
 }
 
 .project-detail__placeholder::before {
@@ -948,9 +934,10 @@ async function openHistoryDrawer(subtaskId: number) {
   width: 280px;
   height: 280px;
   border-radius: 50%;
-  background: radial-gradient(circle, color-mix(in srgb, var(--accent-end) 20%, transparent), transparent 68%);
-  filter: blur(8px);
-  animation: placeholder-float 4.2s ease-in-out infinite;
+  background:
+    radial-gradient(circle, color-mix(in srgb, var(--accent-end) 18%, transparent), transparent 62%),
+    radial-gradient(circle at 30% 35%, color-mix(in srgb, var(--accent-start) 14%, transparent), transparent 34%);
+  opacity: 0.88;
 }
 
 .project-detail__placeholder-copy {
@@ -997,17 +984,6 @@ async function openHistoryDrawer(subtaskId: number) {
 .project-drawer-leave-to {
   opacity: 0;
   transform: translateX(24px);
-}
-
-@keyframes placeholder-float {
-  0%,
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-
-  50% {
-    transform: translate3d(10px, -12px, 0) scale(1.04);
-  }
 }
 
 @media (max-width: 1180px) {

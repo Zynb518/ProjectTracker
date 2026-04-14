@@ -60,21 +60,23 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
 
 <style scoped>
 .theme-toggle {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 999px;
   padding: 6px 8px 6px 6px;
-  background: var(--glass-bg-strong);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   color: var(--text-main);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: blur(16px);
+  box-shadow: var(--meta-surface-shadow);
   cursor: pointer;
   transition:
     transform 200ms ease-out,
     border-color 200ms ease-out,
-    background-color 200ms ease-out,
+    background 200ms ease-out,
     box-shadow 200ms ease-out,
     color 200ms ease-out;
 }
@@ -82,7 +84,9 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
 .theme-toggle:hover {
   transform: translateY(-2px);
   border-color: var(--accent-line);
-  box-shadow: var(--shadow-panel-hover);
+  box-shadow:
+    var(--meta-surface-shadow),
+    0 16px 28px color-mix(in srgb, var(--accent-end) 14%, transparent);
 }
 
 .theme-toggle__track {
@@ -91,13 +95,10 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
   height: 24px;
   padding: 2px;
   border-radius: 999px;
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--accent-start) 28%, transparent),
-    color-mix(in srgb, var(--accent-end) 26%, transparent),
-    color-mix(in srgb, var(--accent-tertiary) 18%, transparent)
-  );
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 82%, transparent);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 96%, transparent), color-mix(in srgb, var(--panel-bg-soft) 84%, transparent));
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--dialog-control-border) 94%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 12%, transparent);
 }
 
 .theme-toggle__thumb {
@@ -106,12 +107,16 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
   width: 20px;
   height: 20px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--text-inverse) 90%, var(--panel-bg) 10%);
-  color: var(--accent-end);
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--text-inverse) 86%, var(--accent-start) 14%),
+    color-mix(in srgb, var(--text-inverse) 72%, var(--panel-bg) 28%)
+  );
+  color: color-mix(in srgb, var(--accent-end) 82%, var(--accent-start));
   transform: translateX(v-bind('isDark ? "16px" : "0px"'));
   box-shadow:
-    0 6px 16px color-mix(in srgb, var(--accent-start) 18%, transparent),
-    0 0 0 1px color-mix(in srgb, var(--border-soft) 80%, transparent);
+    0 8px 18px color-mix(in srgb, var(--accent-start) 16%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--accent-line) 44%, transparent);
   transition: transform 200ms ease-out;
 }
 
@@ -128,32 +133,20 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
 }
 
 :global(html.dark) .theme-toggle {
-  border-color: color-mix(in srgb, var(--accent-start) 18%, var(--border-soft));
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--glass-bg-strong) 98%, transparent),
-    color-mix(in srgb, var(--panel-bg-soft) 94%, transparent)
-  );
+  border-color: color-mix(in srgb, var(--accent-start) 18%, var(--meta-surface-border));
   box-shadow:
-    var(--shadow-panel),
-    0 0 22px rgba(157, 0, 255, 0.1);
+    var(--meta-surface-shadow),
+    0 0 20px rgba(124, 211, 255, 0.08);
 }
 
 :global(html.dark) .theme-toggle__thumb {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--text-inverse) 86%, var(--accent-start) 14%),
-    color-mix(in srgb, var(--text-inverse) 72%, var(--panel-bg) 28%)
-  );
   color: var(--accent-start);
   box-shadow:
-    0 8px 18px rgba(0, 240, 255, 0.18),
-    0 0 0 1px rgba(0, 240, 255, 0.12),
-    0 0 18px rgba(157, 0, 255, 0.14);
+    0 8px 18px rgba(124, 211, 255, 0.16),
+    0 0 0 1px rgba(124, 211, 255, 0.12);
 }
 
 :global(html.dark) .theme-toggle__label {
-  color: color-mix(in srgb, var(--text-main) 94%, var(--accent-start) 6%);
-  text-shadow: 0 0 12px rgba(0, 240, 255, 0.06);
+  color: color-mix(in srgb, var(--text-main) 92%, var(--accent-start) 8%);
 }
 </style>

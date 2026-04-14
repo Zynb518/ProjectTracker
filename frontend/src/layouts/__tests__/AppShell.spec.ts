@@ -8,12 +8,13 @@ import AppShell from '@/layouts/AppShell.vue'
 import { useAuthStore } from '@/stores/auth'
 
 describe('AppShell', () => {
-  it('uses denser sidebar surfaces and stronger navigation contrast for comfortable reading', () => {
+  it('uses galaxy meta surfaces for the shell chrome without keeping the old frosted sidebar blur', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/layouts/AppShell.vue'), 'utf8')
 
-    expect(source).toContain('background: linear-gradient(180deg, color-mix(in srgb, var(--sidebar-bg) 96%, transparent), color-mix(in srgb, var(--panel-bg-soft) 84%, transparent));')
-    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 78%, var(--text-soft));')
-    expect(source).toContain('font-size: 0.82rem;')
+    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
+    expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
+    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 82%, var(--text-soft));')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
   beforeEach(() => {

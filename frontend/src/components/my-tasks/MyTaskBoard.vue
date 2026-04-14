@@ -162,7 +162,6 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
   cursor: pointer;
   background: var(--task-card-bg);
   box-shadow: var(--task-card-shadow);
-  backdrop-filter: var(--backdrop-blur);
   transition:
     transform 200ms ease-out,
     box-shadow 200ms ease-out,
@@ -222,7 +221,6 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
   --task-card-subsurface-bg: linear-gradient(180deg, rgba(248, 251, 255, 0.86), rgba(239, 246, 253, 0.74));
   --task-card-subsurface-border: rgba(119, 146, 184, 0.13);
   --task-card-sheen-opacity: 1;
-  backdrop-filter: blur(18px);
 }
 
 .my-task-board__card:hover {

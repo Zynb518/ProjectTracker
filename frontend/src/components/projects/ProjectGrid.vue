@@ -225,7 +225,6 @@ defineEmits<{
   border-radius: 16px;
   background: var(--project-card-bg), var(--project-card-glow);
   box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
   cursor: pointer;
   transition:
     transform 200ms ease-out,
@@ -436,7 +435,6 @@ defineEmits<{
   letter-spacing: 0.05em;
   white-space: nowrap;
   box-shadow: var(--dialog-control-shadow);
-  backdrop-filter: var(--backdrop-blur);
   opacity: 0;
   pointer-events: none;
   transform: translateY(6px);

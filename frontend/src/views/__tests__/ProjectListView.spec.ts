@@ -1,6 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { render, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('vue-router', async () => {
@@ -79,6 +81,15 @@ describe('ProjectListView', () => {
     expect(getComputedStyle(filters!).borderTopWidth).toBe('0px')
     expect(getComputedStyle(filters!).backgroundImage).toBe('none')
     expect(getComputedStyle(filters!).boxShadow).toBe('none')
+  })
+
+  it('uses galaxy-surface hero and pagination shells without heavy backdrop blur', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/ProjectListView.vue'), 'utf8')
+
+    expect(source).toContain('.project-list__hero-shell {')
+    expect(source).toContain('background: var(--gradient-surface), var(--project-card-glow);')
+    expect(source).toContain('.project-list__pagination {')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
   it('re-queries when pressing Enter in the keyword field', async () => {

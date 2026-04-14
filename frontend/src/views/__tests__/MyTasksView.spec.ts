@@ -1,6 +1,8 @@
 import { createPinia, setActivePinia } from 'pinia'
 import { fireEvent, render, waitFor } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/api/subtasks', async () => {
@@ -74,6 +76,14 @@ describe('MyTasksView', () => {
         created_at: '2026-03-28T10:20:00+08:00',
       },
     })
+  })
+
+  it('uses a shared galaxy hero surface without heavy backdrop blur in the task view shells', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/MyTasksView.vue'), 'utf8')
+
+    expect(source).toContain('.my-tasks-view__hero {')
+    expect(source).toContain('background: var(--gradient-surface), var(--project-card-glow);')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
   it('loads my subtasks and immediately re-queries when the status filter changes', async () => {

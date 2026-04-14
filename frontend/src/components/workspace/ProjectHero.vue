@@ -115,7 +115,6 @@ const subtaskProgress = computed(() =>
   border-radius: 28px;
   background: var(--project-card-bg), var(--project-card-glow);
   box-shadow: var(--shadow-panel-hover);
-  backdrop-filter: var(--backdrop-blur);
 }
 
 .project-overview-card__content {
@@ -163,7 +162,7 @@ const subtaskProgress = computed(() =>
   padding: 18px;
   border: 1px solid var(--meta-surface-border);
   border-radius: 24px;
-  background: var(--meta-surface-bg), var(--meta-surface-glow);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   box-shadow: var(--meta-surface-shadow);
 }
 
@@ -264,7 +263,7 @@ const subtaskProgress = computed(() =>
   padding: 8px 0;
   border: 1px solid color-mix(in srgb, var(--accent-line) 26%, transparent);
   border-radius: 24px;
-  background: color-mix(in srgb, var(--glass-bg-strong) 92%, transparent);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   box-shadow: var(--meta-surface-shadow);
 }
 

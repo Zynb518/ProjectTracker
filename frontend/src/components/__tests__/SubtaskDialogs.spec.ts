@@ -4,6 +4,7 @@ import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import SubtaskHistoryDrawer from '@/components/subtasks/SubtaskHistoryDrawer.vue'
+import SubtaskFormDialog from '@/components/subtasks/SubtaskFormDialog.vue'
 import SubtaskProgressDialog from '@/components/subtasks/SubtaskProgressDialog.vue'
 
 describe('Subtask dialogs', () => {
@@ -88,13 +89,22 @@ describe('Subtask dialogs', () => {
       resolve(process.cwd(), 'src/components/subtasks/SubtaskProgressDialog.vue'),
       'utf8',
     )
+    const formSource = readFileSync(
+      resolve(process.cwd(), 'src/components/subtasks/SubtaskFormDialog.vue'),
+      'utf8',
+    )
     const historySource = readFileSync(
       resolve(process.cwd(), 'src/components/subtasks/SubtaskHistoryDrawer.vue'),
       'utf8',
     )
 
-    expect(progressSource).toContain('background: var(--dialog-surface-glow), var(--dialog-surface-bg);')
+    expect(progressSource).toContain('background: var(--dialog-surface-glow), var(--dialog-surface-bg), var(--card-sheen);')
     expect(progressSource).toContain('background: var(--dialog-control-bg);')
+    expect(progressSource).toContain('backdrop-filter: blur(12px);')
+    expect(progressSource).not.toContain('backdrop-filter: var(--backdrop-blur);')
+    expect(formSource).toContain('background: var(--dialog-surface-glow), var(--dialog-surface-bg), var(--card-sheen);')
+    expect(formSource).toContain('backdrop-filter: blur(12px);')
+    expect(formSource).not.toContain('backdrop-filter: var(--backdrop-blur);')
     expect(historySource).toContain('background: var(--dialog-surface-glow), var(--drawer-surface-bg);')
     expect(historySource).toContain('background: var(--drawer-item-bg);')
     expect(historySource).toContain('background: var(--dialog-control-bg-strong);')

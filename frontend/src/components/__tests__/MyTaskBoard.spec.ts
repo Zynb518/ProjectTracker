@@ -68,6 +68,7 @@ describe('MyTaskBoard', () => {
     expect(source).toContain('.my-task-board__priority--medium {')
     expect(source).toContain('.my-task-board__progress-track {')
     expect(source).toContain('.my-task-board__progress-fill {')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
   it('adds a luminous light-theme glass treatment with nested frosted surfaces instead of plain white cards', () => {
@@ -200,6 +201,17 @@ describe('MyTaskFilters', () => {
     expect(source).toContain('.my-task-filters__candidate-panel {')
     expect(source).toContain('padding: 6px 0;')
     expect(source).toContain('overflow: hidden;')
+  })
+
+  it('uses galaxy meta surfaces for the filter shell and candidate panel instead of the old glass blur treatment', () => {
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/my-tasks/MyTaskFilters.vue'),
+      'utf8',
+    )
+
+    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
+    expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
   it('renders semantic status filter pills and emits updates when a status pill is selected', async () => {

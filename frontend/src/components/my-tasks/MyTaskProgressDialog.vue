@@ -269,7 +269,7 @@ function formatRecordTime(value: string) {
     radial-gradient(circle at 18% 22%, rgba(10, 102, 255, 0.12), transparent 22%),
     radial-gradient(circle at 82% 78%, rgba(26, 184, 255, 0.14), transparent 24%),
     var(--overlay-backdrop);
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(12px);
 }
 
 .my-task-progress-dialog__backdrop::before {
@@ -292,9 +292,8 @@ function formatRecordTime(value: string) {
   grid-template-rows: auto minmax(0, 1fr);
   border: 1px solid var(--dialog-surface-border);
   border-radius: 28px;
-  background: var(--dialog-surface-glow), var(--dialog-surface-bg);
+  background: var(--dialog-surface-glow), var(--dialog-surface-bg), var(--card-sheen);
   box-shadow: var(--dialog-surface-shadow);
-  backdrop-filter: var(--backdrop-blur);
   overflow: hidden;
 }
 
@@ -412,7 +411,7 @@ function formatRecordTime(value: string) {
   align-content: start;
   gap: 18px;
   padding: 26px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 96%, #ffffff 4%), color-mix(in srgb, var(--glass-bg) 92%, transparent));
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   overflow: auto;
 }
 
@@ -422,7 +421,7 @@ function formatRecordTime(value: string) {
   padding: 18px;
   border: 1px solid color-mix(in srgb, var(--dialog-control-border) 96%, transparent);
   border-radius: 20px;
-  background: color-mix(in srgb, var(--panel-bg) 98%, transparent);
+  background: var(--dialog-control-bg), var(--card-sheen);
   box-shadow: var(--dialog-control-shadow);
 }
 
@@ -610,7 +609,7 @@ function formatRecordTime(value: string) {
   gap: 18px;
   padding: 24px;
   border-left: 1px solid color-mix(in srgb, var(--dialog-surface-border) 88%, transparent);
-  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, transparent), color-mix(in srgb, var(--glass-bg) 94%, transparent));
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
 }
 
 .my-task-progress-dialog__history-head {
@@ -645,7 +644,7 @@ function formatRecordTime(value: string) {
   padding: 18px;
   border: 1px dashed color-mix(in srgb, var(--dialog-control-border) 92%, transparent);
   border-radius: 18px;
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  background: var(--dialog-control-bg);
 }
 
 .my-task-progress-dialog__history-state--error {
@@ -660,7 +659,7 @@ function formatRecordTime(value: string) {
   padding: 16px;
   border: 1px solid color-mix(in srgb, var(--dialog-control-border) 96%, transparent);
   border-radius: 18px;
-  background: color-mix(in srgb, var(--panel-bg) 98%, transparent);
+  background: var(--dialog-control-bg), var(--card-sheen);
   box-shadow: var(--dialog-control-shadow);
 }
 

@@ -129,11 +129,10 @@ function emitCreateOrigin(event: MouseEvent) {
   grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
   gap: 14px;
   padding: 18px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 18px;
-  background: var(--glass-bg);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .project-filters--embedded {
@@ -160,10 +159,11 @@ function emitCreateOrigin(event: MouseEvent) {
 
 .project-filters__input {
   min-height: 46px;
-  border: 1px solid var(--border-soft);
-  border-radius: 8px;
+  border: 1px solid var(--dialog-control-border);
+  border-radius: 12px;
   padding: 0 14px;
-  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
   font: inherit;
 }
@@ -174,7 +174,9 @@ function emitCreateOrigin(event: MouseEvent) {
 
 .project-filters__input:focus {
   border-color: var(--accent-line);
-  box-shadow: 0 0 0 4px rgba(10, 102, 255, 0.12);
+  box-shadow:
+    var(--dialog-control-shadow),
+    0 0 0 4px color-mix(in srgb, var(--accent-start) 10%, transparent);
 }
 
 .project-filters__status-bar {
@@ -237,8 +239,8 @@ function emitCreateOrigin(event: MouseEvent) {
 }
 
 .project-filters__status-pill--all {
-  border-color: var(--border-soft);
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  border-color: var(--dialog-control-border);
+  background: var(--dialog-control-bg);
   color: var(--text-soft);
 }
 
@@ -375,16 +377,15 @@ function emitCreateOrigin(event: MouseEvent) {
   content: attr(data-tooltip);
   bottom: calc(100% + 11px);
   padding: 7px 10px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 10px;
-  background: color-mix(in srgb, var(--panel-bg) 96%, transparent);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   color: var(--text-main);
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1;
   white-space: nowrap;
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--meta-surface-shadow);
   transform: translate(-50%, 6px);
   z-index: 2;
 }

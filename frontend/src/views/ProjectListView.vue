@@ -308,11 +308,8 @@ onMounted(loadProjects)
   padding: 24px 26px;
   border: 1px solid var(--border-soft);
   border-radius: 20px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 92%, transparent), var(--glass-bg)),
-    radial-gradient(circle at top right, rgba(0, 194, 255, 0.16), transparent 24%);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--gradient-surface), var(--project-card-glow);
+  box-shadow: var(--shadow-panel-hover);
 }
 
 .project-list__hero {
@@ -355,10 +352,9 @@ onMounted(loadProjects)
   padding: 18px 20px;
   border: 1px solid var(--border-soft);
   border-radius: 18px;
-  background: var(--glass-bg);
+  background: var(--meta-surface-bg), var(--meta-surface-glow);
   color: var(--text-soft);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .project-list__refreshing {
@@ -366,10 +362,9 @@ onMounted(loadProjects)
   padding: 12px 16px;
   border: 1px solid var(--border-soft);
   border-radius: 16px;
-  background: color-mix(in srgb, var(--glass-bg) 86%, transparent);
+  background: var(--meta-surface-bg), var(--meta-surface-glow);
   color: var(--text-soft);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .project-list__pagination {
@@ -380,9 +375,8 @@ onMounted(loadProjects)
   padding: 16px 18px;
   border: 1px solid var(--border-soft);
   border-radius: 18px;
-  background: var(--glass-bg);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .project-list__pagination-summary,

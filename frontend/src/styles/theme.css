@@ -81,32 +81,32 @@ html.light {
 
 html.dark {
   color-scheme: dark;
-  --app-bg: #0b0a1a;
-  --app-bg-elevated: rgba(16, 14, 34, 0.82);
-  --panel-bg: #121129;
-  --panel-bg-soft: rgba(20, 18, 42, 0.9);
-  --glass-bg: rgba(18, 19, 45, 0.82);
-  --glass-bg-strong: rgba(22, 24, 52, 0.94);
-  --sidebar-bg: rgba(14, 13, 30, 0.92);
-  --text-main: #e0e0ff;
-  --text-soft: #8a8fbf;
-  --text-muted: #666d98;
-  --text-inverse: #f5fbff;
-  --border-soft: rgba(125, 126, 191, 0.2);
-  --border-strong: rgba(0, 240, 255, 0.28);
-  --accent-start: #00f0ff;
-  --accent-end: #9d00ff;
-  --accent-tertiary: #ff007f;
-  --accent-line: rgba(0, 240, 255, 0.54);
-  --accent-success: #00d27f;
-  --accent-warning: #ffb347;
-  --accent-danger: #ff53b3;
-  --accent-neutral: #7379ab;
-  --work-status-pending-color: #a1abd1;
-  --work-status-pending-bg: color-mix(in srgb, #a1abd1 16%, transparent);
-  --work-status-pending-border: color-mix(in srgb, #a1abd1 30%, transparent);
-  --work-status-pending-strong: #7f89b4;
-  --work-status-pending-contrast: #f3f6ff;
+  --app-bg: #060916;
+  --app-bg-elevated: rgba(12, 18, 34, 0.86);
+  --panel-bg: #0d1323;
+  --panel-bg-soft: rgba(14, 21, 39, 0.92);
+  --glass-bg: rgba(15, 22, 40, 0.88);
+  --glass-bg-strong: rgba(18, 26, 47, 0.94);
+  --sidebar-bg: rgba(10, 16, 31, 0.94);
+  --text-main: #ecf3ff;
+  --text-soft: #93a6c7;
+  --text-muted: #64738f;
+  --text-inverse: #f7fbff;
+  --border-soft: rgba(130, 147, 182, 0.16);
+  --border-strong: rgba(124, 211, 255, 0.24);
+  --accent-start: #7cd3ff;
+  --accent-end: #8d78ff;
+  --accent-tertiary: #d9abff;
+  --accent-line: rgba(124, 211, 255, 0.34);
+  --accent-success: #61dfa1;
+  --accent-warning: #ffbe63;
+  --accent-danger: #ff7b93;
+  --accent-neutral: #7787a6;
+  --work-status-pending-color: #a6b3cb;
+  --work-status-pending-bg: color-mix(in srgb, #a6b3cb 16%, transparent);
+  --work-status-pending-border: color-mix(in srgb, #a6b3cb 28%, transparent);
+  --work-status-pending-strong: #7b89a8;
+  --work-status-pending-contrast: #edf3ff;
   --work-status-active-color: #67b7ff;
   --work-status-active-bg: color-mix(in srgb, var(--work-status-active-color) 18%, transparent);
   --work-status-active-border: color-mix(in srgb, var(--work-status-active-color) 32%, transparent);
@@ -115,61 +115,58 @@ html.dark {
   --work-status-done-color: var(--accent-success);
   --work-status-done-bg: color-mix(in srgb, var(--accent-success) 18%, transparent);
   --work-status-done-border: color-mix(in srgb, var(--accent-success) 32%, transparent);
-  --work-status-done-strong: #00d27f;
+  --work-status-done-strong: #61dfa1;
   --work-status-done-contrast: #041b12;
   --work-status-delayed-color: var(--accent-warning);
   --work-status-delayed-bg: color-mix(in srgb, var(--accent-warning) 18%, transparent);
   --work-status-delayed-border: color-mix(in srgb, var(--accent-warning) 32%, transparent);
-  --work-status-delayed-strong: #ffb347;
+  --work-status-delayed-strong: #ffbe63;
   --work-status-delayed-contrast: #261300;
   --work-status-unknown-color: var(--text-soft);
-  --work-status-unknown-bg: color-mix(in srgb, #a1abd1 12%, transparent);
+  --work-status-unknown-bg: color-mix(in srgb, #a6b3cb 12%, transparent);
   --work-status-unknown-border: color-mix(in srgb, var(--border-soft) 92%, transparent);
-  --work-status-unknown-strong: #7f89b4;
-  --work-status-unknown-contrast: #f3f6ff;
-  --gradient-primary: linear-gradient(135deg, #00f0ff 0%, #9d00ff 58%, #ff007f 100%);
+  --work-status-unknown-strong: #7b89a8;
+  --work-status-unknown-contrast: #edf3ff;
+  --gradient-primary: linear-gradient(135deg, #7cd3ff 0%, #8d78ff 58%, #d9abff 100%);
   --gradient-primary-soft: linear-gradient(
     135deg,
-    rgba(0, 240, 255, 0.26),
-    rgba(157, 0, 255, 0.24),
-    rgba(255, 0, 127, 0.16)
+    rgba(124, 211, 255, 0.24),
+    rgba(141, 120, 255, 0.22),
+    rgba(217, 171, 255, 0.14)
   );
-  --gradient-surface: linear-gradient(180deg, rgba(27, 25, 56, 0.97), rgba(12, 11, 29, 0.96));
-  --project-card-bg: linear-gradient(180deg, rgba(26, 25, 57, 0.98), rgba(14, 13, 34, 0.97));
-  --project-card-glow: radial-gradient(circle at top right, rgba(0, 240, 255, 0.16), transparent 36%),
-    radial-gradient(circle at 16% 0%, rgba(255, 0, 127, 0.12), transparent 28%);
-  --meta-surface-bg: linear-gradient(180deg, rgba(31, 31, 66, 0.98), rgba(18, 18, 43, 0.96));
-  --meta-surface-glow: radial-gradient(circle at 100% 0%, rgba(0, 240, 255, 0.18), transparent 62%),
-    radial-gradient(circle at 0% 100%, rgba(157, 0, 255, 0.12), transparent 52%);
-  --meta-surface-border: rgba(0, 240, 255, 0.18);
-  --meta-surface-shadow: inset 0 1px 0 rgba(224, 224, 255, 0.06), 0 18px 34px rgba(0, 0, 0, 0.34),
-    0 0 0 1px rgba(157, 0, 255, 0.08);
-  --card-sheen: linear-gradient(140deg, rgba(224, 224, 255, 0.04), transparent 44%),
-    radial-gradient(circle at 84% 12%, rgba(0, 240, 255, 0.18), transparent 30%),
-    radial-gradient(circle at 14% 100%, rgba(255, 0, 127, 0.12), transparent 28%);
-  --dialog-surface-bg: linear-gradient(180deg, rgba(25, 24, 55, 0.98), rgba(12, 11, 30, 0.97));
-  --dialog-surface-glow: radial-gradient(circle at top right, rgba(0, 240, 255, 0.18), transparent 40%),
-    radial-gradient(circle at 14% 0%, rgba(255, 0, 127, 0.14), transparent 34%),
-    radial-gradient(circle at 50% 100%, rgba(157, 0, 255, 0.16), transparent 44%);
-  --dialog-surface-border: rgba(0, 240, 255, 0.16);
-  --dialog-surface-shadow: 0 30px 78px rgba(0, 0, 0, 0.52), 0 0 0 1px rgba(0, 240, 255, 0.1),
-    0 0 28px rgba(157, 0, 255, 0.16), inset 0 1px 0 rgba(224, 224, 255, 0.05);
-  --dialog-control-bg: linear-gradient(180deg, rgba(31, 30, 63, 0.95), rgba(18, 18, 43, 0.93));
-  --dialog-control-bg-strong: linear-gradient(180deg, rgba(37, 36, 74, 0.96), rgba(21, 20, 49, 0.95));
-  --dialog-control-border: rgba(134, 145, 216, 0.18);
-  --dialog-control-shadow: inset 0 1px 0 rgba(224, 224, 255, 0.05), 0 16px 30px rgba(0, 0, 0, 0.3),
-    0 0 18px rgba(0, 240, 255, 0.08);
-  --drawer-surface-bg: linear-gradient(180deg, rgba(23, 22, 50, 0.98), rgba(11, 10, 28, 0.97));
-  --drawer-item-bg: linear-gradient(180deg, rgba(31, 30, 62, 0.96), rgba(19, 18, 45, 0.95));
-  --overlay-backdrop: rgba(5, 4, 15, 0.72);
-  --overlay-grid-line: rgba(0, 240, 255, 0.05);
-  --grid-line: rgba(0, 240, 255, 0.045);
-  --shadow-panel: 0 0 0 1px rgba(123, 127, 191, 0.12), 0 16px 36px rgba(0, 0, 0, 0.42),
-    0 0 22px rgba(157, 0, 255, 0.08);
-  --shadow-panel-hover: 0 0 0 1px rgba(0, 240, 255, 0.18), 0 22px 44px rgba(0, 0, 0, 0.52),
-    0 0 18px rgba(0, 240, 255, 0.18), 0 0 34px rgba(157, 0, 255, 0.14);
-  --shadow-glass: 0 28px 64px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(157, 0, 255, 0.08);
-  --backdrop-blur: blur(18px);
+  --gradient-surface: linear-gradient(180deg, rgba(18, 25, 45, 0.98), rgba(11, 17, 31, 0.97));
+  --project-card-bg: linear-gradient(180deg, rgba(17, 24, 43, 0.98), rgba(11, 16, 30, 0.97));
+  --project-card-glow: radial-gradient(circle at 84% 0%, rgba(141, 120, 255, 0.18), transparent 32%),
+    radial-gradient(circle at 12% 100%, rgba(124, 211, 255, 0.12), transparent 30%);
+  --meta-surface-bg: linear-gradient(180deg, rgba(14, 20, 36, 0.96), rgba(10, 15, 27, 0.95));
+  --meta-surface-glow: radial-gradient(circle at 100% 0%, rgba(124, 211, 255, 0.16), transparent 58%),
+    radial-gradient(circle at 0% 100%, rgba(141, 120, 255, 0.12), transparent 48%);
+  --meta-surface-border: rgba(124, 211, 255, 0.14);
+  --meta-surface-shadow: inset 0 1px 0 rgba(236, 243, 255, 0.05), 0 18px 34px rgba(2, 6, 18, 0.42),
+    0 0 0 1px rgba(124, 211, 255, 0.04);
+  --card-sheen: linear-gradient(140deg, rgba(236, 243, 255, 0.04), transparent 46%),
+    radial-gradient(circle at 84% 12%, rgba(124, 211, 255, 0.12), transparent 28%),
+    radial-gradient(circle at 18% 100%, rgba(141, 120, 255, 0.08), transparent 30%);
+  --dialog-surface-bg: linear-gradient(180deg, rgba(18, 25, 45, 0.98), rgba(10, 16, 30, 0.97));
+  --dialog-surface-glow: radial-gradient(circle at top right, rgba(124, 211, 255, 0.16), transparent 40%),
+    radial-gradient(circle at 14% 0%, rgba(141, 120, 255, 0.12), transparent 34%);
+  --dialog-surface-border: rgba(124, 211, 255, 0.14);
+  --dialog-surface-shadow: 0 28px 68px rgba(2, 6, 18, 0.54), 0 0 0 1px rgba(124, 211, 255, 0.06),
+    inset 0 1px 0 rgba(236, 243, 255, 0.04);
+  --dialog-control-bg: linear-gradient(180deg, rgba(22, 30, 51, 0.96), rgba(14, 20, 37, 0.95));
+  --dialog-control-bg-strong: linear-gradient(180deg, rgba(27, 37, 60, 0.97), rgba(17, 24, 43, 0.96));
+  --dialog-control-border: rgba(132, 149, 186, 0.14);
+  --dialog-control-shadow: inset 0 1px 0 rgba(236, 243, 255, 0.04), 0 14px 28px rgba(2, 6, 18, 0.3);
+  --drawer-surface-bg: linear-gradient(180deg, rgba(15, 22, 40, 0.98), rgba(9, 14, 27, 0.97));
+  --drawer-item-bg: linear-gradient(180deg, rgba(21, 29, 49, 0.96), rgba(14, 20, 37, 0.95));
+  --overlay-backdrop: rgba(3, 6, 14, 0.72);
+  --overlay-grid-line: rgba(124, 211, 255, 0.04);
+  --grid-line: rgba(124, 211, 255, 0.03);
+  --shadow-panel: 0 16px 36px rgba(2, 6, 18, 0.36), 0 0 0 1px rgba(130, 147, 182, 0.08);
+  --shadow-panel-hover: 0 26px 56px rgba(2, 6, 18, 0.48), 0 0 0 1px rgba(124, 211, 255, 0.14),
+    0 0 24px rgba(141, 120, 255, 0.08);
+  --shadow-glass: 0 24px 52px rgba(2, 6, 18, 0.44), 0 0 0 1px rgba(124, 211, 255, 0.08);
+  --backdrop-blur: blur(10px);
 }
 
 html,
@@ -214,42 +211,32 @@ body::after {
 
 html.dark body {
   background:
-    radial-gradient(circle at 16% 14%, rgba(157, 0, 255, 0.16), transparent 24%),
-    radial-gradient(circle at 86% 18%, rgba(0, 240, 255, 0.14), transparent 18%),
-    radial-gradient(circle at 82% 78%, rgba(255, 0, 127, 0.12), transparent 22%),
-    linear-gradient(180deg, rgba(15, 13, 34, 0.98) 0%, rgba(11, 10, 26, 1) 48%, rgba(8, 7, 18, 1) 100%);
+    radial-gradient(circle at 18% 16%, rgba(124, 211, 255, 0.14), transparent 20%),
+    radial-gradient(circle at 84% 18%, rgba(141, 120, 255, 0.16), transparent 22%),
+    radial-gradient(circle at 74% 78%, rgba(217, 171, 255, 0.08), transparent 18%),
+    linear-gradient(180deg, #060916 0%, #091020 52%, #0d1426 100%);
 }
 
 html.dark body::before {
-  background-image:
-    repeating-linear-gradient(
-      180deg,
-      rgba(224, 224, 255, 0.035) 0,
-      rgba(224, 224, 255, 0.035) 1px,
-      transparent 1px,
-      transparent 4px
-    ),
-    linear-gradient(var(--grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
-  background-size:
-    100% 4px,
-    28px 28px,
-    28px 28px;
-  background-position:
-    0 0,
-    0 0,
-    0 0;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.9), rgba(0, 0, 0, 0.7) 56%, transparent 100%);
-  animation: scanline-drift 16s linear infinite;
+  background:
+    radial-gradient(circle at 12% 18%, rgba(255, 255, 255, 0.78) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 24% 72%, rgba(255, 255, 255, 0.44) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 38% 34%, rgba(255, 255, 255, 0.54) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 66% 22%, rgba(255, 255, 255, 0.62) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 82% 30%, rgba(255, 255, 255, 0.48) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 74% 82%, rgba(255, 255, 255, 0.34) 0 1px, transparent 1.6px),
+    radial-gradient(circle at 16% 88%, rgba(255, 255, 255, 0.28) 0 1px, transparent 1.6px);
+  background-repeat: no-repeat;
+  mask-image: none;
 }
 
 html.dark body::after {
   background:
-    radial-gradient(circle at 86% 16%, rgba(0, 240, 255, 0.22), transparent 16%),
-    radial-gradient(circle at 78% 82%, rgba(157, 0, 255, 0.28), transparent 20%),
-    radial-gradient(circle at 12% 22%, rgba(255, 0, 127, 0.18), transparent 18%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.01), rgba(255, 255, 255, 0));
-  filter: blur(18px) saturate(118%);
+    radial-gradient(circle at 84% 12%, rgba(124, 211, 255, 0.16), transparent 16%),
+    radial-gradient(circle at 14% 24%, rgba(141, 120, 255, 0.16), transparent 18%),
+    radial-gradient(circle at 72% 86%, rgba(124, 211, 255, 0.08), transparent 20%);
+  opacity: 0.85;
+  filter: none;
 }
 
 #app {
@@ -293,7 +280,7 @@ html.dark h1,
 html.dark h2,
 html.dark h3,
 html.dark h4 {
-  text-shadow: 0 0 18px rgba(0, 240, 255, 0.08);
+  text-shadow: 0 0 18px rgba(124, 211, 255, 0.06);
 }
 
 html.dark .glass-panel,
@@ -304,14 +291,5 @@ html.dark .surface-panel {
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
-  }
-}
-
-@keyframes scanline-drift {
-  100% {
-    background-position:
-      0 28px,
-      0 0,
-      0 0;
   }
 }

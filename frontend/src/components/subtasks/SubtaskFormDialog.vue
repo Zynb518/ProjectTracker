@@ -212,7 +212,7 @@ function submit() {
     radial-gradient(circle at 18% 22%, rgba(10, 102, 255, 0.12), transparent 22%),
     radial-gradient(circle at 82% 78%, rgba(0, 194, 255, 0.14), transparent 24%),
     var(--overlay-backdrop);
-  backdrop-filter: blur(16px);
+  backdrop-filter: blur(12px);
 }
 
 .subtask-form__backdrop::before {
@@ -235,9 +235,8 @@ function submit() {
   padding: 24px;
   border: 1px solid var(--dialog-surface-border);
   border-radius: 20px;
-  background: var(--dialog-surface-glow), var(--dialog-surface-bg);
+  background: var(--dialog-surface-glow), var(--dialog-surface-bg), var(--card-sheen);
   box-shadow: var(--dialog-surface-shadow);
-  backdrop-filter: var(--backdrop-blur);
 }
 
 .subtask-form__header,

@@ -196,11 +196,10 @@ function handleStatusSelect(value: string) {
   padding: 18px;
   position: relative;
   z-index: 0;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--meta-surface-border);
   border-radius: 18px;
-  background: var(--glass-bg);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .my-task-filters--candidate-open {
@@ -264,13 +263,13 @@ function handleStatusSelect(value: string) {
 .my-task-filters__input {
   width: 100%;
   min-height: 46px;
-  border: 1px solid var(--border-soft);
+  border: 1px solid var(--dialog-control-border);
   border-radius: 12px;
   padding: 0 42px 0 42px;
-  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+  background: var(--dialog-control-bg);
   color: var(--text-main);
   font: inherit;
-  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 42%, transparent);
+  box-shadow: var(--dialog-control-shadow);
   transition:
     border-color 180ms ease-out,
     background-color 180ms ease-out,
@@ -283,10 +282,10 @@ function handleStatusSelect(value: string) {
 
 .my-task-filters__combobox:focus-within .my-task-filters__input {
   border-color: color-mix(in srgb, var(--accent-line) 56%, transparent);
-  background: color-mix(in srgb, var(--glass-bg-strong) 96%, #ffffff 4%);
+  background: var(--dialog-control-bg-strong);
   box-shadow:
-    inset 0 1px 0 color-mix(in srgb, #ffffff 54%, transparent),
-    0 0 0 4px color-mix(in srgb, var(--accent-start) 8%, transparent),
+    var(--dialog-control-shadow),
+    0 0 0 4px color-mix(in srgb, var(--accent-start) 10%, transparent),
     0 18px 34px color-mix(in srgb, var(--accent-end) 10%, transparent);
 }
 
@@ -309,16 +308,12 @@ function handleStatusSelect(value: string) {
   gap: 6px;
   padding: 6px 0;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 32%, var(--border-soft));
+  border: 1px solid color-mix(in srgb, var(--accent-line) 32%, var(--meta-surface-border));
   border-radius: 16px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--glass-bg) 96%, #ffffff 4%), color-mix(in srgb, var(--panel-bg) 96%, transparent)),
-    radial-gradient(circle at top right, color-mix(in srgb, var(--accent-end) 16%, transparent), transparent 44%),
-    radial-gradient(circle at 0% 100%, color-mix(in srgb, var(--accent-start) 10%, transparent), transparent 38%);
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   box-shadow:
-    0 24px 40px color-mix(in srgb, #0f172a 12%, transparent),
-    inset 0 1px 0 color-mix(in srgb, #ffffff 42%, transparent);
-  backdrop-filter: var(--backdrop-blur);
+    var(--meta-surface-shadow),
+    0 20px 36px color-mix(in srgb, #0f172a 12%, transparent);
   animation: my-task-filters-candidate-rise 180ms ease-out;
 }
 
@@ -332,8 +327,7 @@ function handleStatusSelect(value: string) {
   border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 72%, transparent);
   border-left: none;
   border-radius: 0;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, #ffffff 8%), color-mix(in srgb, var(--panel-bg) 76%, transparent));
+  background: var(--dialog-control-bg);
   color: var(--text-main);
   text-align: left;
   cursor: pointer;
@@ -346,8 +340,7 @@ function handleStatusSelect(value: string) {
 
 .my-task-filters__candidate:hover {
   border-color: color-mix(in srgb, var(--accent-line) 40%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 12%, #ffffff), color-mix(in srgb, var(--panel-bg) 74%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 12%, var(--dialog-control-bg)), color-mix(in srgb, var(--accent-end) 6%, var(--dialog-control-bg)));
   box-shadow:
     0 14px 26px color-mix(in srgb, var(--accent-end) 10%, transparent),
     inset 0 1px 0 color-mix(in srgb, #ffffff 28%, transparent);
@@ -360,8 +353,7 @@ function handleStatusSelect(value: string) {
 
 .my-task-filters__candidate.is-selected {
   border-color: color-mix(in srgb, var(--accent-line) 58%, transparent);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 14%, #ffffff), color-mix(in srgb, var(--panel-bg) 78%, transparent));
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 14%, var(--dialog-control-bg)), color-mix(in srgb, var(--accent-end) 8%, var(--dialog-control-bg)));
   box-shadow:
     0 16px 28px color-mix(in srgb, var(--accent-end) 11%, transparent),
     inset 0 1px 0 color-mix(in srgb, #ffffff 36%, transparent);

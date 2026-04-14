@@ -57,6 +57,7 @@ describe('ProjectGrid', () => {
     expect(source).toContain('background: var(--project-card-bg), var(--project-card-glow);')
     expect(themeSource).toContain('--project-card-bg: linear-gradient(180deg, rgba(227, 235, 246, 0.98), rgba(214, 225, 239, 0.96));')
     expect(themeSource).toContain('--project-card-glow: radial-gradient(circle at top right, rgba(0, 194, 255, 0.1), transparent 36%);')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
   it('renders the project name in the header without showing the project id', () => {

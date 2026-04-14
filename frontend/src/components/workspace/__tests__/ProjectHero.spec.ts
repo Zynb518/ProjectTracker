@@ -47,7 +47,9 @@ describe('ProjectHero', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectHero.vue'), 'utf8')
 
     expect(source).toContain('background: var(--project-card-bg), var(--project-card-glow);')
+    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
     expect(source).not.toContain('color-mix(in srgb, var(--project-card-bg)')
+    expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
   it('uses the shared semantic work-status tokens for the project status pill instead of the brand gradient', () => {
