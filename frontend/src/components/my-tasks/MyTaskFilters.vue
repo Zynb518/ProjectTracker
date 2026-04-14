@@ -17,6 +17,7 @@ const statusOptions = [
 ] as const
 
 const props = defineProps<{
+  embedded?: boolean
   projectKeyword: string
   projectCandidates: string[]
   status: string
@@ -88,7 +89,13 @@ function handleStatusSelect(value: string) {
 
 <template>
   <section
-    :class="['my-task-filters', { 'my-task-filters--candidate-open': isCandidateOpen && hasProjectCandidates }]"
+    :class="[
+      'my-task-filters',
+      {
+        'my-task-filters--embedded': embedded,
+        'my-task-filters--candidate-open': isCandidateOpen && hasProjectCandidates,
+      },
+    ]"
   >
     <label class="my-task-filters__field">
       <span>项目名称</span>
@@ -190,7 +197,7 @@ function handleStatusSelect(value: string) {
 <style scoped>
 .my-task-filters {
   display: grid;
-  grid-template-columns: minmax(0, 360px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 420px) minmax(0, 1fr);
   align-items: start;
   gap: 14px;
   padding: 18px;
@@ -204,6 +211,13 @@ function handleStatusSelect(value: string) {
 
 .my-task-filters--candidate-open {
   z-index: 12;
+}
+
+.my-task-filters--embedded {
+  padding: 0;
+  border: 0 solid transparent;
+  background: none;
+  box-shadow: none;
 }
 
 .my-task-filters__field {

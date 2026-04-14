@@ -197,7 +197,7 @@ describe('MyTaskFilters', () => {
       'utf8',
     )
 
-    expect(source).toContain('grid-template-columns: minmax(0, 360px) minmax(0, 1fr);')
+    expect(source).toContain('grid-template-columns: minmax(0, 420px) minmax(0, 1fr);')
     expect(source).toContain('.my-task-filters__candidate-panel {')
     expect(source).toContain('padding: 6px 0;')
     expect(source).toContain('overflow: hidden;')
@@ -212,6 +212,29 @@ describe('MyTaskFilters', () => {
     expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
     expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
     expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
+  })
+
+  it('supports an embedded mode so the task filters can be rendered inside a shared top panel shell', () => {
+    const wrapper = mount(MyTaskFilters, {
+      props: {
+        embedded: true,
+        projectKeyword: '',
+        projectCandidates: [],
+        status: '',
+      },
+    })
+    const source = readFileSync(
+      resolve(process.cwd(), 'src/components/my-tasks/MyTaskFilters.vue'),
+      'utf8',
+    )
+
+    expect(wrapper.classes()).toContain('my-task-filters--embedded')
+    expect(source).toContain('embedded?: boolean')
+    expect(source).toContain('.my-task-filters--embedded {')
+    expect(source).toContain('padding: 0;')
+    expect(source).toContain('border: 0 solid transparent;')
+    expect(source).toContain('background: none;')
+    expect(source).toContain('box-shadow: none;')
   })
 
   it('renders semantic status filter pills and emits updates when a status pill is selected', async () => {

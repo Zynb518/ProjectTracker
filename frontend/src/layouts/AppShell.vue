@@ -35,7 +35,6 @@ async function handleLogout() {
         <div>
           <p class="app-shell__eyebrow">Project Tracker</p>
           <h1>项目台</h1>
-          <p class="app-shell__brand-copy">科技感进度工作台，统一项目、节点与任务视图。</p>
         </div>
       </div>
 
@@ -104,8 +103,6 @@ async function handleLogout() {
             </div>
           </div>
 
-          <p class="app-shell__account-note">数据已同步到当前工作区，当前会话状态正常。</p>
-
           <div class="app-shell__account-actions">
             <ThemeToggle class="app-shell__theme-toggle" />
             <button class="app-shell__logout" type="button" @click="handleLogout">退出登录</button>
@@ -134,6 +131,17 @@ async function handleLogout() {
 }
 
 .app-shell__sidebar {
+  --app-shell-sidebar-layer-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel-bg) 86%, transparent),
+    color-mix(in srgb, var(--panel-bg) 74%, transparent)
+  );
+  --app-shell-sidebar-layer-border: color-mix(in srgb, var(--meta-surface-border) 84%, transparent);
+  --app-shell-sidebar-plate-bg: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel-bg) 92%, transparent),
+    color-mix(in srgb, var(--panel-bg) 80%, transparent)
+  );
   position: sticky;
   top: 20px;
   align-self: start;
@@ -203,12 +211,6 @@ async function handleLogout() {
   font-size: 0.82rem;
 }
 
-.app-shell__brand-copy {
-  margin-top: 10px;
-  color: color-mix(in srgb, var(--text-main) 72%, var(--text-soft));
-  line-height: 1.62;
-}
-
 .app-shell__nav {
   display: grid;
   gap: 10px;
@@ -222,10 +224,8 @@ async function handleLogout() {
   padding: 14px 16px;
   border-radius: 16px;
   color: color-mix(in srgb, var(--text-main) 82%, var(--text-soft));
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 96%, transparent), color-mix(in srgb, var(--panel-bg-soft) 84%, transparent)),
-    radial-gradient(circle at 100% 0%, color-mix(in srgb, var(--accent-start) 10%, transparent), transparent 46%);
-  border: 1px solid color-mix(in srgb, var(--meta-surface-border) 90%, transparent);
+  background: var(--app-shell-sidebar-layer-bg);
+  border: 1px solid var(--app-shell-sidebar-layer-border);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 10%, transparent);
 }
 
@@ -234,9 +234,6 @@ async function handleLogout() {
   transform: translateY(-2px);
   color: var(--text-main);
   border-color: var(--accent-line);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--accent-start) 12%, var(--panel-bg)), color-mix(in srgb, var(--accent-end) 8%, var(--panel-bg-soft))),
-    var(--card-sheen);
   box-shadow: var(--shadow-panel-hover);
 }
 
@@ -246,9 +243,9 @@ async function handleLogout() {
   width: 34px;
   height: 34px;
   border-radius: 12px;
-  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  background: var(--app-shell-sidebar-plate-bg);
   box-shadow:
-    inset 0 0 0 1px color-mix(in srgb, var(--border-soft) 88%, transparent),
+    inset 0 0 0 1px color-mix(in srgb, var(--dialog-control-border) 94%, transparent),
     0 10px 18px color-mix(in srgb, var(--accent-start) 5%, transparent);
 }
 
@@ -282,9 +279,9 @@ async function handleLogout() {
   gap: 12px;
   align-items: center;
   padding: 14px;
-  border: 1px solid var(--meta-surface-border);
+  border: 1px solid var(--app-shell-sidebar-layer-border);
   border-radius: 18px;
-  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  background: var(--app-shell-sidebar-layer-bg);
   box-shadow: var(--meta-surface-shadow);
 }
 
@@ -326,12 +323,6 @@ async function handleLogout() {
   letter-spacing: 0.05em;
 }
 
-.app-shell__account-note {
-  margin: 0;
-  color: color-mix(in srgb, var(--text-main) 74%, var(--text-soft));
-  line-height: 1.62;
-}
-
 .app-shell__account-actions {
   display: grid;
   gap: 12px;
@@ -346,7 +337,7 @@ async function handleLogout() {
   border: 1px solid color-mix(in srgb, var(--accent-warning) 18%, var(--meta-surface-border));
   border-radius: 14px;
   padding: 12px 14px;
-  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  background: var(--app-shell-sidebar-layer-bg);
   color: color-mix(in srgb, var(--text-main) 92%, var(--text-soft));
   font: inherit;
   font-weight: 600;
@@ -371,15 +362,27 @@ async function handleLogout() {
   min-width: 0;
 }
 
+.app-shell__theme-toggle.theme-toggle {
+  border-color: var(--app-shell-sidebar-layer-border);
+  background: var(--app-shell-sidebar-layer-bg);
+  box-shadow: var(--shadow-panel);
+}
+
+.app-shell__theme-toggle.theme-toggle:hover {
+  box-shadow: var(--shadow-panel-hover);
+}
+
+.app-shell__theme-toggle.theme-toggle :deep(.theme-toggle__track) {
+  background: var(--app-shell-sidebar-plate-bg);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--dialog-control-border) 94%, transparent),
+    inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 16%, transparent);
+}
+
 :global(html.dark) .app-shell__sidebar {
   box-shadow:
     var(--meta-surface-shadow),
     0 22px 52px rgba(2, 6, 18, 0.34);
-}
-
-:global(html.dark) .app-shell__brand-copy,
-:global(html.dark) .app-shell__account-note {
-  color: color-mix(in srgb, var(--text-main) 82%, var(--text-soft));
 }
 
 :global(html.dark) .app-shell__link:hover,

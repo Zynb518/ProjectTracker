@@ -185,23 +185,28 @@ onMounted(loadTasks)
 
 <template>
   <section class="my-tasks-view">
-    <header class="my-tasks-view__hero">
-      <div>
-        <p class="my-tasks-view__eyebrow">Execution Desk</p>
-        <h2>我的任务</h2>
-      </div>
-      <p>聚焦当前负责人任务，快速查看所属项目、节点与截止日期。</p>
-    </header>
+    <section class="my-tasks-view__hero-shell" data-testid="my-tasks-hero-shell">
+      <header class="my-tasks-view__hero">
+        <div>
+          <p class="my-tasks-view__eyebrow">Execution Desk</p>
+          <h2>我的任务</h2>
+        </div>
+        <p>聚焦当前负责人任务，快速查看所属项目、节点与截止日期。</p>
+      </header>
 
-    <MyTaskFilters
-      :project-candidates="filteredProjectCandidates"
-      :project-keyword="filters.projectKeyword"
-      :status="filters.status"
-      @apply-project-keyword="handleProjectKeywordApply"
-      @submit="handleStatusSubmit"
-      @update:project-keyword="filters.projectKeyword = $event"
-      @update:status="filters.status = $event"
-    />
+      <div class="my-tasks-view__hero-filters">
+        <MyTaskFilters
+          :embedded="true"
+          :project-candidates="filteredProjectCandidates"
+          :project-keyword="filters.projectKeyword"
+          :status="filters.status"
+          @apply-project-keyword="handleProjectKeywordApply"
+          @submit="handleStatusSubmit"
+          @update:project-keyword="filters.projectKeyword = $event"
+          @update:status="filters.status = $event"
+        />
+      </div>
+    </section>
 
     <p v-if="isLoading && tasks.length === 0" class="my-tasks-view__state loading-panel">
       任务加载中...
@@ -241,15 +246,20 @@ onMounted(loadTasks)
   padding: 0 8px 8px;
 }
 
-.my-tasks-view__hero {
+.my-tasks-view__hero-shell {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
-  gap: 18px;
+  gap: 20px;
   padding: 24px 26px;
   border: 1px solid var(--border-soft);
   border-radius: 20px;
   background: var(--gradient-surface), var(--project-card-glow);
   box-shadow: var(--shadow-panel-hover);
+}
+
+.my-tasks-view__hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 420px);
+  gap: 18px;
 }
 
 .my-tasks-view__hero h2,
@@ -269,6 +279,11 @@ onMounted(loadTasks)
   max-width: 420px;
   align-self: end;
   color: var(--text-soft);
+}
+
+.my-tasks-view__hero-filters {
+  padding-top: 20px;
+  border-top: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
 }
 
 .my-tasks-view__state {

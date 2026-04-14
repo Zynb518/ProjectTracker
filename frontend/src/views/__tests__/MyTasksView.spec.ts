@@ -78,12 +78,31 @@ describe('MyTasksView', () => {
     })
   })
 
-  it('uses a shared galaxy hero surface without heavy backdrop blur in the task view shells', () => {
+  it('uses a shared galaxy hero shell without heavy backdrop blur in the task view top panel', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/MyTasksView.vue'), 'utf8')
 
-    expect(source).toContain('.my-tasks-view__hero {')
+    expect(source).toContain('.my-tasks-view__hero-shell {')
     expect(source).toContain('background: var(--gradient-surface), var(--project-card-glow);')
     expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
+  })
+
+  it('merges the task hero and filters into one shared top panel', async () => {
+    const screen = render(MyTasksView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+
+    await screen.findByText('完成登录接口开发')
+
+    const shell = screen.getByTestId('my-tasks-hero-shell')
+    const filters = shell.querySelector('.my-task-filters')
+
+    expect(shell.textContent).toContain('我的任务')
+    expect(filters).not.toBeNull()
+    expect(getComputedStyle(filters!).borderTopWidth).toBe('0px')
+    expect(getComputedStyle(filters!).backgroundImage).toBe('none')
+    expect(getComputedStyle(filters!).boxShadow).toBe('none')
   })
 
   it('loads my subtasks and immediately re-queries when the status filter changes', async () => {

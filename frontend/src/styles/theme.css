@@ -2,18 +2,15 @@
 html.light {
   color-scheme: light;
   --app-bg: #eaf0f7;
-  --app-bg-elevated: rgba(236, 243, 251, 0.82);
   --panel-bg: #f3f7fc;
   --panel-bg-soft: rgba(243, 247, 252, 0.88);
   --glass-bg: rgba(241, 246, 253, 0.82);
   --glass-bg-strong: rgba(239, 245, 252, 0.9);
-  --sidebar-bg: rgba(235, 242, 250, 0.88);
   --text-main: #102038;
   --text-soft: #344963;
   --text-muted: #5f728d;
   --text-inverse: #f8fbff;
   --border-soft: rgba(16, 32, 56, 0.1);
-  --border-strong: rgba(10, 102, 255, 0.2);
   --accent-start: #0a66ff;
   --accent-end: #00c2ff;
   --accent-tertiary: #4f46e5;
@@ -23,22 +20,22 @@ html.light {
   --accent-danger: #ff5f73;
   --accent-neutral: #94a3b8;
   --work-status-pending-color: color-mix(in srgb, var(--accent-neutral) 88%, var(--text-soft));
-  --work-status-pending-bg: color-mix(in srgb, var(--accent-neutral) 14%, transparent);
+  --work-status-pending-bg: color-mix(in srgb, var(--accent-neutral) 18%, #f7fbff);
   --work-status-pending-border: color-mix(in srgb, var(--accent-neutral) 28%, transparent);
   --work-status-pending-strong: color-mix(in srgb, var(--accent-neutral) 84%, #ffffff 16%);
   --work-status-pending-contrast: var(--text-main);
   --work-status-active-color: #0a66ff;
-  --work-status-active-bg: color-mix(in srgb, var(--work-status-active-color) 16%, transparent);
+  --work-status-active-bg: color-mix(in srgb, var(--work-status-active-color) 18%, #f7fbff);
   --work-status-active-border: color-mix(in srgb, var(--work-status-active-color) 30%, transparent);
   --work-status-active-strong: #0a66ff;
   --work-status-active-contrast: #f8fbff;
   --work-status-done-color: var(--accent-success);
-  --work-status-done-bg: color-mix(in srgb, var(--accent-success) 16%, transparent);
+  --work-status-done-bg: color-mix(in srgb, var(--accent-success) 18%, #f7fbff);
   --work-status-done-border: color-mix(in srgb, var(--accent-success) 28%, transparent);
   --work-status-done-strong: color-mix(in srgb, var(--accent-success) 92%, #ffffff 8%);
   --work-status-done-contrast: #052116;
   --work-status-delayed-color: var(--accent-warning);
-  --work-status-delayed-bg: color-mix(in srgb, var(--accent-warning) 16%, transparent);
+  --work-status-delayed-bg: color-mix(in srgb, var(--accent-warning) 18%, #fff6ea);
   --work-status-delayed-border: color-mix(in srgb, var(--accent-warning) 28%, transparent);
   --work-status-delayed-strong: color-mix(in srgb, var(--accent-warning) 92%, #ffffff 8%);
   --work-status-delayed-contrast: #402000;
@@ -46,7 +43,6 @@ html.light {
   --work-status-unknown-bg: color-mix(in srgb, var(--accent-neutral) 12%, transparent);
   --work-status-unknown-border: color-mix(in srgb, var(--border-soft) 92%, transparent);
   --work-status-unknown-strong: color-mix(in srgb, var(--accent-neutral) 72%, #ffffff 28%);
-  --work-status-unknown-contrast: var(--text-main);
   --gradient-primary: linear-gradient(135deg, #0a66ff 0%, #00c2ff 100%);
   --gradient-primary-soft: linear-gradient(135deg, rgba(10, 102, 255, 0.24), rgba(0, 194, 255, 0.2));
   --gradient-surface: linear-gradient(180deg, rgba(244, 248, 253, 0.96), rgba(232, 239, 248, 0.94));
@@ -75,25 +71,21 @@ html.light {
   --grid-line: rgba(10, 102, 255, 0.05);
   --shadow-panel: 0 10px 24px rgba(15, 23, 42, 0.08);
   --shadow-panel-hover: 0 20px 36px rgba(10, 102, 255, 0.11);
-  --shadow-glass: 0 24px 52px rgba(15, 23, 42, 0.12);
   --backdrop-blur: blur(16px);
 }
 
 html.dark {
   color-scheme: dark;
   --app-bg: #060916;
-  --app-bg-elevated: rgba(12, 18, 34, 0.86);
   --panel-bg: #0d1323;
   --panel-bg-soft: rgba(14, 21, 39, 0.92);
   --glass-bg: rgba(15, 22, 40, 0.88);
   --glass-bg-strong: rgba(18, 26, 47, 0.94);
-  --sidebar-bg: rgba(10, 16, 31, 0.94);
   --text-main: #ecf3ff;
   --text-soft: #93a6c7;
   --text-muted: #64738f;
   --text-inverse: #f7fbff;
   --border-soft: rgba(130, 147, 182, 0.16);
-  --border-strong: rgba(124, 211, 255, 0.24);
   --accent-start: #7cd3ff;
   --accent-end: #8d78ff;
   --accent-tertiary: #d9abff;
@@ -103,22 +95,22 @@ html.dark {
   --accent-danger: #ff7b93;
   --accent-neutral: #7787a6;
   --work-status-pending-color: #a6b3cb;
-  --work-status-pending-bg: color-mix(in srgb, #a6b3cb 16%, transparent);
+  --work-status-pending-bg: color-mix(in srgb, #a6b3cb 20%, var(--panel-bg));
   --work-status-pending-border: color-mix(in srgb, #a6b3cb 28%, transparent);
   --work-status-pending-strong: #7b89a8;
   --work-status-pending-contrast: #edf3ff;
   --work-status-active-color: #67b7ff;
-  --work-status-active-bg: color-mix(in srgb, var(--work-status-active-color) 18%, transparent);
+  --work-status-active-bg: color-mix(in srgb, var(--work-status-active-color) 20%, var(--panel-bg));
   --work-status-active-border: color-mix(in srgb, var(--work-status-active-color) 32%, transparent);
   --work-status-active-strong: #67b7ff;
   --work-status-active-contrast: #04101f;
   --work-status-done-color: var(--accent-success);
-  --work-status-done-bg: color-mix(in srgb, var(--accent-success) 18%, transparent);
+  --work-status-done-bg: color-mix(in srgb, var(--accent-success) 20%, var(--panel-bg));
   --work-status-done-border: color-mix(in srgb, var(--accent-success) 32%, transparent);
   --work-status-done-strong: #61dfa1;
   --work-status-done-contrast: #041b12;
   --work-status-delayed-color: var(--accent-warning);
-  --work-status-delayed-bg: color-mix(in srgb, var(--accent-warning) 18%, transparent);
+  --work-status-delayed-bg: color-mix(in srgb, var(--accent-warning) 20%, var(--panel-bg));
   --work-status-delayed-border: color-mix(in srgb, var(--accent-warning) 32%, transparent);
   --work-status-delayed-strong: #ffbe63;
   --work-status-delayed-contrast: #261300;
@@ -126,7 +118,6 @@ html.dark {
   --work-status-unknown-bg: color-mix(in srgb, #a6b3cb 12%, transparent);
   --work-status-unknown-border: color-mix(in srgb, var(--border-soft) 92%, transparent);
   --work-status-unknown-strong: #7b89a8;
-  --work-status-unknown-contrast: #edf3ff;
   --gradient-primary: linear-gradient(135deg, #7cd3ff 0%, #8d78ff 58%, #d9abff 100%);
   --gradient-primary-soft: linear-gradient(
     135deg,
@@ -165,7 +156,6 @@ html.dark {
   --shadow-panel: 0 16px 36px rgba(2, 6, 18, 0.36), 0 0 0 1px rgba(130, 147, 182, 0.08);
   --shadow-panel-hover: 0 26px 56px rgba(2, 6, 18, 0.48), 0 0 0 1px rgba(124, 211, 255, 0.14),
     0 0 24px rgba(141, 120, 255, 0.08);
-  --shadow-glass: 0 24px 52px rgba(2, 6, 18, 0.44), 0 0 0 1px rgba(124, 211, 255, 0.08);
   --backdrop-blur: blur(10px);
 }
 
@@ -228,19 +218,6 @@ html.dark body::after {
   color: var(--text-main);
 }
 
-.glass-panel {
-  background: var(--glass-bg);
-  border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-panel);
-  backdrop-filter: var(--backdrop-blur);
-}
-
-.surface-panel {
-  background: var(--gradient-surface);
-  border: 1px solid var(--border-soft);
-  box-shadow: var(--shadow-panel);
-}
-
 .loading-panel {
   position: relative;
   overflow: hidden;
@@ -266,11 +243,6 @@ html.dark h2,
 html.dark h3,
 html.dark h4 {
   text-shadow: 0 0 18px rgba(124, 211, 255, 0.06);
-}
-
-html.dark .glass-panel,
-html.dark .surface-panel {
-  box-shadow: var(--shadow-panel), inset 0 1px 0 rgba(224, 224, 255, 0.05);
 }
 
 @keyframes shimmer {

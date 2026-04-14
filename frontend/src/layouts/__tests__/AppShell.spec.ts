@@ -36,6 +36,59 @@ describe('AppShell', () => {
     expect(source).not.toContain('color: #f2f7ff;')
   })
 
+  it('uses one shared translucent surface tier for sidebar navigation and current-session controls', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/layouts/AppShell.vue'), 'utf8')
+    const sidebarBlock = source.match(/\.app-shell__sidebar \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const linkBlock = source.match(/\.app-shell__link \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const accountCardBlock = source.match(/\.app-shell__account-card \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const logoutBlock = source.match(/\.app-shell__logout \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const themeToggleBlock = source.match(/\.app-shell__theme-toggle\.theme-toggle \{[\s\S]*?\n\}/)?.[0] ?? ''
+
+    expect(sidebarBlock).toContain('--app-shell-sidebar-layer-bg: linear-gradient(')
+    expect(sidebarBlock).toContain('color-mix(in srgb, var(--panel-bg) 86%, transparent),')
+    expect(sidebarBlock).toContain('color-mix(in srgb, var(--panel-bg) 74%, transparent)')
+    expect(linkBlock).toContain('background: var(--app-shell-sidebar-layer-bg);')
+    expect(accountCardBlock).toContain('background: var(--app-shell-sidebar-layer-bg);')
+    expect(logoutBlock).toContain('background: var(--app-shell-sidebar-layer-bg);')
+    expect(themeToggleBlock).toContain('background: var(--app-shell-sidebar-layer-bg);')
+    expect(linkBlock).not.toContain('var(--project-card-bg), var(--project-card-glow), var(--card-sheen)')
+    expect(accountCardBlock).not.toContain('var(--meta-surface-bg)')
+    expect(accountCardBlock).not.toContain('var(--project-card-bg), var(--project-card-glow), var(--card-sheen)')
+    expect(logoutBlock).not.toContain('var(--meta-surface-bg)')
+    expect(logoutBlock).not.toContain('var(--project-card-bg), var(--project-card-glow), var(--card-sheen)')
+    expect(themeToggleBlock).not.toContain('var(--project-card-bg), var(--project-card-glow), var(--card-sheen)')
+  })
+
+  it('uses one shared translucent plate tier for sidebar icon wells and the theme-toggle track', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/layouts/AppShell.vue'), 'utf8')
+    const sidebarBlock = source.match(/\.app-shell__sidebar \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const linkIconBlock = source.match(/\.app-shell__link-icon \{[\s\S]*?\n\}/)?.[0] ?? ''
+    const toggleTrackBlock =
+      source.match(
+        /\.app-shell__theme-toggle\.theme-toggle :deep\(\.theme-toggle__track\) \{[\s\S]*?\n\}/,
+      )?.[0] ?? ''
+
+    expect(sidebarBlock).toContain('--app-shell-sidebar-plate-bg: linear-gradient(')
+    expect(sidebarBlock).toContain('color-mix(in srgb, var(--panel-bg) 92%, transparent),')
+    expect(sidebarBlock).toContain('color-mix(in srgb, var(--panel-bg) 80%, transparent)')
+    expect(linkIconBlock).toContain('background: var(--app-shell-sidebar-plate-bg);')
+    expect(toggleTrackBlock).toContain('background: var(--app-shell-sidebar-plate-bg);')
+    expect(linkIconBlock).not.toContain('background: var(--dialog-control-bg-strong);')
+    expect(toggleTrackBlock).not.toContain('background: var(--dialog-control-bg-strong);')
+  })
+
+  it('does not restate the same project-card background on sidebar link hover', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/layouts/AppShell.vue'), 'utf8')
+    const hoverBlock =
+      source.match(/\.app-shell__link:hover,[\s\S]*?\.router-link-active\.app-shell__link \{[\s\S]*?\n\}/)?.[0] ??
+      ''
+
+    expect(hoverBlock).not.toContain(
+      'background: var(--project-card-bg), var(--project-card-glow), var(--card-sheen);',
+    )
+    expect(hoverBlock).toContain('box-shadow: var(--shadow-panel-hover);')
+  })
+
   beforeEach(() => {
     document.documentElement.className = 'light'
     localStorage.clear()
@@ -76,6 +129,8 @@ describe('AppShell', () => {
     expect(wrapper.text()).toContain('项目列表')
     expect(wrapper.text()).toContain('我的任务')
     expect(wrapper.text()).not.toContain('用户管理')
+    expect(wrapper.text()).not.toContain('科技感进度工作台，统一项目、节点与任务视图。')
+    expect(wrapper.text()).not.toContain('数据已同步到当前工作区，当前会话状态正常。')
     expect(wrapper.get('[data-testid="sidebar-account"]').text()).toContain('张三')
     expect(wrapper.get('[data-testid="sidebar-account"]').text()).toContain('项目经理')
     expect(wrapper.get('[data-testid="sidebar-account"]').text()).toContain('退出登录')

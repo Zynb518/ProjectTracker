@@ -3,7 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 import { render } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { createMemoryHistory, createRouter } from 'vue-router'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
@@ -57,6 +57,10 @@ describe('LoginView', () => {
     expect(source).not.toContain('new Image()')
     expect(source).toContain('data-testid="login-background"')
     expect(source).not.toContain(":style=\"{ backgroundImage: activeBackgroundImage }\"")
+  })
+
+  it('removes the unused legacy cat illustration asset from the login surface bundle', () => {
+    expect(existsSync(resolve(process.cwd(), 'src/assets/login/cat3.png'))).toBe(false)
   })
 
   it('keeps the login background lightweight by avoiding duplicated full-screen layers, blur and zoom transitions', () => {
