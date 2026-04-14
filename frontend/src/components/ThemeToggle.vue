@@ -54,7 +54,7 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
         </svg>
       </span>
     </span>
-    <span class="theme-toggle__label">{{ isDark ? 'Dark' : 'Light' }}</span>
+    <span class="theme-toggle__label">{{ isDark ? '暗色' : '浅色' }}</span>
   </button>
 </template>
 
@@ -65,10 +65,10 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
   overflow: hidden;
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: 9px;
   border: 1px solid var(--meta-surface-border);
   border-radius: 999px;
-  padding: 6px 8px 6px 6px;
+  padding: 5px 9px 5px 5px;
   background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
   color: var(--text-main);
   box-shadow: var(--meta-surface-shadow);
@@ -82,11 +82,11 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
 }
 
 .theme-toggle:hover {
-  transform: translateY(-2px);
+  transform: translateY(-1px);
   border-color: var(--accent-line);
   box-shadow:
     var(--meta-surface-shadow),
-    0 16px 28px color-mix(in srgb, var(--accent-end) 14%, transparent);
+    0 12px 24px color-mix(in srgb, var(--accent-end) 12%, transparent);
 }
 
 .theme-toggle__track {
@@ -126,9 +126,9 @@ const buttonLabel = computed(() => (isDark.value ? '切换浅色主题' : '切�
 }
 
 .theme-toggle__label {
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.04em;
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 

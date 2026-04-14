@@ -33,7 +33,7 @@ async function submitLogin() {
 
     <header class="login-view__toolbar">
       <p class="login-view__brand">Project Tracker</p>
-      <ThemeToggle />
+      <ThemeToggle class="login-view__theme-toggle" />
     </header>
 
     <section class="login-card">
@@ -262,11 +262,23 @@ html.light .login-view__background,
 html:not(.dark) .login-view__background {
   background-color: #091321;
   background-image:
+    radial-gradient(circle at 9% 12%, rgba(255, 255, 255, 0.96) 0 1.4px, transparent 2.2px),
+    radial-gradient(ellipse 18px 1px at 9% 12%, rgba(255, 255, 255, 0.44), transparent 72%),
+    radial-gradient(circle at 34% 24%, rgba(228, 239, 255, 0.66) 0 0.95px, transparent 1.8px),
+    radial-gradient(circle at 38% 18%, rgba(255, 255, 255, 0.82) 0 1.2px, transparent 2px),
+    radial-gradient(circle at 52% 9%, rgba(218, 234, 255, 0.7) 0 1px, transparent 1.8px),
+    radial-gradient(circle at 64% 15%, rgba(255, 255, 255, 0.78) 0 1.15px, transparent 1.95px),
+    radial-gradient(circle at 71% 7%, rgba(220, 236, 255, 0.62) 0 0.94px, transparent 1.76px),
+    radial-gradient(circle at 78% 18%, rgba(191, 230, 255, 0.82) 0 1.2px, transparent 2px),
+    radial-gradient(circle at 83% 24%, rgba(214, 233, 255, 0.64) 0 0.95px, transparent 1.75px),
+    radial-gradient(circle at 88% 11%, rgba(255, 255, 255, 0.9) 0 1.35px, transparent 2.1px),
+    radial-gradient(ellipse 1px 18px at 88% 11%, rgba(220, 238, 255, 0.38), transparent 72%),
     linear-gradient(180deg, rgba(10, 19, 39, 0.96) 0%, rgba(28, 50, 86, 0.9) 32%, rgba(87, 120, 160, 0.66) 68%, rgba(232, 242, 255, 0.3) 100%),
-    radial-gradient(circle at 50% 100%, rgba(255, 212, 163, 0.46), transparent 34%),
-    linear-gradient(127deg, rgba(132, 228, 255, 0) 30%, rgba(132, 228, 255, 0.28) 58%, rgba(214, 170, 255, 0.16) 74%, rgba(214, 170, 255, 0) 88%),
+    radial-gradient(circle at 50% 100%, rgba(255, 212, 163, 0.62), transparent 40%),
     radial-gradient(circle at 20% 18%, rgba(143, 190, 255, 0.18), transparent 22%),
     linear-gradient(180deg, rgba(4, 10, 24, 0.72), rgba(4, 10, 24, 0.18));
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
 }
 
 html.light .login-view__toolbar,
@@ -278,6 +290,53 @@ html.light .login-view__brand,
 html:not(.dark) .login-view__brand {
   color: rgba(227, 239, 255, 0.88);
   text-shadow: 0 10px 28px rgba(6, 12, 28, 0.26);
+}
+
+html.light .login-view .login-view__theme-toggle,
+html:not(.dark) .login-view .login-view__theme-toggle {
+  border-color: rgba(170, 205, 243, 0.22);
+  background:
+    linear-gradient(180deg, rgba(10, 22, 40, 0.5), rgba(14, 29, 50, 0.34)),
+    linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 44%);
+  color: rgba(233, 242, 255, 0.92);
+  box-shadow:
+    0 16px 30px rgba(7, 16, 33, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.24);
+}
+
+html.light .login-view .login-view__theme-toggle:hover,
+html:not(.dark) .login-view .login-view__theme-toggle:hover {
+  border-color: rgba(110, 208, 255, 0.36);
+  box-shadow:
+    0 18px 32px rgba(7, 16, 33, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    0 0 22px rgba(99, 217, 255, 0.08);
+}
+
+html.light .login-view .login-view__theme-toggle .theme-toggle__track,
+html:not(.dark) .login-view .login-view__theme-toggle .theme-toggle__track {
+  background:
+    linear-gradient(180deg, rgba(8, 18, 35, 0.88), rgba(22, 40, 65, 0.72));
+  box-shadow:
+    inset 0 0 0 1px rgba(143, 178, 219, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+html.light .login-view .login-view__theme-toggle .theme-toggle__thumb,
+html:not(.dark) .login-view .login-view__theme-toggle .theme-toggle__thumb {
+  background:
+    linear-gradient(180deg, rgba(244, 251, 255, 0.98), rgba(188, 225, 255, 0.92));
+  color: #3e76b8;
+  box-shadow:
+    0 8px 18px rgba(94, 169, 236, 0.18),
+    0 0 0 1px rgba(129, 202, 255, 0.28);
+}
+
+html.light .login-view .login-view__theme-toggle .theme-toggle__label,
+html:not(.dark) .login-view .login-view__theme-toggle .theme-toggle__label {
+  color: rgba(220, 233, 249, 0.76);
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
 }
 
 html.light .login-card,
@@ -292,7 +351,7 @@ html:not(.dark) .login-card {
     0 30px 60px rgba(7, 17, 34, 0.24),
     0 14px 28px rgba(76, 110, 154, 0.18),
     inset 0 1px 0 rgba(255, 255, 255, 0.58);
-  backdrop-filter: blur(18px) saturate(1.15);
+  backdrop-filter: none;
 }
 
 html.light .login-card::before,
@@ -307,7 +366,7 @@ html:not(.dark) .login-card::after {
   inset: auto -10% -20% 34%;
   height: 190px;
   background: radial-gradient(circle, rgba(255, 218, 170, 0.28), rgba(92, 200, 255, 0.08) 42%, transparent 70%);
-  filter: blur(20px);
+  filter: blur(12px);
 }
 
 html.light .login-card__caption,

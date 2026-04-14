@@ -11,4 +11,11 @@ describe('ThemeToggle', () => {
     expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
     expect(source).not.toContain('backdrop-filter: blur(16px);')
   })
+
+  it('uses Chinese mode labels so the control language stays consistent with the rest of the interface', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/ThemeToggle.vue'), 'utf8')
+
+    expect(source).toContain("{{ isDark ? '暗色' : '浅色' }}")
+    expect(source).not.toContain("{{ isDark ? 'Dark' : 'Light' }}")
+  })
 })
