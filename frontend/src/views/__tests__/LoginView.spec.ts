@@ -38,55 +38,30 @@ describe('LoginView', () => {
     expect(screen.queryByText('实时调度')).toBeNull()
   })
 
-  it('defines a single theme-driven full-screen background surface so light mode uses sky and dark mode uses cat3', () => {
+  it('defines a plain full-screen login background surface without bitmap imports or inline background-image binding', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/LoginView.vue'), 'utf8')
 
-    expect(source).toContain("import skyImage from '@/assets/login/sky.png'")
-    expect(source).toContain("import cat3Image from '@/assets/login/cat3.png'")
-    expect(source).toContain("import { useThemeStore } from '@/stores/theme'")
-    expect(source).toContain("const isDark = computed(() => themeStore.mode === 'dark')")
-    expect(source).toContain('const activeBackgroundImage = computed(() => `url(${isDark.value ? cat3Image : skyImage})`)')
+    expect(source).not.toContain("import skyImage from '@/assets/login/sky.png'")
+    expect(source).not.toContain("import cat3Image from '@/assets/login/cat3.png'")
+    expect(source).not.toContain("import { useThemeStore } from '@/stores/theme'")
+    expect(source).not.toContain("const isDark = computed(() => themeStore.mode === 'dark')")
+    expect(source).not.toContain('const activeBackgroundImage = computed(() => `url(${isDark.value ? cat3Image : skyImage})`)')
+    expect(source).not.toContain('new Image()')
     expect(source).toContain('data-testid="login-background"')
-    expect(source).toContain(":style=\"{ backgroundImage: activeBackgroundImage }\"")
+    expect(source).not.toContain(":style=\"{ backgroundImage: activeBackgroundImage }\"")
   })
 
-  it('keeps login backgrounds visible and lightweight by avoiding duplicated full-screen layers, blur and zoom transitions', () => {
+  it('keeps the login background lightweight by avoiding duplicated full-screen layers, blur and zoom transitions', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/LoginView.vue'), 'utf8')
 
     expect(source).toContain('.login-view__background {')
+    expect(source).not.toContain('.login-view__scrim')
     expect(source).not.toContain('login-view__background--light')
     expect(source).not.toContain('login-view__background--dark')
     expect(source).not.toContain('.login-view::before')
     expect(source).not.toContain('--login-background-image')
     expect(source).not.toContain('backdrop-filter: blur(3px);')
     expect(source).not.toContain('transform: scale(1.03);')
-  })
-
-  it('switches the visible login background from sky to cat3 when the theme toggle changes to dark', async () => {
-    const pinia = createPinia()
-    setActivePinia(pinia)
-
-    const router = createRouter({
-      history: createMemoryHistory(),
-      routes: [{ path: '/login', component: LoginView }],
-    })
-
-    router.push('/login')
-    await router.isReady()
-
-    const screen = render(LoginView, {
-      global: {
-        plugins: [router, pinia],
-      },
-    })
-    const user = userEvent.setup()
-
-    const background = screen.getByTestId('login-background')
-    expect(background.getAttribute('style') ?? '').toContain('sky')
-
-    await user.click(screen.getByTestId('theme-toggle'))
-
-    expect(background.getAttribute('style') ?? '').toContain('cat3')
   })
 
   it('submits credentials and redirects to the projects page after login', async () => {

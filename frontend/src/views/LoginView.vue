@@ -1,36 +1,18 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ThemeToggle from '@/components/ThemeToggle.vue'
-import cat3Image from '@/assets/login/cat3.png'
-import skyImage from '@/assets/login/sky.png'
 import { getErrorMessage } from '@/api/http'
 import { useNotificationStore } from '@/stores/notifications'
 import { useAuthStore } from '@/stores/auth'
-import { useThemeStore } from '@/stores/theme'
 
 const router = useRouter()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
-const themeStore = useThemeStore()
 
 const username = ref('')
 const password = ref('')
-const isDark = computed(() => themeStore.mode === 'dark')
-const activeBackgroundImage = computed(() => `url(${isDark.value ? cat3Image : skyImage})`)
-
-onMounted(() => {
-  if (typeof Image === 'undefined') {
-    return
-  }
-
-  for (const src of [skyImage, cat3Image]) {
-    const image = new Image()
-    image.decoding = 'async'
-    image.src = src
-  }
-})
 
 async function submitLogin() {
   try {
@@ -47,16 +29,7 @@ async function submitLogin() {
 
 <template>
   <section class="login-view">
-    <div
-      aria-hidden="true"
-      class="login-view__background"
-      data-testid="login-background"
-      :style="{ backgroundImage: activeBackgroundImage }"
-    />
-    <div
-      aria-hidden="true"
-      :class="['login-view__scrim', { 'login-view__scrim--dark': isDark }]"
-    />
+    <div aria-hidden="true" class="login-view__background" data-testid="login-background" />
 
     <header class="login-view__toolbar">
       <p class="login-view__brand">Project Tracker</p>
@@ -111,31 +84,12 @@ async function submitLogin() {
   isolation: isolate;
 }
 
-.login-view__background,
-.login-view__scrim {
+.login-view__background {
   position: absolute;
   inset: 0;
   pointer-events: none;
   z-index: 0;
-}
-
-.login-view__background {
-  background-position: center;
-  background-repeat: no-repeat;
-  background-size: cover;
-  background-color: color-mix(in srgb, var(--panel-bg-soft) 68%, #ffffff 32%);
-}
-
-.login-view__scrim {
-  background:
-    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--accent-start) 8%, transparent), transparent 26%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.04), rgba(228, 237, 247, 0.2));
-}
-
-.login-view__scrim--dark {
-  background:
-    radial-gradient(circle at 50% 18%, color-mix(in srgb, var(--accent-end) 12%, transparent), transparent 28%),
-    linear-gradient(180deg, rgba(7, 10, 20, 0.1), rgba(7, 10, 20, 0.34));
+  background: var(--panel-bg);
 }
 
 .login-view__toolbar {
