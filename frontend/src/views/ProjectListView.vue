@@ -4,6 +4,7 @@ import { useRouter } from 'vue-router'
 
 import ProjectFilters from '@/components/projects/ProjectFilters.vue'
 import ProjectFormDialog from '@/components/projects/ProjectFormDialog.vue'
+import ProjectListGanttDialog from '@/components/projects/ProjectListGanttDialog.vue'
 import ProjectGrid from '@/components/projects/ProjectGrid.vue'
 import {
   completeProject,
@@ -16,6 +17,7 @@ import {
 } from '@/api/projects'
 import { getErrorMessage } from '@/api/http'
 import { useNotificationStore } from '@/stores/notifications'
+import type { GanttScale } from '@/types/gantt'
 import type { ProjectFormPayload, ProjectListItem } from '@/types/project'
 import { getTotalPages, getVisiblePages } from '@/utils/pagination'
 
@@ -48,11 +50,17 @@ const defaultFormValue = (): ProjectFormPayload => ({
 const projects = ref<ProjectListItem[]>([])
 const isLoading = ref(false)
 const hasLoadError = ref(false)
+const ganttLoadError = ref<string | null>(null)
+const ganttProjects = ref<ProjectListItem[]>([])
+const ganttDialogOpen = ref(false)
+const ganttScale = ref<GanttScale>('week')
+const isGanttLoading = ref(false)
 const dialogOpen = ref(false)
 const dialogMode = ref<'create' | 'edit'>('create')
 const formValue = ref<ProjectFormPayload>(defaultFormValue())
 const editingProjectId = ref<number | null>(null)
 const dialogMotionOrigin = ref<DialogMotionOrigin | null>(null)
+const ganttDialogMotionOrigin = ref<DialogMotionOrigin | null>(null)
 const notificationStore = useNotificationStore()
 const pagination = reactive({
   page: 1,
@@ -62,6 +70,27 @@ const pagination = reactive({
 
 const totalPages = computed(() => getTotalPages(pagination.total, pagination.pageSize))
 const visiblePages = computed(() => getVisiblePages(pagination.page, totalPages.value))
+const ganttFiltersSummary = computed(() => {
+  const segments = [
+    filters.keyword.trim() ? `关键字：${filters.keyword.trim()}` : '关键字：全部项目',
+    filters.status ? `状态：${getStatusLabel(filters.status)}` : '状态：全部状态',
+  ]
+
+  return segments.join(' · ')
+})
+
+const ganttProjectCount = computed(() => ganttProjects.value.length)
+
+function getStatusLabel(status: string) {
+  return (
+    {
+      '1': '未开始',
+      '2': '进行中',
+      '3': '已完成',
+      '4': '已延期',
+    }[status] ?? '全部状态'
+  )
+}
 
 async function loadProjects(page = pagination.page) {
   isLoading.value = true
@@ -88,6 +117,43 @@ async function loadProjects(page = pagination.page) {
 async function applyFilters() {
   pagination.page = 1
   await loadProjects(1)
+}
+
+async function loadProjectsForGantt() {
+  const status = filters.status ? Number(filters.status) : undefined
+  const pageSize = 100
+
+  isGanttLoading.value = true
+  ganttLoadError.value = null
+
+  try {
+    const firstPage = await listProjects({
+      keyword: filters.keyword,
+      status,
+      page: 1,
+      page_size: pageSize,
+    })
+
+    const mergedProjects = [...firstPage.list]
+    const allPages = getTotalPages(firstPage.total, firstPage.page_size)
+
+    for (let page = 2; page <= allPages; page += 1) {
+      const nextPage = await listProjects({
+        keyword: filters.keyword,
+        status,
+        page,
+        page_size: pageSize,
+      })
+
+      mergedProjects.push(...nextPage.list)
+    }
+
+    ganttProjects.value = mergedProjects
+  } catch (error) {
+    ganttLoadError.value = getErrorMessage(error, '项目甘特图加载失败')
+  } finally {
+    isGanttLoading.value = false
+  }
 }
 
 async function changePage(page: number) {
@@ -117,6 +183,16 @@ function openCreateDialog(origin: DialogTriggerOrigin) {
   formValue.value = defaultFormValue()
   dialogMotionOrigin.value = createDialogMotionOrigin(origin)
   dialogOpen.value = true
+}
+
+async function openGanttDialog(origin: DialogTriggerOrigin) {
+  ganttDialogMotionOrigin.value = createDialogMotionOrigin(origin)
+  ganttDialogOpen.value = true
+  await loadProjectsForGantt()
+}
+
+async function retryGanttDialog() {
+  await loadProjectsForGantt()
 }
 
 function openEditDialog(project: ProjectListItem) {
@@ -166,6 +242,10 @@ async function runProjectAction(action: 'start' | 'complete' | 'reopen' | 'remov
     }
 
     await loadProjects(pagination.page)
+
+    if (ganttDialogOpen.value) {
+      await loadProjectsForGantt()
+    }
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '项目操作失败'))
   }
@@ -198,6 +278,7 @@ onMounted(loadProjects)
           :keyword="filters.keyword"
           :status="filters.status"
           @create="openCreateDialog"
+          @open-gantt="openGanttDialog"
           @submit="applyFilters"
           @update:keyword="filters.keyword = $event"
           @update:status="filters.status = $event"
@@ -291,6 +372,20 @@ onMounted(loadProjects)
       :motion-origin="dialogMotionOrigin"
       :mode="dialogMode"
       @submit="submitProject"
+    />
+
+    <ProjectListGanttDialog
+      v-model="ganttDialogOpen"
+      :error="ganttLoadError"
+      :filters-summary="ganttFiltersSummary"
+      :is-loading="isGanttLoading"
+      :motion-origin="ganttDialogMotionOrigin"
+      :project-count="ganttProjectCount"
+      :projects="ganttProjects"
+      :scale="ganttScale"
+      @open-project="openProject"
+      @retry="retryGanttDialog"
+      @update:scale="ganttScale = $event"
     />
   </section>
 </template>
@@ -638,6 +733,32 @@ html:not(.dark) .project-list .project-filters__create {
   box-shadow:
     0 14px 28px rgba(84, 118, 155, 0.18),
     0 0 20px rgba(123, 220, 248, 0.14);
+}
+
+html.light .project-list .project-filters__overview,
+html:not(.dark) .project-list .project-filters__overview {
+  border-color: var(--project-list-sky-border-soft);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.82), rgba(239, 246, 255, 0.68));
+  color: rgba(38, 60, 91, 0.94);
+  box-shadow:
+    0 8px 18px rgba(120, 150, 186, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.82);
+}
+
+html.light .project-list .project-filters__overview:hover,
+html.light .project-list .project-filters__overview:focus-visible,
+html:not(.dark) .project-list .project-filters__overview:hover,
+html:not(.dark) .project-list .project-filters__overview:focus-visible {
+  border-color: rgba(98, 177, 227, 0.34);
+  box-shadow:
+    0 14px 24px rgba(92, 122, 158, 0.14),
+    inset 0 1px 0 rgba(255, 255, 255, 0.86),
+    0 0 18px rgba(114, 201, 245, 0.1);
+}
+
+html.light .project-list .project-filters__overview-icon,
+html:not(.dark) .project-list .project-filters__overview-icon {
+  color: rgba(59, 119, 184, 0.9);
 }
 
 html.light .project-list .project-card,

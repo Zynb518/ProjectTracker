@@ -46,17 +46,16 @@ describe('LoginView', () => {
     expect(source).toContain('.login-view .login-view__theme-toggle .theme-toggle__label {')
   })
 
-  it('defines a plain full-screen login background surface without bitmap imports or inline background-image binding', () => {
+  it('keeps the login background declarative in CSS instead of switching images through script bindings', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/LoginView.vue'), 'utf8')
 
-    expect(source).not.toContain("import skyImage from '@/assets/login/sky.png'")
-    expect(source).not.toContain("import cat3Image from '@/assets/login/cat3.png'")
     expect(source).not.toContain("import { useThemeStore } from '@/stores/theme'")
     expect(source).not.toContain("const isDark = computed(() => themeStore.mode === 'dark')")
     expect(source).not.toContain('const activeBackgroundImage = computed(() => `url(${isDark.value ? cat3Image : skyImage})`)')
     expect(source).not.toContain('new Image()')
     expect(source).toContain('data-testid="login-background"')
     expect(source).not.toContain(":style=\"{ backgroundImage: activeBackgroundImage }\"")
+    expect(source).toContain("url('../assets/login/748069.png')")
   })
 
   it('removes the unused legacy cat illustration asset from the login surface bundle', () => {
@@ -76,46 +75,23 @@ describe('LoginView', () => {
     expect(source).not.toContain('transform: scale(1.03);')
   })
 
-  it('styles the login view as a cinematic dawn sky with a horizon glow and no svg comet asset', () => {
+  it('uses the new light-theme bitmap as the login background with lightweight overlay treatment', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/LoginView.vue'), 'utf8')
 
-    expect(source).toContain('background-color: #091321;')
+    expect(source).toContain("url('../assets/login/748069.png')")
+    expect(source).toContain('background-position: center center;')
+    expect(source).toContain('background-size: cover;')
     expect(source).toContain(
-      'radial-gradient(circle at 9% 12%, rgba(255, 255, 255, 0.96) 0 1.4px, transparent 2.2px)',
+      'linear-gradient(180deg, rgba(244, 249, 255, 0.26), rgba(223, 234, 248, 0.14))',
     )
     expect(source).toContain(
-      'radial-gradient(circle at 78% 18%, rgba(191, 230, 255, 0.82) 0 1.2px, transparent 2px)',
-    )
-    expect(source).toContain(
-      'radial-gradient(circle at 34% 24%, rgba(228, 239, 255, 0.66) 0 0.95px, transparent 1.8px)',
-    )
-    expect(source).toContain(
-      'radial-gradient(circle at 83% 24%, rgba(214, 233, 255, 0.64) 0 0.95px, transparent 1.75px)',
-    )
-    expect(source).toContain(
-      'radial-gradient(ellipse 18px 1px at 9% 12%, rgba(255, 255, 255, 0.44), transparent 72%)',
-    )
-    expect(source).toContain(
-      'radial-gradient(ellipse 1px 18px at 88% 11%, rgba(220, 238, 255, 0.38), transparent 72%)',
-    )
-    expect(source).not.toContain("url('../assets/login/comet-light.svg')")
-    expect(source).not.toContain('radial-gradient(ellipse 520px 980px at 87% -12%')
-    expect(source).not.toContain('radial-gradient(ellipse 210px 620px at 58% -2%')
-    expect(source).not.toContain('linear-gradient(122deg, rgba(255, 255, 255, 0) 43%')
-    expect(source).not.toContain('linear-gradient(118deg, rgba(255, 255, 255, 0) 56%')
-    expect(source).not.toContain('linear-gradient(127deg, rgba(132, 228, 255, 0) 24%')
-    expect(source).not.toContain('radial-gradient(circle at 61% 42%, rgba(160, 228, 255, 0.16), transparent 7.5%)')
-    expect(source).toContain(
-      'linear-gradient(180deg, rgba(10, 19, 39, 0.96) 0%, rgba(28, 50, 86, 0.9) 32%, rgba(87, 120, 160, 0.66) 68%, rgba(232, 242, 255, 0.3) 100%)',
-    )
-    expect(source).toContain(
-      'radial-gradient(circle at 50% 100%, rgba(255, 212, 163, 0.62), transparent 40%)',
+      'linear-gradient(180deg, rgba(8, 17, 34, 0.22), rgba(8, 17, 34, 0.42))',
     )
     expect(source).toContain('0 30px 60px rgba(7, 17, 34, 0.24)')
     expect(source).toContain('inset 0 1px 0 rgba(255, 255, 255, 0.58)')
   })
 
-  it('keeps the light login visuals cheaper to paint by capping background layers and avoiding oversized blur filters', () => {
+  it('keeps the light login visuals cheap to paint by using one bitmap plus a small overlay stack', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/LoginView.vue'), 'utf8')
 
     const lightBackgroundBlock = source.match(
@@ -123,20 +99,33 @@ describe('LoginView', () => {
     )?.[1]
 
     expect(lightBackgroundBlock).toBeTruthy()
-    expect((lightBackgroundBlock?.match(/radial-gradient\(/g) ?? []).length).toBeLessThanOrEqual(14)
+    expect((lightBackgroundBlock?.match(/url\(/g) ?? []).length).toBe(1)
+    expect((lightBackgroundBlock?.match(/linear-gradient\(/g) ?? []).length).toBeLessThanOrEqual(2)
+    expect((lightBackgroundBlock?.match(/radial-gradient\(/g) ?? []).length).toBeLessThanOrEqual(2)
     expect(source).not.toContain('backdrop-filter: blur(18px) saturate(1.15);')
     expect(source).not.toContain('filter: blur(20px);')
-    expect(source).not.toContain('comet-light.svg')
   })
 
-  it('keeps the light login card translucent instead of covering the sky with an opaque white slab', () => {
+  it('styles the light login card like the project list fog-white cards with a translucent white surface', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/views/LoginView.vue'), 'utf8')
 
     expect(source).toContain(
-      'linear-gradient(180deg, rgba(12, 24, 43, 0.34), rgba(16, 34, 60, 0.22))',
+      'linear-gradient(180deg, rgba(249, 252, 255, 0.82), rgba(238, 245, 253, 0.68))',
+    )
+    expect(source).toContain(
+      'linear-gradient(145deg, rgba(255, 255, 255, 0.48), rgba(209, 228, 248, 0.12) 54%)',
+    )
+    expect(source).toContain(
+      '0 18px 36px rgba(67, 94, 127, 0.14)',
+    )
+    expect(source).toContain(
+      'color: #21324b;',
+    )
+    expect(source).toContain(
+      'color: rgba(69, 89, 118, 0.82);',
     )
     expect(source).not.toContain(
-      'linear-gradient(180deg, rgba(235, 245, 255, 0.76), rgba(214, 229, 247, 0.64))',
+      'linear-gradient(180deg, rgba(14, 28, 48, 0.58), rgba(20, 39, 67, 0.46))',
     )
   })
 

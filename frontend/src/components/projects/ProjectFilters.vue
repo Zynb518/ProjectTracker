@@ -23,6 +23,7 @@ const emit = defineEmits<{
   'update:status': [value: string]
   submit: []
   create: [origin: DialogTriggerOrigin]
+  'open-gantt': [origin: DialogTriggerOrigin]
 }>()
 
 const statusOptions: StatusOption[] = [
@@ -59,6 +60,20 @@ function emitCreateOrigin(event: MouseEvent) {
 
   const rect = trigger.getBoundingClientRect()
   emit('create', {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  })
+}
+
+function emitGanttOrigin(event: MouseEvent) {
+  const trigger = event.currentTarget as HTMLElement | null
+
+  if (!trigger) {
+    return
+  }
+
+  const rect = trigger.getBoundingClientRect()
+  emit('open-gantt', {
     x: rect.left + rect.width / 2,
     y: rect.top + rect.height / 2,
   })
@@ -101,6 +116,26 @@ function emitCreateOrigin(event: MouseEvent) {
     </div>
 
     <div class="project-filters__actions">
+      <button
+        type="button"
+        aria-label="打开项目甘特图"
+        class="project-filters__overview"
+        data-testid="open-project-gantt"
+        @click="emitGanttOrigin"
+      >
+        <svg aria-hidden="true" class="project-filters__overview-icon" viewBox="0 0 24 24">
+          <path
+            d="M5 6.5h14M5 12h14M5 17.5h14M7.5 8v8M12 10v6M16.5 7v9"
+            fill="none"
+            stroke="currentColor"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.8"
+          />
+        </svg>
+        <span>项目甘特图</span>
+      </button>
+
       <button
         type="button"
         data-testid="create-project"
@@ -310,6 +345,51 @@ function emitCreateOrigin(event: MouseEvent) {
   gap: 10px;
 }
 
+.project-filters__overview {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 16px;
+  border: 1px solid var(--dialog-control-border);
+  border-radius: 14px;
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    transform 200ms ease-out,
+    border-color 200ms ease-out,
+    box-shadow 200ms ease-out,
+    background 200ms ease-out,
+    color 200ms ease-out;
+}
+
+.project-filters__overview:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-line);
+  box-shadow: var(--shadow-panel-hover);
+}
+
+.project-filters__overview:focus-visible {
+  outline: none;
+  transform: translateY(-2px);
+  box-shadow:
+    var(--shadow-panel-hover),
+    0 0 0 4px color-mix(in srgb, var(--accent-end) 12%, transparent);
+}
+
+.project-filters__overview-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--accent-start);
+}
+
 .project-filters__create {
   position: relative;
   display: inline-flex;
@@ -410,10 +490,15 @@ function emitCreateOrigin(event: MouseEvent) {
 
   .project-filters__actions {
     align-items: stretch;
+    flex-wrap: wrap;
   }
 
   .project-filters__status-bar {
     gap: 8px;
+  }
+
+  .project-filters__overview {
+    flex: 1 1 180px;
   }
 }
 </style>

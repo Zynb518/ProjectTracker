@@ -1,9 +1,11 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { render, waitFor } from '@testing-library/vue'
+import { render, waitFor, within } from '@testing-library/vue'
 import userEvent from '@testing-library/user-event'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const pushMock = vi.fn()
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
@@ -11,7 +13,7 @@ vi.mock('vue-router', async () => {
   return {
     ...actual,
     useRouter: () => ({
-      push: vi.fn(),
+      push: pushMock,
     }),
   }
 })
@@ -34,6 +36,7 @@ describe('ProjectListView', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.resetAllMocks()
+    pushMock.mockReset()
     vi.mocked(listProjects).mockResolvedValue({
       list: [
         {
@@ -66,6 +69,251 @@ describe('ProjectListView', () => {
     await screen.findByText('内部进度平台')
 
     expect(screen.queryByRole('button', { name: '筛选项目' })).toBeNull()
+  })
+
+  it('renders a gantt overview action beside the project filters', async () => {
+    const screen = render(ProjectListView)
+
+    await screen.findByText('内部进度平台')
+
+    const shell = screen.getByTestId('project-list-hero-shell')
+    const ganttButton = within(shell).getByRole('button', { name: '打开项目甘特图' })
+
+    expect(ganttButton).toBeTruthy()
+    expect(ganttButton.textContent).toContain('项目甘特图')
+  })
+
+  it('opens the project gantt dialog and fetches all filtered projects across pages', async () => {
+    vi.mocked(listProjects)
+      .mockResolvedValueOnce({
+        list: [
+          {
+            id: 1001,
+            name: '内部进度平台',
+            description: '用于内部项目进度跟踪',
+            owner_user_id: 1,
+            owner_real_name: '张三',
+            status: 2,
+            planned_start_date: '2026-03-20',
+            planned_end_date: '2026-06-30',
+            completed_at: null,
+            member_count: 5,
+            node_count: 3,
+            sub_task_count: 12,
+            created_at: '2026-03-19T11:00:00+08:00',
+            updated_at: '2026-03-27T09:30:00+08:00',
+            is_owner: true,
+          },
+        ],
+        total: 101,
+        page: 1,
+        page_size: 9,
+      })
+      .mockResolvedValueOnce({
+        list: Array.from({ length: 100 }, (_, index) => ({
+          id: 2000 + index,
+          name: `甘特图项目 ${index + 1}`,
+          description: `批量项目 ${index + 1}`,
+          owner_user_id: 1,
+          owner_real_name: '张三',
+          status: index % 2 === 0 ? 2 : 1,
+          planned_start_date: '2026-03-20',
+          planned_end_date: '2026-06-30',
+          completed_at: null,
+          member_count: 5,
+          node_count: 3,
+          sub_task_count: 12,
+          created_at: '2026-03-19T11:00:00+08:00',
+          updated_at: '2026-03-27T09:30:00+08:00',
+          is_owner: true,
+        })),
+        total: 101,
+        page: 1,
+        page_size: 100,
+      })
+      .mockResolvedValueOnce({
+        list: [
+          {
+            id: 2101,
+            name: '甘特图项目 101',
+            description: '批量项目 101',
+            owner_user_id: 2,
+            owner_real_name: '李四',
+            status: 3,
+            planned_start_date: '2026-06-01',
+            planned_end_date: '2026-07-15',
+            completed_at: null,
+            member_count: 4,
+            node_count: 2,
+            sub_task_count: 8,
+            created_at: '2026-03-29T11:00:00+08:00',
+            updated_at: '2026-03-30T09:30:00+08:00',
+            is_owner: false,
+          },
+        ],
+        total: 101,
+        page: 2,
+        page_size: 100,
+      })
+
+    const screen = render(ProjectListView)
+    const user = userEvent.setup()
+
+    await screen.findByText('内部进度平台')
+
+    await user.click(screen.getByRole('button', { name: '打开项目甘特图' }))
+
+    await waitFor(() => {
+      expect(listProjects).toHaveBeenNthCalledWith(2, {
+        keyword: '',
+        status: undefined,
+        page: 1,
+        page_size: 100,
+      })
+      expect(listProjects).toHaveBeenNthCalledWith(3, {
+        keyword: '',
+        status: undefined,
+        page: 2,
+        page_size: 100,
+      })
+    })
+
+    expect(await screen.findByText('项目时间总览')).toBeTruthy()
+    expect(screen.getByRole('button', { name: '打开项目 甘特图项目 101 的详情页' })).toBeTruthy()
+  })
+
+  it('navigates to project detail when clicking a gantt bar', async () => {
+    vi.mocked(listProjects)
+      .mockResolvedValueOnce({
+        list: [
+          {
+            id: 1001,
+            name: '内部进度平台',
+            description: '用于内部项目进度跟踪',
+            owner_user_id: 1,
+            owner_real_name: '张三',
+            status: 2,
+            planned_start_date: '2026-03-20',
+            planned_end_date: '2026-06-30',
+            completed_at: null,
+            member_count: 5,
+            node_count: 3,
+            sub_task_count: 12,
+            created_at: '2026-03-19T11:00:00+08:00',
+            updated_at: '2026-03-27T09:30:00+08:00',
+            is_owner: true,
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 9,
+      })
+      .mockResolvedValueOnce({
+        list: [
+          {
+            id: 1001,
+            name: '内部进度平台',
+            description: '用于内部项目进度跟踪',
+            owner_user_id: 1,
+            owner_real_name: '张三',
+            status: 2,
+            planned_start_date: '2026-03-20',
+            planned_end_date: '2026-06-30',
+            completed_at: null,
+            member_count: 5,
+            node_count: 3,
+            sub_task_count: 12,
+            created_at: '2026-03-19T11:00:00+08:00',
+            updated_at: '2026-03-27T09:30:00+08:00',
+            is_owner: true,
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 100,
+      })
+
+    const screen = render(ProjectListView)
+    const user = userEvent.setup()
+
+    await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '打开项目甘特图' }))
+    await screen.findByText('项目时间总览')
+
+    await user.click(screen.getByRole('button', { name: '打开项目 内部进度平台 的详情页' }))
+
+    expect(pushMock).toHaveBeenCalledWith('/projects/1001')
+  })
+
+  it('keeps sidebar rows vertically aligned with timeline rows while scrolling', async () => {
+    vi.mocked(listProjects)
+      .mockResolvedValueOnce({
+        list: [
+          {
+            id: 1001,
+            name: '内部进度平台',
+            description: '用于内部项目进度跟踪',
+            owner_user_id: 1,
+            owner_real_name: '张三',
+            status: 2,
+            planned_start_date: '2026-03-20',
+            planned_end_date: '2026-06-30',
+            completed_at: null,
+            member_count: 5,
+            node_count: 3,
+            sub_task_count: 12,
+            created_at: '2026-03-19T11:00:00+08:00',
+            updated_at: '2026-03-27T09:30:00+08:00',
+            is_owner: true,
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 9,
+      })
+      .mockResolvedValueOnce({
+        list: Array.from({ length: 18 }, (_, index) => ({
+          id: 3000 + index,
+          name: `对齐项目 ${index + 1}`,
+          description: `滚动对齐项目 ${index + 1}`,
+          owner_user_id: 1,
+          owner_real_name: '张三',
+          status: 2,
+          planned_start_date: '2026-03-20',
+          planned_end_date: '2026-06-30',
+          completed_at: null,
+          member_count: 5,
+          node_count: 3,
+          sub_task_count: 12,
+          created_at: '2026-03-19T11:00:00+08:00',
+          updated_at: '2026-03-27T09:30:00+08:00',
+          is_owner: true,
+        })),
+        total: 18,
+        page: 1,
+        page_size: 100,
+      })
+
+    const screen = render(ProjectListView)
+    const user = userEvent.setup()
+
+    await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '打开项目甘特图' }))
+    await screen.findByText('项目时间总览')
+
+    const sidebarScroll = screen.getByTestId('project-list-gantt-sidebar-scroll')
+    const rowsScroll = screen.getByTestId('project-list-gantt-rows-scroll')
+
+    Object.defineProperty(sidebarScroll, 'scrollTop', { value: 0, writable: true })
+    Object.defineProperty(rowsScroll, 'scrollTop', { value: 0, writable: true })
+
+    rowsScroll.scrollTop = 144
+    rowsScroll.dispatchEvent(new Event('scroll'))
+    expect(sidebarScroll.scrollTop).toBe(144)
+
+    sidebarScroll.scrollTop = 216
+    sidebarScroll.dispatchEvent(new Event('scroll'))
+    expect(rowsScroll.scrollTop).toBe(216)
   })
 
   it('merges the overview and filter areas into one shared top panel', async () => {

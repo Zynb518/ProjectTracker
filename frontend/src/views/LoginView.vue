@@ -260,25 +260,15 @@ html:not(.dark) .login-view {
 
 html.light .login-view__background,
 html:not(.dark) .login-view__background {
-  background-color: #091321;
+  background-color: #d9e3ee;
   background-image:
-    radial-gradient(circle at 9% 12%, rgba(255, 255, 255, 0.96) 0 1.4px, transparent 2.2px),
-    radial-gradient(ellipse 18px 1px at 9% 12%, rgba(255, 255, 255, 0.44), transparent 72%),
-    radial-gradient(circle at 34% 24%, rgba(228, 239, 255, 0.66) 0 0.95px, transparent 1.8px),
-    radial-gradient(circle at 38% 18%, rgba(255, 255, 255, 0.82) 0 1.2px, transparent 2px),
-    radial-gradient(circle at 52% 9%, rgba(218, 234, 255, 0.7) 0 1px, transparent 1.8px),
-    radial-gradient(circle at 64% 15%, rgba(255, 255, 255, 0.78) 0 1.15px, transparent 1.95px),
-    radial-gradient(circle at 71% 7%, rgba(220, 236, 255, 0.62) 0 0.94px, transparent 1.76px),
-    radial-gradient(circle at 78% 18%, rgba(191, 230, 255, 0.82) 0 1.2px, transparent 2px),
-    radial-gradient(circle at 83% 24%, rgba(214, 233, 255, 0.64) 0 0.95px, transparent 1.75px),
-    radial-gradient(circle at 88% 11%, rgba(255, 255, 255, 0.9) 0 1.35px, transparent 2.1px),
-    radial-gradient(ellipse 1px 18px at 88% 11%, rgba(220, 238, 255, 0.38), transparent 72%),
-    linear-gradient(180deg, rgba(10, 19, 39, 0.96) 0%, rgba(28, 50, 86, 0.9) 32%, rgba(87, 120, 160, 0.66) 68%, rgba(232, 242, 255, 0.3) 100%),
-    radial-gradient(circle at 50% 100%, rgba(255, 212, 163, 0.62), transparent 40%),
-    radial-gradient(circle at 20% 18%, rgba(143, 190, 255, 0.18), transparent 22%),
-    linear-gradient(180deg, rgba(4, 10, 24, 0.72), rgba(4, 10, 24, 0.18));
+    linear-gradient(180deg, rgba(244, 249, 255, 0.26), rgba(223, 234, 248, 0.14)),
+    linear-gradient(180deg, rgba(8, 17, 34, 0.22), rgba(8, 17, 34, 0.42)),
+    radial-gradient(circle at 76% 18%, rgba(255, 255, 255, 0.16), transparent 24%),
+    url('../assets/login/748069.png');
+  background-position: center center;
   background-repeat: no-repeat;
-  background-size: 100% 100%;
+  background-size: cover;
 }
 
 html.light .login-view__toolbar,
@@ -344,9 +334,9 @@ html:not(.dark) .login-card {
   border: 1px solid rgba(176, 211, 246, 0.34);
   border-radius: 30px;
   background:
-    linear-gradient(180deg, rgba(12, 24, 43, 0.34), rgba(16, 34, 60, 0.22)),
-    linear-gradient(146deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 42%),
-    radial-gradient(circle at 86% 14%, rgba(116, 214, 255, 0.16), transparent 24%);
+    linear-gradient(180deg, rgba(14, 28, 48, 0.58), rgba(20, 39, 67, 0.46)),
+    linear-gradient(146deg, rgba(255, 255, 255, 0.24), rgba(255, 255, 255, 0.06) 42%),
+    radial-gradient(circle at 86% 14%, rgba(116, 214, 255, 0.12), transparent 24%);
   box-shadow:
     0 30px 60px rgba(7, 17, 34, 0.24),
     0 14px 28px rgba(76, 110, 154, 0.18),

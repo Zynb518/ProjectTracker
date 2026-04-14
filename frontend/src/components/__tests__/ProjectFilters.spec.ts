@@ -97,4 +97,40 @@ describe('ProjectFilters', () => {
       ],
     ])
   })
+
+  it('emits the gantt trigger origin from the gantt overview button', async () => {
+    const wrapper = mount(ProjectFilters, {
+      props: {
+        keyword: '',
+        status: '',
+      },
+    })
+
+    const button = wrapper.get('[data-testid="open-project-gantt"]')
+    vi.spyOn(button.element, 'getBoundingClientRect').mockReturnValue({
+      x: 100,
+      y: 80,
+      width: 120,
+      height: 46,
+      top: 80,
+      right: 220,
+      bottom: 126,
+      left: 100,
+      toJSON: () => ({}),
+    } as DOMRect)
+
+    expect(button.attributes('aria-label')).toBe('打开项目甘特图')
+    expect(button.text()).toContain('项目甘特图')
+
+    await button.trigger('click')
+
+    expect(wrapper.emitted('open-gantt')).toEqual([
+      [
+        {
+          x: 160,
+          y: 103,
+        },
+      ],
+    ])
+  })
 })
