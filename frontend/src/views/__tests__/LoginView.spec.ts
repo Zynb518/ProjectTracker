@@ -64,6 +64,34 @@ describe('LoginView', () => {
     expect(source).not.toContain('transform: scale(1.03);')
   })
 
+  it('styles the login view as a cinematic dawn sky with a horizon glow and diagonal light trail accents', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/LoginView.vue'), 'utf8')
+
+    expect(source).toContain('background-color: #091321;')
+    expect(source).toContain(
+      'linear-gradient(180deg, rgba(10, 19, 39, 0.96) 0%, rgba(28, 50, 86, 0.9) 32%, rgba(87, 120, 160, 0.66) 68%, rgba(232, 242, 255, 0.3) 100%)',
+    )
+    expect(source).toContain(
+      'radial-gradient(circle at 50% 100%, rgba(255, 212, 163, 0.46), transparent 34%)',
+    )
+    expect(source).toContain(
+      'linear-gradient(127deg, rgba(132, 228, 255, 0) 30%, rgba(132, 228, 255, 0.28) 58%, rgba(214, 170, 255, 0.16) 74%, rgba(214, 170, 255, 0) 88%)',
+    )
+    expect(source).toContain('0 30px 60px rgba(7, 17, 34, 0.24)')
+    expect(source).toContain('inset 0 1px 0 rgba(255, 255, 255, 0.58)')
+  })
+
+  it('keeps the light login card translucent instead of covering the sky with an opaque white slab', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/views/LoginView.vue'), 'utf8')
+
+    expect(source).toContain(
+      'linear-gradient(180deg, rgba(12, 24, 43, 0.34), rgba(16, 34, 60, 0.22))',
+    )
+    expect(source).not.toContain(
+      'linear-gradient(180deg, rgba(235, 245, 255, 0.76), rgba(214, 229, 247, 0.64))',
+    )
+  })
+
   it('submits credentials and redirects to the projects page after login', async () => {
     const pinia = createPinia()
     setActivePinia(pinia)
