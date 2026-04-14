@@ -144,10 +144,10 @@ async function handleLogout() {
   align-content: start;
   gap: 24px;
   padding: 24px 20px;
-  border: 1px solid var(--meta-surface-border);
+  border: 1px solid var(--border-soft);
   border-radius: 24px;
-  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
-  box-shadow: var(--meta-surface-shadow);
+  background: var(--project-card-bg), var(--project-card-glow), var(--card-sheen);
+  box-shadow: var(--shadow-panel);
 }
 
 .app-shell__brand {
@@ -454,148 +454,5 @@ html:not(.dark) .app-shell::before {
   background-repeat: no-repeat;
   background-size: cover;
   background-attachment: scroll;
-}
-
-html.light .app-shell__sidebar,
-html:not(.dark) .app-shell__sidebar {
-  border-color: rgba(172, 208, 243, 0.22);
-  background:
-    linear-gradient(180deg, rgba(9, 20, 39, 0.58), rgba(16, 33, 57, 0.42)),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.14), rgba(255, 255, 255, 0) 46%);
-  box-shadow:
-    0 28px 60px rgba(4, 11, 25, 0.24),
-    inset 0 1px 0 rgba(255, 255, 255, 0.24);
-}
-
-html.light .app-shell__eyebrow,
-html:not(.dark) .app-shell__eyebrow {
-  color: rgba(213, 229, 247, 0.72);
-}
-
-html.light .app-shell__brand h1,
-html:not(.dark) .app-shell__brand h1 {
-  color: #f2f7ff;
-  text-shadow: 0 10px 28px rgba(6, 12, 28, 0.18);
-}
-
-html.light .app-shell__brand-copy,
-html.light .app-shell__foot-label,
-html.light .app-shell__account-note,
-html:not(.dark) .app-shell__brand-copy,
-html:not(.dark) .app-shell__foot-label,
-html:not(.dark) .app-shell__account-note {
-  color: rgba(214, 227, 244, 0.74);
-}
-
-html.light .app-shell__sidebar-foot,
-html:not(.dark) .app-shell__sidebar-foot {
-  border-top-color: rgba(171, 206, 241, 0.16);
-}
-
-html.light .app-shell__link,
-html:not(.dark) .app-shell__link {
-  border-color: rgba(155, 191, 230, 0.16);
-  background:
-    linear-gradient(180deg, rgba(8, 18, 35, 0.54), rgba(18, 35, 58, 0.38)),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 48%);
-  color: rgba(224, 236, 250, 0.8);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-html.light .app-shell__link:hover,
-html.light .router-link-active.app-shell__link,
-html:not(.dark) .app-shell__link:hover,
-html:not(.dark) .router-link-active.app-shell__link {
-  color: #f6fbff;
-  border-color: rgba(108, 205, 255, 0.32);
-  background:
-    linear-gradient(180deg, rgba(12, 27, 46, 0.68), rgba(19, 40, 68, 0.5)),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0) 42%);
-  box-shadow:
-    0 18px 36px rgba(4, 11, 25, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.14),
-    0 0 22px rgba(99, 217, 255, 0.08);
-}
-
-html.light .app-shell__link-icon,
-html:not(.dark) .app-shell__link-icon {
-  background: linear-gradient(180deg, rgba(8, 18, 35, 0.76), rgba(16, 31, 54, 0.62));
-  color: rgba(229, 239, 252, 0.88);
-  box-shadow:
-    inset 0 0 0 1px rgba(155, 192, 232, 0.14),
-    0 10px 18px rgba(4, 11, 25, 0.16);
-}
-
-html.light .app-shell__account-card,
-html.light .app-shell__logout,
-html:not(.dark) .app-shell__account-card,
-html:not(.dark) .app-shell__logout {
-  border-color: rgba(171, 206, 241, 0.18);
-  background:
-    linear-gradient(180deg, rgba(8, 18, 35, 0.5), rgba(18, 35, 58, 0.34)),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0) 48%);
-  box-shadow:
-    0 20px 40px rgba(4, 11, 25, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.18);
-}
-
-html.light .app-shell__account-copy strong,
-html:not(.dark) .app-shell__account-copy strong {
-  color: #f2f7ff;
-}
-
-html.light .app-shell__account-copy span,
-html:not(.dark) .app-shell__account-copy span {
-  border-color: rgba(120, 205, 255, 0.28);
-  background: linear-gradient(135deg, rgba(35, 76, 131, 0.62), rgba(93, 213, 255, 0.26));
-  color: rgba(241, 248, 255, 0.92);
-}
-
-html.light .app-shell__logout,
-html:not(.dark) .app-shell__logout {
-  color: rgba(230, 239, 251, 0.86);
-}
-
-html.light .app-shell__logout:hover,
-html:not(.dark) .app-shell__logout:hover {
-  border-color: rgba(255, 177, 121, 0.34);
-  box-shadow:
-    0 18px 34px rgba(4, 11, 25, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2),
-    0 0 18px rgba(255, 177, 121, 0.08);
-}
-
-html.light .app-shell__theme-toggle,
-html:not(.dark) .app-shell__theme-toggle {
-  border-color: rgba(171, 206, 241, 0.2);
-  background:
-    linear-gradient(180deg, rgba(8, 18, 35, 0.54), rgba(16, 31, 54, 0.36)),
-    linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0) 46%);
-  color: rgba(232, 241, 252, 0.92);
-  box-shadow:
-    0 16px 30px rgba(4, 11, 25, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.2);
-}
-
-html.light .app-shell__theme-toggle .theme-toggle__track,
-html:not(.dark) .app-shell__theme-toggle .theme-toggle__track {
-  background: linear-gradient(180deg, rgba(8, 18, 35, 0.86), rgba(18, 36, 61, 0.74));
-  box-shadow:
-    inset 0 0 0 1px rgba(143, 178, 219, 0.2),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}
-
-html.light .app-shell__theme-toggle .theme-toggle__thumb,
-html:not(.dark) .app-shell__theme-toggle .theme-toggle__thumb {
-  background: linear-gradient(180deg, rgba(244, 251, 255, 0.98), rgba(193, 227, 255, 0.92));
-  color: #4077b8;
-  box-shadow:
-    0 8px 18px rgba(94, 169, 236, 0.18),
-    0 0 0 1px rgba(129, 202, 255, 0.28);
-}
-
-html.light .app-shell__theme-toggle .theme-toggle__label,
-html:not(.dark) .app-shell__theme-toggle .theme-toggle__label {
-  color: rgba(220, 233, 249, 0.76);
 }
 </style>

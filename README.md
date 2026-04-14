@@ -85,6 +85,8 @@ cp config/config.example.json config/config.prod.json
 - `db_clients[0].user = project_tracker`
 - `db_clients[0].passwd = 你的数据库密码`
 - 小内存虚拟机可把 `connection_number` 调低到 `2`
+- 压测前可按需设置 `custom_config.threads_num`
+- `custom_config.threads_num = 0` 表示使用全部 CPU 核心
 - 如果暂时不用 AI，可把 `custom_config` 留空对象
 
 ### 4. 编译并启动后端

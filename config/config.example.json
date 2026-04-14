@@ -19,6 +19,7 @@
     }
   ],
   "custom_config": {
+    "threads_num": 0,
     "local_ai": {
       "python_bin": "tools/ai_project_manager/.conda/bin/python",
       "script_path": "tools/ai_project_manager/scripts/generate_once.py",

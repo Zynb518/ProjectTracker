@@ -8,16 +8,20 @@ import AppShell from '@/layouts/AppShell.vue'
 import { useAuthStore } from '@/stores/auth'
 
 describe('AppShell', () => {
-  it('uses galaxy meta surfaces for the shell chrome without keeping the old frosted sidebar blur', () => {
+  it('uses project card surfaces for the sidebar shell without reviving the old frosted treatment', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/layouts/AppShell.vue'), 'utf8')
+    const sidebarBlock = source.match(/\.app-shell__sidebar \{[\s\S]*?\n\}/)?.[0] ?? ''
 
-    expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
-    expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
-    expect(source).toContain('color: color-mix(in srgb, var(--text-main) 82%, var(--text-soft));')
+    expect(sidebarBlock).toContain('border: 1px solid var(--border-soft);')
+    expect(sidebarBlock).toContain(
+      'background: var(--project-card-bg), var(--project-card-glow), var(--card-sheen);',
+    )
+    expect(sidebarBlock).toContain('box-shadow: var(--shadow-panel);')
+    expect(sidebarBlock).not.toContain('var(--meta-surface-bg)')
     expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
-  it('pins sky.png to the viewport in light theme so long authenticated pages do not stretch the background image', () => {
+  it('keeps the light sky backdrop but removes the legacy light-only dark-glass overrides', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/layouts/AppShell.vue'), 'utf8')
 
     expect(source).toContain("url('../assets/login/sky.png')")
@@ -25,6 +29,11 @@ describe('AppShell', () => {
     expect(source).toContain('position: fixed;')
     expect(source).toContain('background-size: cover;')
     expect(source).toContain('background-attachment: scroll;')
+    expect(source).not.toContain('html.light .app-shell__sidebar,')
+    expect(source).not.toContain('html:not(.dark) .app-shell__sidebar {')
+    expect(source).not.toContain('html.light .app-shell__brand h1,')
+    expect(source).not.toContain('html.light .app-shell__theme-toggle,')
+    expect(source).not.toContain('color: #f2f7ff;')
   })
 
   beforeEach(() => {
