@@ -1,0 +1,30 @@
+# `Unit` 段描述“这个服务是什么”，以及它和其他系统目标的启动顺序关系。
+[Unit]
+# 给人看的服务说明，执行 `systemctl status` 时会显示这行描述。
+Description=Project Tracker Backend
+# 表示本服务应在网络和 PostgreSQL 服务之后启动。
+# 这里主要是启动顺序提示，不等同于“数据库一定可用”的健康检查。
+After=network.target postgresql.service
+
+# `Service` 段定义“这个服务怎么运行”。
+[Service]
+# 当前后端是普通前台进程，使用 simple 类型即可。
+Type=simple
+# 不用 root 跑业务程序，当前先复用本机已有用户 `ubzy`。
+User=ubzy
+Group=ubzy
+# 启动前先进入部署根目录，便于统一相对路径和运维约定。
+WorkingDirectory=/opt/project-tracker
+# 真实启动命令：后端二进制 + 生产配置文件路径。
+ExecStart=/opt/project-tracker/bin/Project_Tracker /opt/project-tracker/config/config.prod.json
+# 进程异常退出后自动重启，避免服务掉线后一直不恢复。
+Restart=always
+# 每次重启前等待 3 秒，避免故障时瞬间反复拉起。
+RestartSec=3
+# 暂时先把标准输出和标准错误都交给 journald 管理，后续可再接正式日志方案。
+StandardOutput=journal
+StandardError=journal
+
+# `Install` 段定义“启用服务时应该挂到哪个系统目标下”，用于开机自启。
+[Install]
+WantedBy=multi-user.target

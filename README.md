@@ -232,5 +232,6 @@ npm run dev
 
 ## 相关文档
 
+- `systemd` 托管说明见 [deploy/systemd/systemd-deployment.md](/home/ubzy/CLionProjects/Project-Tracker/deploy/systemd/systemd-deployment.md)
 - 前端说明见 [frontend/README.md](/home/ubzy/CLionProjects/Project-Tracker/frontend/README.md)
 - AI 工具说明见 [tools/ai_project_manager/README.md](/home/ubzy/CLionProjects/Project-Tracker/tools/ai_project_manager/README.md)
