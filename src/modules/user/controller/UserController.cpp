@@ -44,85 +44,81 @@ namespace project_tracker::modules::user::controller {
 
     drogon::Task<drogon::HttpResponsePtr>
     UserController::listUsers(drogon::HttpRequestPtr request) {
-        try {
-            repository::UserListQuery query;
+        repository::UserListQuery query;
 
-            if (const auto keyword = util::readQueryString(request, "keyword")) {
-                query.keyword = *keyword;
-            }
-
-            // query 参数只做基础格式校验。
-            if (!util::readQueryInt(request, "system_role", query.systemRole)) {
-                co_return api::fail(
-                    drogon::k400BadRequest,
-                    error::ErrorCode::InvalidParameter,
-                    "system_role 必须是整数");
-            }
-            if (query.systemRole && !isValidSystemRole(*query.systemRole)) {
-                co_return api::fail(
-                    drogon::k400BadRequest,
-                    error::ErrorCode::InvalidParameter,
-                    "system_role 只能是 1、2 或 3");
-            }
-
-            if (!util::readQueryInt(request, "status", query.status)) {
-                co_return api::fail(
-                    drogon::k400BadRequest,
-                    error::ErrorCode::InvalidParameter,
-                    "status 必须是整数");
-            }
-            if (query.status && !isValidUserStatus(*query.status)) {
-                co_return api::fail(
-                    drogon::k400BadRequest,
-                    error::ErrorCode::InvalidParameter,
-                    "status 只能是 1 或 2");
-            }
-
-
-            std::optional<std::int64_t> page;
-            if (!util::readPositiveQueryInt64(request, "page", page)) {
-                co_return api::fail(
-                    drogon::k400BadRequest,
-                    error::ErrorCode::InvalidParameter,
-                    "page 必须是大于 0 的整数");
-            }
-            if (page)
-                query.page = *page;
-
-
-            std::optional<std::int64_t> pageSize;
-            if (!util::readPositiveQueryInt64(request, "page_size", pageSize)) {
-                co_return api::fail(
-                    drogon::k400BadRequest,
-                    error::ErrorCode::InvalidParameter,
-                    "page_size 必须是大于 0 的整数");
-            }
-            if (pageSize)
-                query.pageSize = *pageSize;
-
-            const auto dbClient = drogon::app().getDbClient();
-            const auto pageResult = co_await userRepository_.listUsers(dbClient, query);
-
-            Json::Value data(Json::objectValue);
-            data["list"] = Json::Value(Json::arrayValue);
-            for (const auto &user : pageResult.list) {
-                data["list"].append(buildUserJson(user));
-            }
-            data["total"] = pageResult.total;
-            data["page"] = pageResult.page;
-            data["page_size"] = pageResult.pageSize;
-
-            co_return api::ok(data);
-
-        } catch (const error::BusinessException & exception) {
-            co_return api::fromException(exception);
+        if (const auto keyword = util::readQueryString(request, "keyword")) {
+            query.keyword = *keyword;
         }
+
+        // query 参数只做基础格式校验。
+        if (!util::readQueryInt(request, "system_role", query.systemRole)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "system_role 必须是整数");
+        }
+        if (query.systemRole && !isValidSystemRole(*query.systemRole)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "system_role 只能是 1、2 或 3");
+        }
+
+        if (!util::readQueryInt(request, "status", query.status)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "status 必须是整数");
+        }
+        if (query.status && !isValidUserStatus(*query.status)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "status 只能是 1 或 2");
+        }
+
+
+        std::optional<std::int64_t> page;
+        if (!util::readPositiveQueryInt64(request, "page", page)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "page 必须是大于 0 的整数");
+        }
+        if (page)
+            query.page = *page;
+
+
+        std::optional<std::int64_t> pageSize;
+        if (!util::readPositiveQueryInt64(request, "page_size", pageSize)) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "page_size 必须是大于 0 的整数");
+        }
+        if (pageSize)
+            query.pageSize = *pageSize;
+
+        const auto dbClient = drogon::app().getDbClient();
+        const auto pageResult = co_await userRepository_.listUsers(dbClient, query);
+
+        Json::Value data(Json::objectValue);
+        data["list"] = Json::Value(Json::arrayValue);
+        for (const auto &user: pageResult.list) {
+            data["list"].append(buildUserJson(user));
+        }
+        data["total"] = pageResult.total;
+        data["page"] = pageResult.page;
+        data["page_size"] = pageResult.pageSize;
+
+        co_return api::ok(data);
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
     UserController::getUserDetail(drogon::HttpRequestPtr request,
                                   std::int64_t userId) {
-        (void)request;
+        (void) request;
 
         if (userId <= 0) {
             co_return api::fail(
@@ -131,20 +127,17 @@ namespace project_tracker::modules::user::controller {
                 "user_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto user = co_await userRepository_.findUserById(dbClient, userId);
-            if (!user) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::UserNotFound,
-                    "用户不存在");
-            }
-
-            co_return api::ok(buildUserJson(*user));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        const auto dbClient = drogon::app().getDbClient();
+        const auto user = co_await userRepository_.findUserById(dbClient, userId);
+        if (!user) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::UserNotFound,
+                "用户不存在");
         }
+
+        co_return api::ok(buildUserJson(*user));
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -196,12 +189,9 @@ namespace project_tracker::modules::user::controller {
                 "phone 必须是字符串");
         }
 
-        try {
-            const auto user = co_await userService_.updateUserBasicInfo(input);
-            co_return api::ok(buildUserJson(user));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto user = co_await userService_.updateUserBasicInfo(input);
+        co_return api::ok(buildUserJson(user));
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -236,18 +226,14 @@ namespace project_tracker::modules::user::controller {
             .status = static_cast<domain::UserStatus>(status)
         };
 
-        try {
-            const auto user = co_await userService_.updateUserStatus(input);
+        const auto user = co_await userService_.updateUserStatus(input);
 
-            Json::Value data(Json::objectValue);
-            data["id"] = user.id;
-            data["status"] = domain::toInt(user.status);
-            data["updated_at"] = user.updatedAt;
+        Json::Value data(Json::objectValue);
+        data["id"] = user.id;
+        data["status"] = domain::toInt(user.status);
+        data["updated_at"] = user.updatedAt;
 
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        co_return api::ok(data);
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -308,12 +294,7 @@ namespace project_tracker::modules::user::controller {
                 error::ErrorCode::InvalidParameter,
                 "phone 必须是字符串");
         }
-
-        try {
-            const auto user = co_await userService_.createUser(command);
-            co_return api::ok(buildUserJson(user));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto user = co_await userService_.createUser(command);
+        co_return api::ok(buildUserJson(user));
     }
 } // namespace project_tracker::modules::user::controller

@@ -81,40 +81,36 @@ namespace project_tracker::modules::project_member::controller {
                 "project_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await projectMemberRepository_.listProjectMembers(
-                dbClient,
-                repository::ProjectMemberListQuery{
-                    .projectId = projectId,
-                    .currentUserId = *userId,
-                    .currentUserRole = *systemRole
-                });
+        const auto dbClient = drogon::app().getDbClient();
+        const auto result = co_await projectMemberRepository_.listProjectMembers(
+            dbClient,
+            repository::ProjectMemberListQuery{
+                .projectId = projectId,
+                .currentUserId = *userId,
+                .currentUserRole = *systemRole
+            });
 
-            if (!result) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::ProjectNotFound,
-                    "项目不存在");
-            }
-
-            if (!result->hasPermission) {
-                co_return api::fail(
-                    drogon::k403Forbidden,
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是项目成员");
-            }
-
-            Json::Value data(Json::objectValue);
-            data["list"] = Json::Value(Json::arrayValue);
-            for (const auto &member : result->list) {
-                data["list"].append(buildProjectMemberJson(member));
-            }
-
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        if (!result) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::ProjectNotFound,
+                "项目不存在");
         }
+
+        if (!result->hasPermission) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "当前操作者不是管理员且不是项目成员");
+        }
+
+        Json::Value data(Json::objectValue);
+        data["list"] = Json::Value(Json::arrayValue);
+        for (const auto &member: result->list) {
+            data["list"].append(buildProjectMemberJson(member));
+        }
+
+        co_return api::ok(data);
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -160,12 +156,8 @@ namespace project_tracker::modules::project_member::controller {
                 "user_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto member = co_await projectMemberService_.addProjectMember(input);
-            co_return api::ok(buildAddedProjectMemberJson(member));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto member = co_await projectMemberService_.addProjectMember(input);
+        co_return api::ok(buildAddedProjectMemberJson(member));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -197,18 +189,14 @@ namespace project_tracker::modules::project_member::controller {
                 "member_user_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto member = co_await projectMemberService_.removeProjectMember(
-                dto::command::RemoveProjectMemberInput{
-                    .projectId = projectId,
-                    .memberUserId = memberUserId,
-                    .operatorUserId = *userId,
-                    .operatorUserRole = *systemRole
-                });
-            co_return api::ok(buildRemovedProjectMemberJson(member));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto member = co_await projectMemberService_.removeProjectMember(
+            dto::command::RemoveProjectMemberInput{
+                .projectId = projectId,
+                .memberUserId = memberUserId,
+                .operatorUserId = *userId,
+                .operatorUserRole = *systemRole
+            });
+        co_return api::ok(buildRemovedProjectMemberJson(member));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -264,45 +252,42 @@ namespace project_tracker::modules::project_member::controller {
             query.pageSize = *pageSize;
         }
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await projectMemberRepository_.listProjectMemberCandidates(
-                dbClient,
-                query);
+        const auto dbClient = drogon::app().getDbClient();
+        const auto result = co_await projectMemberRepository_.listProjectMemberCandidates(
+            dbClient,
+            query);
 
-            if (!result) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::ProjectNotFound,
-                    "项目不存在");
-            }
-
-            if (!result->hasPermission) {
-                co_return api::fail(
-                    drogon::k403Forbidden,
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是具备成员管理权限的项目负责人");
-            }
-
-            if (!result->memberManageAllowed) {
-                co_return api::fail(
-                    drogon::k409Conflict,
-                    error::ErrorCode::PersonalProjectMemberManageForbidden,
-                    "普通员工创建的个人自用项目不允许获取成员候选列表");
-            }
-
-            Json::Value data(Json::objectValue);
-            data["list"] = Json::Value(Json::arrayValue);
-            for (const auto &candidate : result->page.list) {
-                data["list"].append(buildProjectMemberCandidateJson(candidate));
-            }
-            data["total"] = result->page.total;
-            data["page"] = result->page.page;
-            data["page_size"] = result->page.pageSize;
-
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        if (!result) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::ProjectNotFound,
+                "项目不存在");
         }
+
+        if (!result->hasPermission) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "当前操作者不是管理员且不是具备成员管理权限的项目负责人");
+        }
+
+        if (!result->memberManageAllowed) {
+            co_return api::fail(
+                drogon::k409Conflict,
+                error::ErrorCode::PersonalProjectMemberManageForbidden,
+                "普通员工创建的个人自用项目不允许获取成员候选列表");
+        }
+
+        Json::Value data(Json::objectValue);
+        data["list"] = Json::Value(Json::arrayValue);
+        for (const auto &candidate: result->page.list) {
+            data["list"].append(buildProjectMemberCandidateJson(candidate));
+        }
+        data["total"] = result->page.total;
+        data["page"] = result->page.page;
+        data["page_size"] = result->page.pageSize;
+
+        co_return api::ok(data);
+
     }
 } // namespace project_tracker::modules::project_member::controller

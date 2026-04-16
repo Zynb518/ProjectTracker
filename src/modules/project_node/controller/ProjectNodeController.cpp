@@ -295,12 +295,9 @@ namespace project_tracker::modules::project_node::controller {
                 "planned_end_date 必须是 YYYY-MM-DD 格式");
         }
 
-        try {
-            const auto node = co_await projectNodeService_.createProjectNode(input);
-            co_return api::ok(buildCreatedProjectNodeJson(node));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto node = co_await projectNodeService_.createProjectNode(input);
+        co_return api::ok(buildCreatedProjectNodeJson(node));
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -410,12 +407,9 @@ namespace project_tracker::modules::project_node::controller {
             input.nodes.push_back(std::move(nodeInput));
         }
 
-        try {
-            const auto result = co_await projectNodeService_.applyProjectNodeTemplate(input);
-            co_return api::ok(buildAppliedProjectNodeTemplateJson(result));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto result = co_await projectNodeService_.applyProjectNodeTemplate(input);
+        co_return api::ok(buildAppliedProjectNodeTemplateJson(result));
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -439,40 +433,36 @@ namespace project_tracker::modules::project_node::controller {
                 "project_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await projectNodeRepository_.listProjectNodes(
-                dbClient,
-                repository::ProjectNodeListQuery{
-                    .projectId = projectId,
-                    .currentUserId = *userId,
-                    .currentUserRole = *systemRole
-                });
+        const auto dbClient = drogon::app().getDbClient();
+        const auto result = co_await projectNodeRepository_.listProjectNodes(
+            dbClient,
+            repository::ProjectNodeListQuery{
+                .projectId = projectId,
+                .currentUserId = *userId,
+                .currentUserRole = *systemRole
+            });
 
-            if (!result) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::ProjectNotFound,
-                    "项目不存在");
-            }
-
-            if (!result->hasPermission) {
-                co_return api::fail(
-                    drogon::k403Forbidden,
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是项目成员");
-            }
-
-            Json::Value data(Json::objectValue);
-            data["list"] = Json::Value(Json::arrayValue);
-            for (const auto &node : result->list) {
-                data["list"].append(buildProjectNodeJson(node));
-            }
-
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        if (!result) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::ProjectNotFound,
+                "项目不存在");
         }
+
+        if (!result->hasPermission) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "当前操作者不是管理员且不是项目成员");
+        }
+
+        Json::Value data(Json::objectValue);
+        data["list"] = Json::Value(Json::arrayValue);
+        for (const auto &node: result->list) {
+            data["list"].append(buildProjectNodeJson(node));
+        }
+
+        co_return api::ok(data);
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -504,42 +494,38 @@ namespace project_tracker::modules::project_node::controller {
                 "node_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await projectNodeRepository_.findProjectNodeDetail(
-                dbClient,
-                repository::ProjectNodeDetailQuery{
-                    .projectId = projectId,
-                    .nodeId = nodeId,
-                    .currentUserId = *userId,
-                    .currentUserRole = *systemRole
-                });
+        const auto dbClient = drogon::app().getDbClient();
+        const auto result = co_await projectNodeRepository_.findProjectNodeDetail(
+            dbClient,
+            repository::ProjectNodeDetailQuery{
+                .projectId = projectId,
+                .nodeId = nodeId,
+                .currentUserId = *userId,
+                .currentUserRole = *systemRole
+            });
 
-            if (!result) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::ProjectNotFound,
-                    "项目不存在");
-            }
-
-            if (!result->hasPermission) {
-                co_return api::fail(
-                    drogon::k403Forbidden,
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是项目成员");
-            }
-
-            if (!result->detail) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::PhaseNotFound,
-                    "阶段节点不存在");
-            }
-
-            co_return api::ok(buildProjectNodeJson(*result->detail));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        if (!result) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::ProjectNotFound,
+                "项目不存在");
         }
+
+        if (!result->hasPermission) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "当前操作者不是管理员且不是项目成员");
+        }
+
+        if (!result->detail) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::PhaseNotFound,
+                "阶段节点不存在");
+        }
+
+        co_return api::ok(buildProjectNodeJson(*result->detail));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -571,50 +557,47 @@ namespace project_tracker::modules::project_node::controller {
                 "node_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await projectNodeRepository_.findProjectNodeGantt(
-                dbClient,
-                repository::ProjectNodeGanttQuery{
-                    .projectId = projectId,
-                    .nodeId = nodeId,
-                    .currentUserId = *userId,
-                    .currentUserRole = *systemRole
-                });
+        const auto dbClient = drogon::app().getDbClient();
+        const auto result = co_await projectNodeRepository_.findProjectNodeGantt(
+            dbClient,
+            repository::ProjectNodeGanttQuery{
+                .projectId = projectId,
+                .nodeId = nodeId,
+                .currentUserId = *userId,
+                .currentUserRole = *systemRole
+            });
 
-            if (!result) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::ProjectNotFound,
-                    "项目不存在");
-            }
-
-            if (!result->hasPermission) {
-                co_return api::fail(
-                    drogon::k403Forbidden,
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是项目成员");
-            }
-
-            if (!result->detail) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::PhaseNotFound,
-                    "阶段节点不存在");
-            }
-
-            Json::Value data(Json::objectValue);
-            data["project"] = buildProjectNodeGanttProjectJson(result->detail->project);
-            data["node"] = buildProjectNodeGanttNodeJson(result->detail->node);
-            data["subtasks"] = Json::Value(Json::arrayValue);
-            for (const auto &task : result->detail->subtasks) {
-                data["subtasks"].append(buildProjectNodeGanttTaskJson(task));
-            }
-
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        if (!result) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::ProjectNotFound,
+                "项目不存在");
         }
+
+        if (!result->hasPermission) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "当前操作者不是管理员且不是项目成员");
+        }
+
+        if (!result->detail) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::PhaseNotFound,
+                "阶段节点不存在");
+        }
+
+        Json::Value data(Json::objectValue);
+        data["project"] = buildProjectNodeGanttProjectJson(result->detail->project);
+        data["node"] = buildProjectNodeGanttNodeJson(result->detail->node);
+        data["subtasks"] = Json::Value(Json::arrayValue);
+        for (const auto &task: result->detail->subtasks) {
+            data["subtasks"].append(buildProjectNodeGanttTaskJson(task));
+        }
+
+        co_return api::ok(data);
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -727,12 +710,8 @@ namespace project_tracker::modules::project_node::controller {
                 "至少需要提供一个可修改字段");
         }
 
-        try {
-            const auto node = co_await projectNodeService_.updateProjectNodeBasicInfo(input);
-            co_return api::ok(buildUpdatedProjectNodeBasicInfoJson(node));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto node = co_await projectNodeService_.updateProjectNodeBasicInfo(input);
+        co_return api::ok(buildUpdatedProjectNodeBasicInfoJson(node));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -772,19 +751,15 @@ namespace project_tracker::modules::project_node::controller {
                 "请求体必须是 JSON 对象");
         }
 
-        try {
-            const auto node = co_await projectNodeService_.startProjectNode(
-                dto::command::ProjectNodeStatusActionInput{
-                    .projectId = projectId,
-                    .nodeId = nodeId,
-                    .operatorUserId = *userId,
-                    .operatorUserRole = *systemRole
-                });
+        const auto node = co_await projectNodeService_.startProjectNode(
+            dto::command::ProjectNodeStatusActionInput{
+                .projectId = projectId,
+                .nodeId = nodeId,
+                .operatorUserId = *userId,
+                .operatorUserRole = *systemRole
+            });
 
-            co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -824,19 +799,15 @@ namespace project_tracker::modules::project_node::controller {
                 "请求体必须是 JSON 对象");
         }
 
-        try {
-            const auto node = co_await projectNodeService_.completeProjectNode(
-                dto::command::ProjectNodeStatusActionInput{
-                    .projectId = projectId,
-                    .nodeId = nodeId,
-                    .operatorUserId = *userId,
-                    .operatorUserRole = *systemRole
-                });
+        const auto node = co_await projectNodeService_.completeProjectNode(
+            dto::command::ProjectNodeStatusActionInput{
+                .projectId = projectId,
+                .nodeId = nodeId,
+                .operatorUserId = *userId,
+                .operatorUserRole = *systemRole
+            });
 
-            co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -876,19 +847,16 @@ namespace project_tracker::modules::project_node::controller {
                 "请求体必须是 JSON 对象");
         }
 
-        try {
-            const auto node = co_await projectNodeService_.reopenProjectNode(
-                dto::command::ProjectNodeStatusActionInput{
-                    .projectId = projectId,
-                    .nodeId = nodeId,
-                    .operatorUserId = *userId,
-                    .operatorUserRole = *systemRole
-                });
+        const auto node = co_await projectNodeService_.reopenProjectNode(
+            dto::command::ProjectNodeStatusActionInput{
+                .projectId = projectId,
+                .nodeId = nodeId,
+                .operatorUserId = *userId,
+                .operatorUserRole = *systemRole
+            });
 
-            co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -920,21 +888,17 @@ namespace project_tracker::modules::project_node::controller {
                 "node_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto deletedNodeId = co_await projectNodeService_.deleteProjectNode(
-                dto::command::DeleteProjectNodeInput{
-                    .projectId = projectId,
-                    .nodeId = nodeId,
-                    .operatorUserId = *userId,
-                    .operatorUserRole = *systemRole
-                });
+        const auto deletedNodeId = co_await projectNodeService_.deleteProjectNode(
+            dto::command::DeleteProjectNodeInput{
+                .projectId = projectId,
+                .nodeId = nodeId,
+                .operatorUserId = *userId,
+                .operatorUserRole = *systemRole
+            });
 
-            Json::Value data(Json::objectValue);
-            data["id"] = deletedNodeId;
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        Json::Value data(Json::objectValue);
+        data["id"] = deletedNodeId;
+        co_return api::ok(data);
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -1039,12 +1003,7 @@ namespace project_tracker::modules::project_node::controller {
                 .sequenceNo = sequenceNo
             });
         }
-
-        try {
-            const auto result = co_await projectNodeService_.reorderProjectNodes(input);
-            co_return api::ok(buildReorderedProjectNodesJson(result));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto result = co_await projectNodeService_.reorderProjectNodes(input);
+        co_return api::ok(buildReorderedProjectNodesJson(result));
     }
 } // namespace project_tracker::modules::project_node::controller

@@ -317,12 +317,9 @@ namespace project_tracker::modules::task::controller {
                 "planned_end_date 必须是 YYYY-MM-DD 格式");
         }
 
-        try {
-            const auto task = co_await taskService_.createTask(input);
-            co_return api::ok(buildCreatedTaskJson(task));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto task = co_await taskService_.createTask(input);
+        co_return api::ok(buildCreatedTaskJson(task));
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -388,42 +385,38 @@ namespace project_tracker::modules::task::controller {
                 error::ErrorCode::InvalidParameter,
                 "responsible_user_id 必须是大于 0 的整数");
         }
-        try {
+        const auto dbClient = drogon::app().getDbClient();
+        const auto result = co_await taskRepository_.listNodeTasks(dbClient, query);
 
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await taskRepository_.listNodeTasks(dbClient, query);
-
-            if (!result.projectExists) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::ProjectNotFound,
-                    "项目不存在");
-            }
-
-            if (!result.hasPermission) {
-                co_return api::fail(
-                    drogon::k403Forbidden,
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是项目成员");
-            }
-
-            if (!result.nodeExists) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::PhaseNotFound,
-                    "阶段节点不存在");
-            }
-
-            Json::Value data(Json::objectValue);
-            data["list"] = Json::Value(Json::arrayValue);
-            for (const auto &task : result.list) {
-                data["list"].append(buildTaskJson(task));
-            }
-
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        if (!result.projectExists) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::ProjectNotFound,
+                "项目不存在");
         }
+
+        if (!result.hasPermission) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "当前操作者不是管理员且不是项目成员");
+        }
+
+        if (!result.nodeExists) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::PhaseNotFound,
+                "阶段节点不存在");
+        }
+
+        Json::Value data(Json::objectValue);
+        data["list"] = Json::Value(Json::arrayValue);
+        for (const auto &task: result.list) {
+            data["list"].append(buildTaskJson(task));
+        }
+
+        co_return api::ok(data);
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -470,21 +463,18 @@ namespace project_tracker::modules::task::controller {
             query.projectKeyword = *projectKeyword;
         }
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto list = co_await taskRepository_.listMyTasks(dbClient, query);
+        const auto dbClient = drogon::app().getDbClient();
+        const auto list = co_await taskRepository_.listMyTasks(dbClient, query);
 
-            Json::Value data(Json::objectValue);
-            data["list"] = Json::Value(Json::arrayValue);
+        Json::Value data(Json::objectValue);
+        data["list"] = Json::Value(Json::arrayValue);
 
-            for (const auto &task : list) {
-                data["list"].append(buildMyTaskJson(task));
-            }
-
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        for (const auto &task: list) {
+            data["list"].append(buildMyTaskJson(task));
         }
+
+        co_return api::ok(data);
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -508,41 +498,37 @@ namespace project_tracker::modules::task::controller {
                 "subtask_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await taskRepository_.findTaskDetail(
-                dbClient,
-                repository::TaskDetailQuery{
-                    .subTaskId = subTaskId,
-                    .currentUserId = *userId,
-                    .currentUserRole = *systemRole
-                });
+        const auto dbClient = drogon::app().getDbClient();
+        const auto result = co_await taskRepository_.findTaskDetail(
+            dbClient,
+            repository::TaskDetailQuery{
+                .subTaskId = subTaskId,
+                .currentUserId = *userId,
+                .currentUserRole = *systemRole
+            });
 
-            if (!result) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::SubTaskNotFound,
-                    "子任务不存在");
-            }
-
-            if (!result->hasPermission) {
-                co_return api::fail(
-                    drogon::k403Forbidden,
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是项目成员");
-            }
-
-            if (!result->detail) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::SubTaskNotFound,
-                    "子任务不存在");
-            }
-
-            co_return api::ok(buildTaskDetailJson(*result->detail));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        if (!result) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::SubTaskNotFound,
+                "子任务不存在");
         }
+
+        if (!result->hasPermission) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "当前操作者不是管理员且不是项目成员");
+        }
+
+        if (!result->detail) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::SubTaskNotFound,
+                "子任务不存在");
+        }
+
+        co_return api::ok(buildTaskDetailJson(*result->detail));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -677,12 +663,9 @@ namespace project_tracker::modules::task::controller {
                 "至少需要提供一个可修改字段");
         }
 
-        try {
-            const auto task = co_await taskService_.updateTaskBasicInfo(input);
-            co_return api::ok(buildUpdatedTaskBasicInfoJson(task));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto task = co_await taskService_.updateTaskBasicInfo(input);
+        co_return api::ok(buildUpdatedTaskBasicInfoJson(task));
+
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -727,12 +710,8 @@ namespace project_tracker::modules::task::controller {
                 "progress_note 必须是字符串");
         }
 
-        try {
-            const auto task = co_await taskService_.startTask(input);
-            co_return api::ok(buildStartedTaskJson(task));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto task = co_await taskService_.startTask(input);
+        co_return api::ok(buildStartedTaskJson(task));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -792,12 +771,8 @@ namespace project_tracker::modules::task::controller {
                 "progress_note 必须是字符串");
         }
 
-        try {
-            const auto task = co_await taskService_.submitTaskProgress(input);
-            co_return api::ok(buildStartedTaskJson(task));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto task = co_await taskService_.submitTaskProgress(input);
+        co_return api::ok(buildStartedTaskJson(task));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -820,41 +795,36 @@ namespace project_tracker::modules::task::controller {
                 error::ErrorCode::InvalidParameter,
                 "subtask_id 必须是大于 0 的整数");
         }
+        const auto dbClient = drogon::app().getDbClient();
+        const auto result = co_await taskRepository_.listTaskProgressRecords(
+            dbClient,
+            repository::TaskProgressRecordListQuery{
+                .subTaskId = subTaskId,
+                .currentUserId = *userId,
+                .currentUserRole = *systemRole
+            });
 
-        try {
-            const auto dbClient = drogon::app().getDbClient();
-            const auto result = co_await taskRepository_.listTaskProgressRecords(
-                dbClient,
-                repository::TaskProgressRecordListQuery{
-                    .subTaskId = subTaskId,
-                    .currentUserId = *userId,
-                    .currentUserRole = *systemRole
-                });
-
-            if (!result) {
-                co_return api::fail(
-                    drogon::k404NotFound,
-                    error::ErrorCode::SubTaskNotFound,
-                    "子任务不存在");
-            }
-
-            if (!result->hasPermission) {
-                co_return api::fail(
-                    drogon::k403Forbidden,
-                    error::ErrorCode::Forbidden,
-                    "当前操作者不是管理员且不是项目成员");
-            }
-
-            Json::Value data(Json::objectValue);
-            data["list"] = Json::Value(Json::arrayValue);
-            for (const auto &progressRecord : result->list) {
-                data["list"].append(buildTaskProgressListItemJson(progressRecord));
-            }
-
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
+        if (!result) {
+            co_return api::fail(
+                drogon::k404NotFound,
+                error::ErrorCode::SubTaskNotFound,
+                "子任务不存在");
         }
+
+        if (!result->hasPermission) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "当前操作者不是管理员且不是项目成员");
+        }
+
+        Json::Value data(Json::objectValue);
+        data["list"] = Json::Value(Json::arrayValue);
+        for (const auto &progressRecord: result->list) {
+            data["list"].append(buildTaskProgressListItemJson(progressRecord));
+        }
+
+        co_return api::ok(data);
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -885,18 +855,13 @@ namespace project_tracker::modules::task::controller {
                 error::ErrorCode::InvalidParameter,
                 "请求体必须是 JSON 对象");
         }
-
-        try {
-            const auto task = co_await taskService_.reopenTask(
-                dto::command::TaskStatusActionInput{
-                    .subTaskId = subTaskId,
-                    .operatorUserId = *userId,
-                    .operatorUserRole = *systemRole
-                });
-            co_return api::ok(buildUpdatedTaskStatusJson(task));
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto task = co_await taskService_.reopenTask(
+            dto::command::TaskStatusActionInput{
+                .subTaskId = subTaskId,
+                .operatorUserId = *userId,
+                .operatorUserRole = *systemRole
+            });
+        co_return api::ok(buildUpdatedTaskStatusJson(task));
     }
 
     drogon::Task<drogon::HttpResponsePtr>
@@ -920,19 +885,16 @@ namespace project_tracker::modules::task::controller {
                 "subtask_id 必须是大于 0 的整数");
         }
 
-        try {
-            const auto deletedTaskId = co_await taskService_.deleteTask(
-                dto::command::DeleteTaskInput{
-                    .subTaskId = subTaskId,
-                    .operatorUserId = *userId,
-                    .operatorUserRole = *systemRole
-                });
+        const auto deletedTaskId = co_await taskService_.deleteTask(
+            dto::command::DeleteTaskInput{
+                .subTaskId = subTaskId,
+                .operatorUserId = *userId,
+                .operatorUserRole = *systemRole
+            });
 
-            Json::Value data(Json::objectValue);
-            data["id"] = deletedTaskId;
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        Json::Value data(Json::objectValue);
+        data["id"] = deletedTaskId;
+        co_return api::ok(data);
+
     }
 } // namespace project_tracker::modules::task::controller
