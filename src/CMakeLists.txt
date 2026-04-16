@@ -2,6 +2,7 @@
 add_executable(
     Project_Tracker
     bootstrap/main.cpp
+    http/ExceptionHandling.cpp
     common/error/BusinessException.cpp
     common/error/Throw.cpp
     filters/AdminRequiredFilter.cpp

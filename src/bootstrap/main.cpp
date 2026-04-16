@@ -4,6 +4,7 @@
 #include <drogon/drogon.h>
 
 #include "http/RequestLogging.h"
+#include "http/ExceptionHandling.h"
 #include "bootstrap/ThreadNumConfig.h"
 #include "modules/project/controller/ProjectController.h"
 
@@ -25,6 +26,7 @@ int main(int argc, char **argv) {
             drogon::Cookie::SameSite::kLax,
             "JSESSIONID");
 
+        project_tracker::http::registerExceptionHandling(drogon::app());
         project_tracker::http::registerRequestLogging(drogon::app());
 
         LOG_INFO << "服务启动完成，开始接收请求";

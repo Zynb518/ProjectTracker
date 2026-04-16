@@ -56,20 +56,16 @@ namespace project_tracker::modules::auth::controller {
                 "password 必须是非空字符串");
         }
 
-        try {
-            const auto user = co_await authService_.login(username, password);
-            auto session = request->getSession();
-            session->clear();
-            session->insert("user_id", user.id);
-            session->insert("system_role", user.systemRole);
-            session->changeSessionIdToClient();
+        const auto user = co_await authService_.login(username, password);
+        auto session = request->getSession();
+        session->clear();
+        session->insert("user_id", user.id);
+        session->insert("system_role", user.systemRole);
+        session->changeSessionIdToClient();
 
-            Json::Value data(Json::objectValue);
-            data["user"] = buildUserJson(user);
-            co_return api::ok(data);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        Json::Value data(Json::objectValue);
+        data["user"] = buildUserJson(user);
+        co_return api::ok(data);
     }
 
     drogon::Task<drogon::HttpResponsePtr>
