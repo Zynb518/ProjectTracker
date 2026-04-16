@@ -11,6 +11,7 @@ namespace project_tracker::http {
             [](const std::exception &exception,
                const drogon::HttpRequestPtr &request,
                std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
+
                 if (const auto *businessException =
                         dynamic_cast<const common::error::BusinessException *>(
                             &exception)) {

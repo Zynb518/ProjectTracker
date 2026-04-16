@@ -3,7 +3,6 @@
 #include <drogon/drogon.h>
 
 #include "common/api/ApiResponse.h"
-#include "common/error/BusinessException.h"
 #include "common/error/ErrorCode.h"
 #include "common/util/JsonUtil.h"
 
@@ -40,11 +39,7 @@ namespace project_tracker::modules::project_ai::controller {
                 "prompt 必须是非空字符串");
         }
 
-        try {
-            const auto generatedDraft = co_await projectAiService_.generateProjectDraft(input);
-            co_return api::ok(generatedDraft);
-        } catch (const error::BusinessException &exception) {
-            co_return api::fromException(exception);
-        }
+        const auto generatedDraft = co_await projectAiService_.generateProjectDraft(input);
+        co_return api::ok(generatedDraft);
     }
 } // namespace project_tracker::modules::project_ai::controller
