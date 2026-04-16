@@ -28,6 +28,7 @@ add_executable(
     modules/user/controller/UserController.cpp
     modules/user/repository/UserRepository.cpp
     modules/user/service/UserService.cpp
+        http/RequestLogging.cpp
 )
 
 # 把当前 src 目录加入头文件搜索路径

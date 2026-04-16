@@ -1,9 +1,11 @@
+#include <iostream>
 #include <string>
 
 #include <drogon/drogon.h>
 
-#include "bootstrap/StartupLogMessage.h"
+#include "http/RequestLogging.h"
 #include "bootstrap/ThreadNumConfig.h"
+#include "modules/project/controller/ProjectController.h"
 
 int main(int argc, char **argv) {
     std::string configPath = "config/config.dev.json";
@@ -12,24 +14,24 @@ int main(int argc, char **argv) {
     }
 
     try {
-        LOG_INFO << project_tracker::bootstrap::buildStartupConfigMessage(configPath);
         drogon::app().loadConfigFile(configPath);
         const auto threadNum = project_tracker::bootstrap::readConfiguredThreadNum(
             drogon::app().getCustomConfig());
         if (threadNum) {
             drogon::app().setThreadNum(*threadNum);
         }
-        LOG_INFO << project_tracker::bootstrap::buildThreadNumMessage(threadNum);
         drogon::app().enableSession(
             24 * 60 * 60,
             drogon::Cookie::SameSite::kLax,
             "JSESSIONID");
-        LOG_INFO << "Session 已启用，Cookie 名称: JSESSIONID，SameSite=Lax";
+
+        project_tracker::http::registerRequestLogging(drogon::app());
+
+        LOG_INFO << "服务启动完成，开始接收请求";
+
         drogon::app().run();
     } catch (const std::exception &ex) {
-        LOG_ERROR << project_tracker::bootstrap::buildStartupFailureMessage(
-            configPath,
-            ex.what());
+        LOG_ERROR << "启动失败，原因：" << ex.what();
         return 1;
     }
 
