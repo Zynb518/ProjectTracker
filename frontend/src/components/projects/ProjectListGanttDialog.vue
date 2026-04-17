@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, watch } from 'vue'
 
 import GanttScaleSwitcher from '@/components/workspace/GanttScaleSwitcher.vue'
 import type { GanttScale } from '@/types/gantt'
 import type { ProjectListItem } from '@/types/project'
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout } from '@/utils/gantt'
-import { normalizeWheelDelta } from '@/utils/smoothWheel'
 
 let activePageScrollLocks = 0
 let previousHtmlOverflow = ''
@@ -18,6 +17,9 @@ type DialogMotionOrigin = {
   translateX: number
   translateY: number
 }
+
+const PROJECT_COLUMN_WIDTH_PX = 248
+const STATUS_COLUMN_WIDTH_PX = 112
 
 const props = withDefaults(defineProps<{
   error?: string | null
@@ -39,13 +41,6 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   'update:scale': [scale: GanttScale]
 }>()
-
-const sidebarScrollRef = ref<HTMLElement | null>(null)
-const sidebarRowsRailRef = ref<HTMLElement | null>(null)
-const axisScrollRef = ref<HTMLElement | null>(null)
-const topScrollRef = ref<HTMLElement | null>(null)
-const timelineScrollRef = ref<HTMLElement | null>(null)
-const ignoredHorizontalScroll = new WeakMap<HTMLElement, number>()
 
 const timelineRange = computed(() => {
   if (props.projects.length === 0) {
@@ -72,9 +67,13 @@ const axisItems = computed(() => {
 
 const axisStartDate = computed(() => axisItems.value[0]?.startDate ?? timelineRange.value?.startDate ?? '')
 const canvasWidth = computed(() => axisItems.value.reduce((total, item) => total + item.widthPx, 0))
-const timelineCanvasStyle = computed(() => ({
-  width: `${canvasWidth.value}px`,
+
+const tableStyle = computed(() => ({
+  '--project-list-gantt-project-column-width': `${PROJECT_COLUMN_WIDTH_PX}px`,
+  '--project-list-gantt-status-column-width': `${STATUS_COLUMN_WIDTH_PX}px`,
+  '--project-list-gantt-timeline-width': `${canvasWidth.value}px`,
 }))
+
 const backdropStyle = computed(() => {
   if (!props.motionOrigin) {
     return undefined
@@ -138,114 +137,6 @@ function getBarStyle(project: ProjectListItem) {
   }
 }
 
-function markIgnoredScroll(
-  ignoredScrollMap: WeakMap<HTMLElement, number>,
-  target: HTMLElement,
-  value: number,
-) {
-  ignoredScrollMap.set(target, value)
-}
-
-function shouldIgnoreProgrammaticScroll(
-  ignoredScrollMap: WeakMap<HTMLElement, number>,
-  source: HTMLElement | null,
-  scrollKey: 'scrollLeft' | 'scrollTop',
-) {
-  if (source === null) {
-    return false
-  }
-
-  const ignoredValue = ignoredScrollMap.get(source)
-
-  if (ignoredValue === undefined) {
-    return false
-  }
-
-  const currentValue = source[scrollKey]
-
-  if (currentValue === ignoredValue) {
-    ignoredScrollMap.delete(source)
-    return true
-  }
-
-  ignoredScrollMap.delete(source)
-  return false
-}
-
-function syncScrollPosition(
-  ignoredScrollMap: WeakMap<HTMLElement, number>,
-  source: HTMLElement | null,
-  target: HTMLElement | null,
-  scrollKey: 'scrollLeft' | 'scrollTop',
-) {
-  if (source === null || target === null) {
-    return
-  }
-
-  const value = source[scrollKey]
-
-  if (target[scrollKey] === value) {
-    return
-  }
-
-  markIgnoredScroll(ignoredScrollMap, target, value)
-  target[scrollKey] = value
-}
-
-function syncSidebarOffset(scrollTop: number) {
-  if (sidebarRowsRailRef.value !== null) {
-    sidebarRowsRailRef.value.style.transform = `translateY(-${scrollTop}px)`
-  }
-}
-
-function handleSidebarWheel(event: WheelEvent) {
-  if (event.defaultPrevented || event.ctrlKey || timelineScrollRef.value === null) {
-    return
-  }
-
-  const delta = normalizeWheelDelta(event, timelineScrollRef.value.clientHeight).y
-
-  if (Math.abs(delta) < 0.1) {
-    return
-  }
-
-  const maxScrollTop = Math.max(timelineScrollRef.value.scrollHeight - timelineScrollRef.value.clientHeight, 0)
-  const unclampedScrollTop = timelineScrollRef.value.scrollTop + delta
-  const nextScrollTop = maxScrollTop > 0
-    ? Math.min(Math.max(unclampedScrollTop, 0), maxScrollTop)
-    : unclampedScrollTop
-
-  if (nextScrollTop === timelineScrollRef.value.scrollTop) {
-    return
-  }
-
-  event.preventDefault()
-  timelineScrollRef.value.scrollTop = nextScrollTop
-  syncSidebarOffset(nextScrollTop)
-}
-
-function handleTopHorizontalScroll() {
-  if (!shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, topScrollRef.value, 'scrollLeft')) {
-    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, timelineScrollRef.value, 'scrollLeft')
-    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, axisScrollRef.value, 'scrollLeft')
-  }
-}
-
-function handleTimelineScroll() {
-  if (timelineScrollRef.value === null) {
-    return
-  }
-
-  syncSidebarOffset(timelineScrollRef.value.scrollTop)
-
-  if (shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, timelineScrollRef.value, 'scrollLeft')) {
-    return
-  }
-
-  syncScrollPosition(ignoredHorizontalScroll, timelineScrollRef.value, topScrollRef.value, 'scrollLeft')
-  syncScrollPosition(ignoredHorizontalScroll, timelineScrollRef.value, axisScrollRef.value, 'scrollLeft')
-}
-
 watch(() => props.modelValue, (isOpen, wasOpen) => {
   if (isOpen === wasOpen) {
     return
@@ -275,8 +166,6 @@ onBeforeUnmount(() => {
       data-testid="project-list-gantt-dialog-backdrop"
       @click.self="closeDialog"
     >
-      <div aria-hidden="true" class="project-list-gantt-dialog__glow" />
-
       <section class="project-list-gantt-dialog" data-testid="project-list-gantt-dialog">
         <header class="project-list-gantt-dialog__header">
           <div class="project-list-gantt-dialog__copy">
@@ -331,61 +220,20 @@ onBeforeUnmount(() => {
           当前筛选条件下没有可展示的项目排期。
         </section>
 
-        <div v-else class="project-list-gantt-dialog__body-scroll smooth-scroll-surface">
-          <div class="project-list-gantt-dialog__body">
-            <aside class="project-list-gantt-dialog__sidebar">
-              <div class="project-list-gantt-dialog__sidebar-head">
-                <span>项目</span>
-                <span>摘要</span>
-              </div>
-
-              <div
-                ref="sidebarScrollRef"
-                data-testid="project-list-gantt-sidebar-scroll"
-                class="project-list-gantt-dialog__sidebar-scroll smooth-scroll-surface"
-                @wheel="handleSidebarWheel"
-              >
-                <div ref="sidebarRowsRailRef" class="project-list-gantt-dialog__sidebar-rows-rail">
-                  <div
-                    v-for="project in projects"
-                    :key="project.id"
-                    :data-testid="`project-list-gantt-row-${project.id}`"
-                    class="project-list-gantt-dialog__sidebar-row"
-                  >
-                    <strong>{{ project.name }}</strong>
-                    <div class="project-list-gantt-dialog__sidebar-meta">
-                      <span
-                        :class="[
-                          'project-list-gantt-dialog__status-pill',
-                          `project-list-gantt-dialog__status-pill--${getWorkStatusTone(project.status)}`,
-                        ]"
-                      >
-                        {{ getWorkStatusLabel(project.status) }}
-                      </span>
-                      <span>{{ project.owner_real_name }}</span>
-                    </div>
-                  </div>
+        <div v-else class="project-list-gantt-dialog__body-scroll">
+          <div
+            data-testid="project-list-gantt-table-scroll"
+            class="project-list-gantt-dialog__table-scroll smooth-scroll-surface"
+          >
+            <div class="project-list-gantt-dialog__table" :style="tableStyle">
+              <div class="project-list-gantt-dialog__table-header">
+                <div class="project-list-gantt-dialog__header-cell project-list-gantt-dialog__header-cell--project">
+                  项目
                 </div>
-              </div>
-            </aside>
-
-            <div class="project-list-gantt-dialog__timeline-shell">
-              <div
-                ref="topScrollRef"
-                data-testid="project-list-gantt-top-scroll"
-                class="project-list-gantt-dialog__top-scroll smooth-scroll-surface"
-                @scroll="handleTopHorizontalScroll"
-              >
-                <div
-                  aria-hidden="true"
-                  data-testid="project-list-gantt-top-scroll-content"
-                  class="project-list-gantt-dialog__top-scroll-content"
-                  :style="timelineCanvasStyle"
-                />
-              </div>
-
-              <div ref="axisScrollRef" class="project-list-gantt-dialog__axis-scroll-viewport">
-                <div class="project-list-gantt-dialog__axis" data-testid="project-list-gantt-axis" :style="timelineCanvasStyle">
+                <div class="project-list-gantt-dialog__header-cell project-list-gantt-dialog__header-cell--status">
+                  状态
+                </div>
+                <div class="project-list-gantt-dialog__axis" data-testid="project-list-gantt-axis">
                   <div
                     v-for="item in axisItems"
                     :key="item.key"
@@ -401,35 +249,42 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div
-                ref="timelineScrollRef"
-                data-testid="project-list-gantt-timeline-scroll"
-                class="project-list-gantt-dialog__timeline-scroll-host smooth-scroll-surface"
-                @scroll="handleTimelineScroll"
-              >
-                <div class="project-list-gantt-dialog__timeline-canvas" :style="timelineCanvasStyle">
-                  <div data-testid="project-list-gantt-rows-scroll" class="project-list-gantt-dialog__rows-viewport">
-                    <div class="project-list-gantt-dialog__rows">
-                      <div
-                        v-for="project in projects"
-                        :key="project.id"
-                        class="project-list-gantt-dialog__row"
+              <div class="project-list-gantt-dialog__table-body">
+                <div
+                  v-for="project in projects"
+                  :key="project.id"
+                  :data-testid="`project-list-gantt-row-${project.id}`"
+                  class="project-list-gantt-dialog__table-row"
+                >
+                  <div class="project-list-gantt-dialog__row-label">
+                    <strong>{{ project.name }}</strong>
+                  </div>
+
+                  <div class="project-list-gantt-dialog__row-status">
+                    <span
+                      :class="[
+                        'project-list-gantt-dialog__status-pill',
+                        `project-list-gantt-dialog__status-pill--${getWorkStatusTone(project.status)}`,
+                      ]"
+                    >
+                      {{ getWorkStatusLabel(project.status) }}
+                    </span>
+                  </div>
+
+                  <div class="project-list-gantt-dialog__timeline-cell">
+                    <div class="project-list-gantt-dialog__track">
+                      <button
+                        :aria-label="`打开项目 ${project.name} 的详情页`"
+                        :class="[
+                          'project-list-gantt-dialog__bar',
+                          `project-list-gantt-dialog__bar--${getWorkStatusTone(project.status)}`,
+                        ]"
+                        :style="getBarStyle(project)"
+                        type="button"
+                        @click="openProject(project)"
                       >
-                        <div class="project-list-gantt-dialog__track">
-                          <button
-                            :aria-label="`打开项目 ${project.name} 的详情页`"
-                            :class="[
-                              'project-list-gantt-dialog__bar',
-                              `project-list-gantt-dialog__bar--${getWorkStatusTone(project.status)}`,
-                            ]"
-                            :style="getBarStyle(project)"
-                            type="button"
-                            @click="openProject(project)"
-                          >
-                            <span>{{ project.name }}</span>
-                          </button>
-                        </div>
-                      </div>
+                        <span>{{ project.name }}</span>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -446,30 +301,34 @@ onBeforeUnmount(() => {
 .project-list-gantt-dialog {
   --project-list-gantt-axis-height: 58px;
   --project-list-gantt-row-height: 72px;
+  --project-list-gantt-project-column-width: 248px;
+  --project-list-gantt-status-column-width: 112px;
+  --project-list-gantt-timeline-width: 0px;
+  --project-list-gantt-divider: color-mix(in srgb, var(--border-soft) 78%, transparent);
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  position: relative;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, var(--border-soft));
+  border-radius: 24px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 98%, transparent), color-mix(in srgb, var(--panel-bg) 94%, transparent));
+  box-shadow: 0 18px 40px rgba(3, 10, 24, 0.28);
+  overflow: hidden;
+  transform-origin: var(--project-list-gantt-origin-x) var(--project-list-gantt-origin-y);
 }
 
 .project-list-gantt-dialog-enter-active,
 .project-list-gantt-dialog-leave-active {
   transition:
-    opacity 420ms ease-out,
-    background-color 420ms ease-out;
+    opacity 220ms ease-out,
+    background-color 220ms ease-out;
 }
 
 .project-list-gantt-dialog-enter-active .project-list-gantt-dialog,
 .project-list-gantt-dialog-leave-active .project-list-gantt-dialog {
   transition:
-    opacity 420ms cubic-bezier(0.16, 1, 0.3, 1),
-    transform 480ms cubic-bezier(0.16, 1, 0.3, 1),
-    box-shadow 460ms ease-out,
-    filter 420ms ease-out;
-}
-
-.project-list-gantt-dialog-enter-active .project-list-gantt-dialog__glow,
-.project-list-gantt-dialog-leave-active .project-list-gantt-dialog__glow {
-  transition:
-    opacity 520ms ease-out,
-    transform 580ms cubic-bezier(0.16, 1, 0.3, 1),
-    filter 520ms ease-out;
+    opacity 240ms ease-out,
+    transform 260ms cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 .project-list-gantt-dialog-enter-from,
@@ -477,106 +336,25 @@ onBeforeUnmount(() => {
   opacity: 0;
 }
 
-.project-list-gantt-dialog-enter-from .project-list-gantt-dialog__glow,
-.project-list-gantt-dialog-leave-to .project-list-gantt-dialog__glow {
-  opacity: 0;
-  transform: translate(-50%, -50%) scale(0.58);
-  filter: blur(40px);
-}
-
 .project-list-gantt-dialog-enter-from .project-list-gantt-dialog,
 .project-list-gantt-dialog-leave-to .project-list-gantt-dialog {
   opacity: 0;
   transform:
-    perspective(1320px)
     translate3d(var(--project-list-gantt-translate-x), var(--project-list-gantt-translate-y), 0)
-    scale(0.78)
-    rotateX(5deg);
-  filter: blur(7px);
+    scale(0.98);
 }
 
 .project-list-gantt-dialog__backdrop {
   --project-list-gantt-origin-x: 50vw;
   --project-list-gantt-origin-y: 18vh;
   --project-list-gantt-translate-x: 0px;
-  --project-list-gantt-translate-y: 26px;
+  --project-list-gantt-translate-y: 18px;
   position: fixed;
   inset: 0;
   z-index: 90;
   display: grid;
   padding: 20px;
-  isolation: isolate;
-  background:
-    radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--accent-end) 20%, transparent), transparent 22%),
-    radial-gradient(circle at 82% 76%, color-mix(in srgb, var(--accent-start) 14%, transparent), transparent 24%),
-    rgba(4, 10, 20, 0.72);
-}
-
-.project-list-gantt-dialog__backdrop::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(var(--overlay-grid-line) 1px, transparent 1px),
-    linear-gradient(90deg, var(--overlay-grid-line) 1px, transparent 1px);
-  background-size: 28px 28px;
-  opacity: 0.12;
-  pointer-events: none;
-}
-
-.project-list-gantt-dialog__glow {
-  position: absolute;
-  left: var(--project-list-gantt-origin-x);
-  top: var(--project-list-gantt-origin-y);
-  width: min(62vw, 680px);
-  height: min(62vw, 680px);
-  border-radius: 999px;
-  background:
-    radial-gradient(circle, rgba(0, 194, 255, 0.28) 0%, rgba(10, 102, 255, 0.18) 38%, transparent 72%);
-  filter: blur(20px);
-  opacity: 0.42;
-  transform: translate(-50%, -50%);
-  pointer-events: none;
-}
-
-.project-list-gantt-dialog {
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  position: relative;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 24%, var(--border-soft));
-  border-radius: 28px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 96%, transparent), color-mix(in srgb, var(--panel-bg) 88%, transparent)),
-    radial-gradient(circle at top left, color-mix(in srgb, var(--accent-end) 10%, transparent), transparent 38%);
-  box-shadow:
-    0 26px 60px rgba(3, 10, 24, 0.42),
-    inset 0 1px 0 color-mix(in srgb, #ffffff 10%, transparent);
-  overflow: hidden;
-  transform-origin: var(--project-list-gantt-origin-x) var(--project-list-gantt-origin-y);
-}
-
-.project-list-gantt-dialog::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  border: 1px solid color-mix(in srgb, var(--dialog-surface-border) 60%, transparent);
-  background:
-    linear-gradient(135deg, color-mix(in srgb, var(--accent-end) 10%, transparent), transparent 42%),
-    linear-gradient(180deg, transparent, color-mix(in srgb, var(--accent-start) 4%, transparent));
-  pointer-events: none;
-}
-
-.project-list-gantt-dialog::after {
-  content: '';
-  position: absolute;
-  inset: 0 auto auto 0;
-  width: 38%;
-  height: 1px;
-  background: linear-gradient(90deg, rgba(0, 194, 255, 0.84), transparent);
-  box-shadow: 0 0 16px rgba(0, 194, 255, 0.34);
-  pointer-events: none;
+  background: rgba(4, 10, 20, 0.68);
 }
 
 .project-list-gantt-dialog__header {
@@ -584,8 +362,8 @@ onBeforeUnmount(() => {
   align-items: start;
   justify-content: space-between;
   gap: 18px;
-  padding: 24px 28px 20px;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
+  padding: 24px 24px 18px;
+  border-bottom: 1px solid var(--project-list-gantt-divider);
 }
 
 .project-list-gantt-dialog__copy {
@@ -608,7 +386,7 @@ onBeforeUnmount(() => {
 }
 
 .project-list-gantt-dialog__copy h3 {
-  font-size: clamp(1.5rem, 2.4vw, 2rem);
+  font-size: clamp(1.4rem, 2.2vw, 1.9rem);
 }
 
 .project-list-gantt-dialog__copy p {
@@ -625,11 +403,11 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--glass-bg) 86%, transparent);
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--project-list-gantt-divider);
+  border-radius: 12px;
+  background: var(--panel-bg);
   color: var(--text-main);
   cursor: pointer;
 }
@@ -642,9 +420,9 @@ onBeforeUnmount(() => {
 .project-list-gantt-dialog__state {
   margin: 24px;
   padding: 20px;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
-  border-radius: 20px;
-  background: color-mix(in srgb, var(--glass-bg) 88%, transparent);
+  border: 1px solid var(--project-list-gantt-divider);
+  border-radius: 18px;
+  background: var(--panel-bg);
   color: var(--text-soft);
 }
 
@@ -675,93 +453,154 @@ onBeforeUnmount(() => {
 .project-list-gantt-dialog__body-scroll {
   min-height: 0;
   padding: 0 24px 24px;
+}
+
+.project-list-gantt-dialog__table-scroll {
+  min-height: 0;
+  height: 100%;
   overflow: auto;
+  border: 1px solid var(--project-list-gantt-divider);
+  border-radius: 18px;
+  background: var(--panel-bg);
+  overscroll-behavior: contain;
 }
 
-.project-list-gantt-dialog__body {
-  min-height: 100%;
+.project-list-gantt-dialog__table {
+  width: calc(
+    var(--project-list-gantt-project-column-width)
+    + var(--project-list-gantt-status-column-width)
+    + var(--project-list-gantt-timeline-width)
+  );
+  min-width: 100%;
+}
+
+.project-list-gantt-dialog__table-header,
+.project-list-gantt-dialog__table-row {
   display: grid;
-  grid-template-columns: minmax(220px, 300px) minmax(0, 1fr);
-  gap: 16px;
+  grid-template-columns:
+    var(--project-list-gantt-project-column-width)
+    var(--project-list-gantt-status-column-width)
+    var(--project-list-gantt-timeline-width);
 }
 
-.project-list-gantt-dialog__sidebar,
-.project-list-gantt-dialog__timeline-shell {
-  min-height: 0;
-  border: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
-  border-radius: 22px;
-  background: color-mix(in srgb, var(--glass-bg) 84%, transparent);
-  overflow: hidden;
+.project-list-gantt-dialog__table-header {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  min-height: var(--project-list-gantt-axis-height);
+  border-bottom: 1px solid var(--project-list-gantt-divider);
+  background: var(--panel-bg);
 }
 
-.project-list-gantt-dialog__sidebar {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-}
-
-.project-list-gantt-dialog__sidebar-scroll {
-  min-height: 0;
-  overflow: hidden;
-}
-
-.project-list-gantt-dialog__sidebar-rows-rail {
-  transform: translateY(0);
-}
-
-.project-list-gantt-dialog__sidebar-head,
-.project-list-gantt-dialog__sidebar-row {
-  box-sizing: border-box;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
+.project-list-gantt-dialog__header-cell,
+.project-list-gantt-dialog__row-label,
+.project-list-gantt-dialog__row-status {
+  display: flex;
   align-items: center;
-  padding: 16px 18px;
+  min-width: 0;
+  padding: 0 16px;
+  border-right: 1px solid var(--project-list-gantt-divider);
+  background: var(--panel-bg);
 }
 
-.project-list-gantt-dialog__sidebar-head {
-  height: var(--project-list-gantt-axis-height);
+.project-list-gantt-dialog__header-cell {
   color: var(--text-soft);
-  font-size: 0.75rem;
+  font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
 }
 
-.project-list-gantt-dialog__sidebar-row {
-  height: var(--project-list-gantt-row-height);
-  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
-  contain: layout paint;
+.project-list-gantt-dialog__header-cell--project,
+.project-list-gantt-dialog__row-label {
+  position: sticky;
+  left: 0;
 }
 
-.project-list-gantt-dialog__sidebar-row:last-child {
+.project-list-gantt-dialog__header-cell--status,
+.project-list-gantt-dialog__row-status {
+  position: sticky;
+  left: var(--project-list-gantt-project-column-width);
+}
+
+.project-list-gantt-dialog__header-cell--project {
+  z-index: 9;
+}
+
+.project-list-gantt-dialog__header-cell--status {
+  z-index: 8;
+}
+
+.project-list-gantt-dialog__row-label {
+  z-index: 4;
+}
+
+.project-list-gantt-dialog__row-status {
+  z-index: 3;
+  justify-content: center;
+}
+
+.project-list-gantt-dialog__axis {
+  display: flex;
+  min-height: var(--project-list-gantt-axis-height);
+  background: var(--panel-bg);
+}
+
+.project-list-gantt-dialog__axis-cell {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--project-list-gantt-axis-height);
+  border-right: 1px solid var(--project-list-gantt-divider);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.project-list-gantt-dialog__table-body {
+  display: grid;
+}
+
+.project-list-gantt-dialog__table-row {
+  min-height: var(--project-list-gantt-row-height);
+  border-bottom: 1px solid var(--project-list-gantt-divider);
+}
+
+.project-list-gantt-dialog__table-row:last-child {
   border-bottom: 0;
 }
 
-.project-list-gantt-dialog__sidebar-row strong {
+.project-list-gantt-dialog__row-label strong {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.project-list-gantt-dialog__sidebar-meta {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-soft);
-  font-size: 0.82rem;
+.project-list-gantt-dialog__timeline-cell {
+  min-width: 0;
+  background: var(--panel-bg);
+}
+
+.project-list-gantt-dialog__track {
+  position: relative;
+  height: var(--project-list-gantt-row-height);
+  background: var(--panel-bg);
 }
 
 .project-list-gantt-dialog__status-pill {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   min-height: 28px;
   padding: 0 10px;
   border-radius: 999px;
   border: 1px solid transparent;
   font-size: 0.78rem;
   font-weight: 700;
+  white-space: nowrap;
 }
 
 .project-list-gantt-dialog__status-pill--pending {
@@ -788,98 +627,21 @@ onBeforeUnmount(() => {
   color: var(--work-status-delayed-color);
 }
 
-.project-list-gantt-dialog__timeline-shell {
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
-  background: var(--panel-bg);
-  overflow: hidden;
-}
-
-.project-list-gantt-dialog__top-scroll {
-  height: 18px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  background: var(--panel-bg);
-  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
-}
-
-.project-list-gantt-dialog__top-scroll-content {
-  height: 1px;
-}
-
-.project-list-gantt-dialog__axis-scroll-viewport {
-  overflow: hidden;
-  background: var(--panel-bg);
-  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
-}
-
-.project-list-gantt-dialog__timeline-scroll-host {
-  min-height: 0;
-  height: 100%;
-  background: var(--panel-bg);
-  overflow-x: auto;
-  overflow-y: auto;
-}
-
-.project-list-gantt-dialog__timeline-canvas {
-  min-width: 100%;
-  min-height: 100%;
-}
-
-.project-list-gantt-dialog__axis {
-  display: flex;
-  background: var(--panel-bg);
-}
-
-.project-list-gantt-dialog__axis-cell {
-  flex: 0 0 auto;
-  height: var(--project-list-gantt-axis-height);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-right: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
-  color: var(--text-soft);
-  font-size: 0.82rem;
-  font-weight: 700;
-}
-
-.project-list-gantt-dialog__rows {
-  display: grid;
-}
-
-.project-list-gantt-dialog__rows-viewport {
-  min-height: 0;
-}
-
-.project-list-gantt-dialog__row {
-  box-sizing: border-box;
-  height: var(--project-list-gantt-row-height);
-  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
-  contain: layout paint;
-}
-
-.project-list-gantt-dialog__track {
-  position: relative;
-  height: var(--project-list-gantt-row-height);
-  background: var(--panel-bg);
-}
-
 .project-list-gantt-dialog__bar {
   position: absolute;
-  top: 16px;
-  height: 40px;
+  top: 50%;
+  height: 36px;
   display: inline-flex;
   align-items: center;
   justify-content: start;
   padding: 0 14px;
   border: 0;
-  border-radius: 999px;
-  color: #f8fbff;
+  border-radius: 10px;
   font: inherit;
   font-size: 0.84rem;
   font-weight: 700;
   cursor: pointer;
+  transform: translateY(-50%);
 }
 
 .project-list-gantt-dialog__bar span {
@@ -922,8 +684,17 @@ onBeforeUnmount(() => {
     justify-content: space-between;
   }
 
-  .project-list-gantt-dialog__body {
-    grid-template-columns: 1fr;
+  .project-list-gantt-dialog {
+    --project-list-gantt-project-column-width: 210px;
+    --project-list-gantt-status-column-width: 96px;
+  }
+
+  .project-list-gantt-dialog__body-scroll {
+    padding: 0 12px 12px;
+  }
+
+  .project-list-gantt-dialog__header {
+    padding: 20px 16px 16px;
   }
 }
 </style>
