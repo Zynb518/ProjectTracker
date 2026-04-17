@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 import type { GanttScale, GanttSubtaskSummary, ProjectNodeSubtaskGantt } from '@/types/gantt'
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout } from '@/utils/gantt'
+import { normalizeWheelDelta } from '@/utils/smoothWheel'
 
 const props = withDefaults(defineProps<{
   error?: string | null
@@ -32,8 +33,11 @@ const DETAIL_HIDE_DELAY_MS = 180
 const DETAIL_CARD_EDGE_GAP_PX = 24
 const DETAIL_CARD_HEIGHT_HINT_PX = 220
 const DETAIL_CARD_WIDTH_PX = 288
+const sidebarRowsRailRef = ref<HTMLElement | null>(null)
 const axisScrollRef = ref<HTMLElement | null>(null)
+const topScrollRef = ref<HTMLElement | null>(null)
 const rowsScrollRef = ref<HTMLElement | null>(null)
+const ignoredHorizontalScroll = new WeakMap<HTMLElement, number>()
 
 const dialogRange = computed(() => {
   if (props.gantt === null) {
@@ -187,20 +191,112 @@ function clearSubtaskDetail(subtaskId?: number) {
   scheduleHideSubtaskDetail()
 }
 
-function syncHorizontalScroll(source: HTMLElement | null, target: HTMLElement | null) {
-  if (source === null || target === null || source.scrollLeft === target.scrollLeft) {
+function markIgnoredScroll(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  target: HTMLElement,
+  value: number,
+) {
+  ignoredScrollMap.set(target, value)
+}
+
+function shouldIgnoreProgrammaticScroll(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  source: HTMLElement | null,
+  scrollKey: 'scrollLeft' | 'scrollTop',
+) {
+  if (source === null) {
+    return false
+  }
+
+  const ignoredValue = ignoredScrollMap.get(source)
+
+  if (ignoredValue === undefined) {
+    return false
+  }
+
+  const currentValue = source[scrollKey]
+
+  if (currentValue === ignoredValue) {
+    ignoredScrollMap.delete(source)
+    return true
+  }
+
+  ignoredScrollMap.delete(source)
+  return false
+}
+
+function syncScrollPosition(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  source: HTMLElement | null,
+  target: HTMLElement | null,
+  scrollKey: 'scrollLeft' | 'scrollTop',
+) {
+  if (source === null || target === null) {
     return
   }
 
-  target.scrollLeft = source.scrollLeft
+  const value = source[scrollKey]
+
+  if (target[scrollKey] === value) {
+    return
+  }
+
+  markIgnoredScroll(ignoredScrollMap, target, value)
+  target[scrollKey] = value
 }
 
-function handleAxisScroll() {
-  syncHorizontalScroll(axisScrollRef.value, rowsScrollRef.value)
+function syncSidebarOffset(scrollTop: number) {
+  if (sidebarRowsRailRef.value !== null) {
+    sidebarRowsRailRef.value.style.transform = `translateY(-${scrollTop}px)`
+  }
+}
+
+function handleSidebarWheel(event: WheelEvent) {
+  if (event.defaultPrevented || event.ctrlKey || rowsScrollRef.value === null) {
+    return
+  }
+
+  const delta = normalizeWheelDelta(event, rowsScrollRef.value.clientHeight).y
+
+  if (Math.abs(delta) < 0.1) {
+    return
+  }
+
+  const maxScrollTop = Math.max(rowsScrollRef.value.scrollHeight - rowsScrollRef.value.clientHeight, 0)
+  const unclampedScrollTop = rowsScrollRef.value.scrollTop + delta
+  const nextScrollTop = maxScrollTop > 0
+    ? Math.min(Math.max(unclampedScrollTop, 0), maxScrollTop)
+    : unclampedScrollTop
+
+  if (nextScrollTop === rowsScrollRef.value.scrollTop) {
+    return
+  }
+
+  event.preventDefault()
+  rowsScrollRef.value.scrollTop = nextScrollTop
+  syncSidebarOffset(nextScrollTop)
+}
+
+function handleTopHorizontalScroll() {
+  if (!shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, topScrollRef.value, 'scrollLeft')) {
+    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, rowsScrollRef.value, 'scrollLeft')
+    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, axisScrollRef.value, 'scrollLeft')
+  }
 }
 
 function handleRowsScroll() {
-  syncHorizontalScroll(rowsScrollRef.value, axisScrollRef.value)
+  if (rowsScrollRef.value === null) {
+    return
+  }
+
+  syncSidebarOffset(rowsScrollRef.value.scrollTop)
+
+  if (shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, rowsScrollRef.value, 'scrollLeft')) {
+    return
+  }
+
+  syncScrollPosition(ignoredHorizontalScroll, rowsScrollRef.value, topScrollRef.value, 'scrollLeft')
+  syncScrollPosition(ignoredHorizontalScroll, rowsScrollRef.value, axisScrollRef.value, 'scrollLeft')
 }
 
 onBeforeUnmount(() => {
@@ -269,55 +365,66 @@ onBeforeUnmount(() => {
           该阶段下暂无子任务排期。
         </section>
 
-        <div
-          v-else
-          v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"
-          class="node-gantt-dialog__body-scroll smooth-scroll-surface"
-        >
+        <div v-else class="node-gantt-dialog__body-scroll smooth-scroll-surface">
           <div class="node-gantt-dialog__body">
             <aside class="node-gantt-dialog__sidebar">
+              <div aria-hidden="true" class="node-gantt-dialog__sidebar-top-spacer" />
               <div class="node-gantt-dialog__sidebar-head">
                 <span>子任务</span>
                 <span>状态</span>
               </div>
 
               <div
-                v-for="subtask in gantt.subtasks"
-                :key="subtask.id"
-                :data-testid="`node-gantt-row-label-${subtask.id}`"
-                class="node-gantt-dialog__sidebar-row"
+                data-testid="node-gantt-sidebar-scroll"
+                class="node-gantt-dialog__sidebar-scroll smooth-scroll-surface"
+                @wheel="handleSidebarWheel"
               >
-                <strong>{{ subtask.name }}</strong>
-                <span
-                  :class="[
-                    'node-gantt-dialog__status-pill',
-                    `node-gantt-dialog__status-pill--${getWorkStatusTone(subtask.status)}`,
-                  ]"
-                >
-                  {{ getWorkStatusLabel(subtask.status) }}
-                </span>
+                <div ref="sidebarRowsRailRef" class="node-gantt-dialog__sidebar-rows-rail">
+                  <div
+                    v-for="subtask in gantt.subtasks"
+                    :key="subtask.id"
+                    :data-testid="`node-gantt-row-label-${subtask.id}`"
+                    class="node-gantt-dialog__sidebar-row"
+                  >
+                    <strong>{{ subtask.name }}</strong>
+                    <span
+                      :class="[
+                        'node-gantt-dialog__status-pill',
+                        `node-gantt-dialog__status-pill--${getWorkStatusTone(subtask.status)}`,
+                      ]"
+                    >
+                      {{ getWorkStatusLabel(subtask.status) }}
+                    </span>
+                  </div>
+                </div>
               </div>
             </aside>
 
             <div class="node-gantt-dialog__timeline-shell">
               <div
-                ref="axisScrollRef"
+                ref="topScrollRef"
                 data-testid="node-gantt-axis-scroll"
-                v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"
-                class="node-gantt-dialog__axis-scroll smooth-scroll-surface"
-                @scroll="handleAxisScroll"
+                class="node-gantt-dialog__top-scroll smooth-scroll-surface"
+                @scroll="handleTopHorizontalScroll"
               >
-                <div class="node-gantt-dialog__timeline-canvas" :style="timelineCanvasStyle">
-                  <div class="node-gantt-dialog__axis" data-testid="node-gantt-axis">
-                    <div
-                      v-for="item in axisItems"
-                      :key="item.key"
-                      :class="['node-gantt-dialog__axis-cell', `node-gantt-dialog__axis-cell--${scale}`]"
-                      :style="{ width: `${item.widthPx}px` }"
-                      :title="`${item.startDate} 至 ${item.endDate}`"
-                    >
-                      {{ item.label }}
-                    </div>
+                <div
+                  aria-hidden="true"
+                  data-testid="node-gantt-top-scroll-content"
+                  class="node-gantt-dialog__top-scroll-content"
+                  :style="timelineCanvasStyle"
+                />
+              </div>
+
+              <div ref="axisScrollRef" class="node-gantt-dialog__axis-scroll">
+                <div class="node-gantt-dialog__axis" data-testid="node-gantt-axis" :style="timelineCanvasStyle">
+                  <div
+                    v-for="item in axisItems"
+                    :key="item.key"
+                    :class="['node-gantt-dialog__axis-cell', `node-gantt-dialog__axis-cell--${scale}`]"
+                    :style="{ width: `${item.widthPx}px` }"
+                    :title="`${item.startDate} 至 ${item.endDate}`"
+                  >
+                    {{ item.label }}
                   </div>
                 </div>
               </div>
@@ -325,7 +432,6 @@ onBeforeUnmount(() => {
               <div
                 ref="rowsScrollRef"
                 data-testid="node-gantt-rows-scroll"
-                v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"
                 class="node-gantt-dialog__timeline-scroll smooth-scroll-surface"
                 @scroll="handleRowsScroll"
               >
@@ -437,6 +543,12 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.node-gantt-dialog {
+  --node-gantt-top-scroll-height: 18px;
+  --node-gantt-axis-height: 56px;
+  --node-gantt-row-height: 62px;
+}
+
 .node-gantt-dialog__backdrop {
   position: fixed;
   inset: 0;
@@ -560,52 +672,99 @@ onBeforeUnmount(() => {
 
 .node-gantt-dialog__body-scroll {
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
   padding-right: 4px;
 }
 
 .node-gantt-dialog__body {
   min-height: 0;
+  height: 100%;
   min-width: 0;
+  width: 100%;
   display: grid;
   grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
-  gap: 18px;
-}
-
-.node-gantt-dialog__sidebar {
-  display: grid;
-  gap: 10px;
-}
-
-.node-gantt-dialog__sidebar-head,
-.node-gantt-dialog__sidebar-row {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 12px;
-  align-items: center;
-  min-height: 62px;
-  padding: 14px 16px;
+  gap: 0;
   border: 1px solid var(--dialog-control-border);
-  border-radius: 18px;
+  border-radius: 22px;
   background: var(--dialog-control-bg), var(--meta-surface-glow);
   box-shadow: var(--dialog-control-shadow);
 }
 
-.node-gantt-dialog__sidebar-row {
+.node-gantt-dialog__sidebar,
+.node-gantt-dialog__timeline-shell {
+  min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+}
+
+.node-gantt-dialog__sidebar {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
+  border-right: 1px solid var(--dialog-control-border);
   overflow: hidden;
+}
+
+.node-gantt-dialog__sidebar-top-spacer,
+.node-gantt-dialog__sidebar-head,
+.node-gantt-dialog__sidebar-row {
+  box-sizing: border-box;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+  padding: 0 16px;
+}
+
+.node-gantt-dialog__sidebar-top-spacer {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: var(--node-gantt-top-scroll-height);
+  padding: 0;
+  border-bottom: 1px solid var(--dialog-control-border);
+  background: var(--dialog-control-bg);
+}
+
+.node-gantt-dialog__sidebar-row {
+  height: var(--node-gantt-row-height);
+  border-bottom: 1px solid var(--dialog-control-border);
+  overflow: hidden;
+  contain: layout paint;
   content-visibility: auto;
   contain-intrinsic-size: 62px;
+  background: var(--dialog-control-bg);
 }
 
 .node-gantt-dialog__sidebar-head {
   position: sticky;
-  top: 0;
+  top: var(--node-gantt-top-scroll-height);
   z-index: 3;
-  min-height: 56px;
+  height: var(--node-gantt-axis-height);
+  min-height: var(--node-gantt-axis-height);
+  border-bottom: 1px solid var(--dialog-control-border);
   font-size: 0.78rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-soft);
+  background: var(--dialog-control-bg);
+}
+
+.node-gantt-dialog__sidebar-scroll {
+  min-height: 0;
+  overflow: hidden;
+  background: var(--dialog-control-bg);
+}
+
+.node-gantt-dialog__sidebar-rows-rail {
+  transform: translateY(0);
+}
+
+.node-gantt-dialog__sidebar-row:last-child {
+  border-bottom: 0;
 }
 
 .node-gantt-dialog__sidebar-row strong {
@@ -658,51 +817,77 @@ onBeforeUnmount(() => {
 .node-gantt-dialog__timeline-shell {
   min-width: 0;
   display: grid;
-  gap: 10px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
 }
 
-.node-gantt-dialog__axis-scroll {
+.node-gantt-dialog__top-scroll {
+  box-sizing: border-box;
   position: sticky;
   top: 0;
   z-index: 4;
-  overflow-x: scroll;
+  height: var(--node-gantt-top-scroll-height);
+  overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 4px;
+  border-bottom: 1px solid var(--dialog-control-border);
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--accent-end) 58%, var(--panel-bg)) color-mix(in srgb, var(--panel-bg) 84%, transparent);
+  background: var(--dialog-control-bg);
 }
 
-.node-gantt-dialog__axis-scroll::-webkit-scrollbar {
-  height: 12px;
+.node-gantt-dialog__top-scroll-content {
+  height: 1px;
 }
 
-.node-gantt-dialog__axis-scroll::-webkit-scrollbar-track {
+.node-gantt-dialog__top-scroll::-webkit-scrollbar {
+  height: var(--node-gantt-top-scroll-height);
+}
+
+.node-gantt-dialog__top-scroll::-webkit-scrollbar-track {
   border-radius: 999px;
   background: color-mix(in srgb, var(--panel-bg) 84%, transparent);
 }
 
-.node-gantt-dialog__axis-scroll::-webkit-scrollbar-thumb {
+.node-gantt-dialog__top-scroll::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent-start) 72%, #0d2754 28%), color-mix(in srgb, var(--accent-end) 72%, #0f2c5b 28%));
   background-clip: padding-box;
 }
 
+.node-gantt-dialog__axis-scroll {
+  box-sizing: border-box;
+  position: sticky;
+  top: var(--node-gantt-top-scroll-height);
+  z-index: 3;
+  height: var(--node-gantt-axis-height);
+  overflow: hidden;
+  background: var(--dialog-control-bg);
+}
+
 .node-gantt-dialog__timeline-scroll {
-  overflow-x: hidden;
-  overflow-y: hidden;
+  min-height: 0;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
   padding-bottom: 0;
 }
 
 .node-gantt-dialog__timeline-canvas {
   min-width: 100%;
+  min-height: 100%;
   box-sizing: content-box;
 }
 
 .node-gantt-dialog__axis {
+  box-sizing: border-box;
   display: flex;
-  min-height: 56px;
+  min-height: 100%;
+  height: 100%;
+  border-bottom: 1px solid var(--dialog-control-border);
   background: color-mix(in srgb, var(--glass-bg) 96%, transparent);
 }
 
@@ -712,8 +897,6 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-start;
   padding: 0 12px;
-  border-top: 1px solid color-mix(in srgb, var(--accent-line) 20%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 20%, transparent);
   border-right: 1px solid color-mix(in srgb, var(--accent-line) 16%, transparent);
   font-size: 0.8rem;
   color: var(--text-soft);
@@ -743,33 +926,31 @@ onBeforeUnmount(() => {
 
 .node-gantt-dialog__axis-cell:first-child {
   border-left: 1px solid color-mix(in srgb, var(--accent-line) 20%, transparent);
-  border-top-left-radius: 16px;
-  border-bottom-left-radius: 16px;
-}
-
-.node-gantt-dialog__axis-cell:last-child {
-  border-top-right-radius: 16px;
-  border-bottom-right-radius: 16px;
 }
 
 .node-gantt-dialog__rows {
   display: grid;
-  gap: 10px;
 }
 
 .node-gantt-dialog__row {
-  min-height: 62px;
+  box-sizing: border-box;
+  height: var(--node-gantt-row-height);
+  border-bottom: 1px solid var(--dialog-control-border);
   contain: layout paint;
   content-visibility: auto;
   contain-intrinsic-size: 62px;
 }
 
+.node-gantt-dialog__row:last-child {
+  border-bottom: 0;
+}
+
 .node-gantt-dialog__track {
   position: relative;
-  min-height: 62px;
+  height: 100%;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, transparent);
-  border-radius: 18px;
+  border: 0;
+  border-radius: 0;
   background: linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 6%, var(--dialog-control-bg-strong)), color-mix(in srgb, var(--accent-start) 3%, var(--dialog-control-bg)));
 }
 
@@ -1096,7 +1277,7 @@ onBeforeUnmount(() => {
   }
 
   .node-gantt-dialog__body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(200px, 220px) minmax(0, 1fr);
   }
 
   .node-gantt-dialog__detail-grid {

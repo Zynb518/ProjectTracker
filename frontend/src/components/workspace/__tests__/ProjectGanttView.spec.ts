@@ -370,31 +370,86 @@ describe('ProjectGanttView', () => {
     expect(source).not.toContain('repeating-linear-gradient(90deg')
   })
 
-  it('uses an internal 80vh scrolling viewport with a sticky stage axis', () => {
+  it('keeps desktop vertical scrolling inside the right stage timeline host so the shared headers stay visible', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
 
     expect(source).toContain('.project-gantt__body-scroll {')
     expect(source).toContain('max-height: 80vh;')
-    expect(source).toContain('overflow: auto;')
+    expect(source).toContain('overflow: hidden;')
     expect(source).toContain('class="project-gantt__body-scroll smooth-scroll-surface"')
-    expect(source).not.toContain(`v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"`)
-    expect(source).toContain('.project-gantt__axis-scroll {')
+    expect(source).not.toContain(`v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"`)
+    expect(source).toContain('project-gantt__sidebar-scroll')
+    expect(source).toContain('.project-gantt__sidebar-scroll {')
+    expect(source).toContain('.project-gantt__top-scroll {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('top: 0;')
-    expect(source).toContain("wheelBehavior: 'block'")
+    expect(source).toContain('.project-gantt__axis-scroll {')
+    expect(source).toContain('top: var(--project-gantt-top-scroll-height);')
+    expect(source).toContain('.project-gantt__timeline-scroll {')
+    expect(source).toContain('overflow-y: auto;')
   })
 
-  it('keeps the stage gantt horizontal scrollbar at the top sticky axis instead of the rows area', () => {
+  it('uses native horizontal scrolling that stays in the timeline region instead of stretching under the stage sidebar', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
 
-    expect(source).toContain('.project-gantt__axis-scroll {')
-    expect(source).toContain('overflow-x: scroll;')
-    expect(source).toContain('scrollbar-gutter: stable;')
+    expect(source).toContain('data-testid="project-gantt-axis-scroll"')
+    expect(source).toContain('project-gantt__top-scroll')
+    expect(source).toContain('.project-gantt__top-scroll {')
+    expect(source).toContain('overflow-x: auto;')
     expect(source).toContain('.project-gantt__timeline-scroll {')
-    expect(source).toContain('overflow-x: hidden;')
-    expect(source).toContain('.project-gantt__axis-scroll::-webkit-scrollbar {')
-    expect(source).toContain('height: 12px;')
+    expect(source).toContain('overflow-x: auto;')
+    expect(source).toContain('.project-gantt__top-scroll::-webkit-scrollbar {')
+    expect(source).toContain('height: var(--project-gantt-top-scroll-height);')
     expect(source).not.toContain('scrollbar-width: none;')
+  })
+
+  it('visually merges the stage sidebar and timeline into one shared shell with only a center divider', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+
+    expect(source).toContain('.project-gantt__body {')
+    expect(source).toContain('gap: 0;')
+    expect(source).toContain('border: 1px solid var(--meta-surface-border);')
+    expect(source).toContain('border-radius: 22px;')
+    expect(source).toContain('.project-gantt__sidebar,\n.project-gantt__timeline-shell {')
+    expect(source).toContain('border: 0;')
+    expect(source).toContain('border-radius: 0;')
+    expect(source).toContain('background: transparent;')
+    expect(source).toContain('.project-gantt__sidebar {')
+    expect(source).toContain('border-right: 1px solid var(--meta-surface-border);')
+  })
+
+  it('keeps the left stage header stack aligned with the right top scrollbar plus axis header heights', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+
+    expect(source).toContain('--project-gantt-top-scroll-height: 18px;')
+    expect(source).toContain('project-gantt__sidebar-top-spacer')
+    expect(source).toContain('.project-gantt__sidebar-top-spacer {')
+    expect(source).toContain('height: var(--project-gantt-top-scroll-height);')
+    expect(source).toContain('.project-gantt__top-scroll {')
+    expect(source).toContain('height: var(--project-gantt-top-scroll-height);')
+    expect(source).toContain('.project-gantt__sidebar-head {')
+    expect(source).toContain('top: var(--project-gantt-top-scroll-height);')
+    expect(source).toContain('.project-gantt__axis-scroll {')
+    expect(source).toContain('top: var(--project-gantt-top-scroll-height);')
+  })
+
+  it('keeps the left stage rows visually synced when the right timeline scrolls vertically', () => {
+    const wrapper = mount(ProjectGanttView, {
+      props: {
+        gantt: sampleProjectGantt,
+        scale: 'week',
+      },
+    })
+
+    const sidebarRail = wrapper.get('.project-gantt__sidebar-rows-rail').element as HTMLElement
+    const rowsScroll = wrapper.get('[data-testid="project-gantt-rows-scroll"]').element as HTMLElement
+
+    rowsScroll.scrollTop = 96
+    rowsScroll.dispatchEvent(new Event('scroll'))
+
+    expect(sidebarRail.style.transform).toBe('translateY(-96px)')
+
+    wrapper.unmount()
   })
 
   it('keeps the sticky stage axis free of backdrop blur and isolates each row paint to reduce scroll jank', () => {
@@ -430,12 +485,6 @@ describe('ProjectGanttView', () => {
   })
 
   it('keeps the sticky stage time axis horizontally synced with the rows scroller', () => {
-    const animationFrames: FrameRequestCallback[] = []
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      animationFrames.push(callback)
-      return animationFrames.length
-    })
-
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
@@ -448,27 +497,16 @@ describe('ProjectGanttView', () => {
 
     rowsScroll.scrollLeft = 120
     rowsScroll.dispatchEvent(new Event('scroll'))
-    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1)
-    animationFrames[0]?.(16)
     expect(axisScroll.scrollLeft).toBe(120)
 
     axisScroll.scrollLeft = 84
     axisScroll.dispatchEvent(new Event('scroll'))
-    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(2)
-    animationFrames[1]?.(32)
     expect(rowsScroll.scrollLeft).toBe(84)
 
     wrapper.unmount()
-    requestAnimationFrameSpy.mockRestore()
   })
 
-  it('coalesces mirrored horizontal sync into one animation frame for rapid stage gantt scroll events', () => {
-    const animationFrames: FrameRequestCallback[] = []
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      animationFrames.push(callback)
-      return animationFrames.length
-    })
-
+  it('ignores mirrored stage gantt scroll events so horizontal sync does not bounce back', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
@@ -482,37 +520,19 @@ describe('ProjectGanttView', () => {
     axisScroll.scrollLeft = 0
     rowsScroll.scrollLeft = 48
     rowsScroll.dispatchEvent(new Event('scroll'))
-    rowsScroll.scrollLeft = 156
-    rowsScroll.dispatchEvent(new Event('scroll'))
+    expect(axisScroll.scrollLeft).toBe(48)
 
-    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1)
-    expect(axisScroll.scrollLeft).toBe(0)
-
-    animationFrames[0]?.(16)
-    expect(axisScroll.scrollLeft).toBe(156)
-
-    axisScroll.scrollLeft = 84
     axisScroll.dispatchEvent(new Event('scroll'))
+    expect(rowsScroll.scrollLeft).toBe(48)
+
     axisScroll.scrollLeft = 24
     axisScroll.dispatchEvent(new Event('scroll'))
-
-    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(2)
-    expect(rowsScroll.scrollLeft).toBe(156)
-
-    animationFrames[1]?.(32)
     expect(rowsScroll.scrollLeft).toBe(24)
 
     wrapper.unmount()
-    requestAnimationFrameSpy.mockRestore()
   })
 
   it('does not lose stage gantt sync after a mirrored rows scroll event followed by another fast axis drag', () => {
-    const animationFrames: FrameRequestCallback[] = []
-    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
-      animationFrames.push(callback)
-      return animationFrames.length
-    })
-
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
@@ -525,20 +545,15 @@ describe('ProjectGanttView', () => {
 
     axisScroll.scrollLeft = 156
     axisScroll.dispatchEvent(new Event('scroll'))
-    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1)
-    animationFrames[0]?.(16)
     expect(rowsScroll.scrollLeft).toBe(156)
 
     rowsScroll.dispatchEvent(new Event('scroll'))
 
     axisScroll.scrollLeft = 0
     axisScroll.dispatchEvent(new Event('scroll'))
-    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(2)
-    animationFrames[1]?.(32)
     expect(rowsScroll.scrollLeft).toBe(0)
 
     wrapper.unmount()
-    requestAnimationFrameSpy.mockRestore()
   })
 
   it('emits the selected node id when a stage bar is clicked', async () => {
@@ -808,31 +823,88 @@ describe('NodeGanttDialog', () => {
     expect(source).not.toContain('repeating-linear-gradient(90deg')
   })
 
-  it('uses an 80vh constrained dialog viewport with a sticky subtask axis', () => {
+  it('keeps desktop vertical scrolling inside the right subtask timeline host so the shared headers stay visible', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeGanttDialog.vue'), 'utf8')
 
     expect(source).toContain('.node-gantt-dialog {')
     expect(source).toContain('max-height: min(80vh, calc(100vh - 32px));')
     expect(source).toContain('.node-gantt-dialog__body-scroll {')
-    expect(source).toContain('overflow: auto;')
-    expect(source).toMatch(/v-else\s+v-smooth-wheel="\{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1\.3 \}"\s+class="node-gantt-dialog__body-scroll smooth-scroll-surface"/)
-    expect(source).toContain('.node-gantt-dialog__axis-scroll {')
+    expect(source).toContain('overflow: hidden;')
+    expect(source).toContain('class="node-gantt-dialog__body-scroll smooth-scroll-surface"')
+    expect(source).not.toContain(`v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"`)
+    expect(source).toContain('node-gantt-dialog__sidebar-scroll')
+    expect(source).toContain('.node-gantt-dialog__sidebar-scroll {')
+    expect(source).toContain('.node-gantt-dialog__top-scroll {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('top: 0;')
-    expect(source).toContain("wheelBehavior: 'block'")
+    expect(source).toContain('.node-gantt-dialog__axis-scroll {')
+    expect(source).toContain('top: var(--node-gantt-top-scroll-height);')
+    expect(source).toContain('.node-gantt-dialog__timeline-scroll {')
+    expect(source).toContain('overflow-y: auto;')
   })
 
-  it('keeps the subtask gantt horizontal scrollbar at the top sticky axis instead of the rows area', () => {
+  it('uses native horizontal scrolling that stays in the subtask timeline region instead of stretching under the sidebar', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeGanttDialog.vue'), 'utf8')
 
-    expect(source).toContain('.node-gantt-dialog__axis-scroll {')
-    expect(source).toContain('overflow-x: scroll;')
-    expect(source).toContain('scrollbar-gutter: stable;')
+    expect(source).toContain('data-testid="node-gantt-axis-scroll"')
+    expect(source).toContain('node-gantt-dialog__top-scroll')
+    expect(source).toContain('.node-gantt-dialog__top-scroll {')
+    expect(source).toContain('overflow-x: auto;')
     expect(source).toContain('.node-gantt-dialog__timeline-scroll {')
-    expect(source).toContain('overflow-x: hidden;')
-    expect(source).toContain('.node-gantt-dialog__axis-scroll::-webkit-scrollbar {')
-    expect(source).toContain('height: 12px;')
+    expect(source).toContain('overflow-x: auto;')
+    expect(source).toContain('.node-gantt-dialog__top-scroll::-webkit-scrollbar {')
+    expect(source).toContain('height: var(--node-gantt-top-scroll-height);')
     expect(source).not.toContain('scrollbar-width: none;')
+  })
+
+  it('visually merges the subtask sidebar and timeline into one shared shell with only a center divider', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain('.node-gantt-dialog__body {')
+    expect(source).toContain('gap: 0;')
+    expect(source).toContain('border: 1px solid var(--dialog-control-border);')
+    expect(source).toContain('border-radius: 22px;')
+    expect(source).toContain('.node-gantt-dialog__sidebar,\n.node-gantt-dialog__timeline-shell {')
+    expect(source).toContain('border: 0;')
+    expect(source).toContain('border-radius: 0;')
+    expect(source).toContain('background: transparent;')
+    expect(source).toContain('.node-gantt-dialog__sidebar {')
+    expect(source).toContain('border-right: 1px solid var(--dialog-control-border);')
+  })
+
+  it('keeps the left subtask header stack aligned with the right top scrollbar plus axis header heights', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/NodeGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain('--node-gantt-top-scroll-height: 18px;')
+    expect(source).toContain('node-gantt-dialog__sidebar-top-spacer')
+    expect(source).toContain('.node-gantt-dialog__sidebar-top-spacer {')
+    expect(source).toContain('height: var(--node-gantt-top-scroll-height);')
+    expect(source).toContain('.node-gantt-dialog__top-scroll {')
+    expect(source).toContain('height: var(--node-gantt-top-scroll-height);')
+    expect(source).toContain('.node-gantt-dialog__sidebar-head {')
+    expect(source).toContain('top: var(--node-gantt-top-scroll-height);')
+    expect(source).toContain('.node-gantt-dialog__axis-scroll {')
+    expect(source).toContain('top: var(--node-gantt-top-scroll-height);')
+  })
+
+  it('keeps the left subtask rows visually synced when the right timeline scrolls vertically', () => {
+    const wrapper = mount(NodeGanttDialog, {
+      props: {
+        modelValue: true,
+        gantt: sampleNodeGantt,
+        scale: 'week',
+      },
+    })
+
+    const sidebarRail = wrapper.get('.node-gantt-dialog__sidebar-rows-rail').element as HTMLElement
+    const rowsScroll = wrapper.get('[data-testid="node-gantt-rows-scroll"]').element as HTMLElement
+
+    rowsScroll.scrollTop = 96
+    rowsScroll.dispatchEvent(new Event('scroll'))
+
+    expect(sidebarRail.style.transform).toBe('translateY(-96px)')
+
+    wrapper.unmount()
   })
 
   it('keeps the sticky subtask axis free of backdrop blur and isolates each row paint to reduce scroll jank', () => {
@@ -1055,16 +1127,24 @@ describe('ProjectMemberGanttView', () => {
     expect(source).toContain('height: 100%;')
   })
 
-  it('uses a fixed-height internal scrolling viewport so member rows do not stretch the whole page', () => {
+  it('keeps desktop vertical scrolling inside the right member timeline host so the shared headers stay visible', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
 
     expect(source).toContain('.project-member-gantt__body-scroll {')
-    expect(source).toContain('max-height: 620px;')
-    expect(source).toContain('overflow: auto;')
-    expect(source).toMatch(/v-else\s+v-smooth-wheel="\{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1\.3 \}"\s+class="project-member-gantt__body-scroll smooth-scroll-surface"/)
-    expect(source).toContain('.project-member-gantt__axis-scroll {')
+    expect(source).toContain('--project-member-gantt-viewport-height: 620px;')
+    expect(source).toContain('max-height: var(--project-member-gantt-viewport-height);')
+    expect(source).toContain('overflow: hidden;')
+    expect(source).toContain('class="project-member-gantt__body-scroll smooth-scroll-surface"')
+    expect(source).not.toContain(`v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"`)
+    expect(source).toContain('project-member-gantt__sidebar-scroll')
+    expect(source).toContain('.project-member-gantt__sidebar-scroll {')
+    expect(source).toContain('.project-member-gantt__top-scroll {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('top: 0;')
+    expect(source).toContain('.project-member-gantt__axis-scroll {')
+    expect(source).toContain('top: var(--project-member-gantt-top-scroll-height);')
+    expect(source).toContain('.project-member-gantt__timeline-scroll {')
+    expect(source).toContain('overflow-y: auto;')
   })
 
   it('keeps the sticky member time axis horizontally synced with the rows scroller', () => {
@@ -1116,24 +1196,75 @@ describe('ProjectMemberGanttView', () => {
 
     expect(source).toContain('project-member-gantt-axis-scroll')
     expect(source).toContain('project-member-gantt-rows-scroll')
+    expect(source).toContain('project-member-gantt__top-scroll')
     expect(source).toContain('.project-member-gantt__axis-scroll {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('.project-member-gantt__timeline-scroll {')
-    expect(source).toContain('overflow-x: hidden;')
-    expect(source).toContain("wheelBehavior: 'block'")
+    expect(source).toContain('overflow-x: auto;')
   })
 
-  it('keeps the member gantt horizontal scrollbar at the top sticky axis instead of the rows area', () => {
+  it('uses native horizontal scrolling that stays in the member timeline region instead of stretching under the sidebar', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
 
-    expect(source).toContain('.project-member-gantt__axis-scroll {')
-    expect(source).toContain('overflow-x: scroll;')
-    expect(source).toContain('scrollbar-gutter: stable;')
+    expect(source).toContain('data-testid="project-member-gantt-axis-scroll"')
+    expect(source).toContain('project-member-gantt__top-scroll')
+    expect(source).toContain('.project-member-gantt__top-scroll {')
+    expect(source).toContain('overflow-x: auto;')
     expect(source).toContain('.project-member-gantt__timeline-scroll {')
-    expect(source).toContain('overflow-x: hidden;')
-    expect(source).toContain('.project-member-gantt__axis-scroll::-webkit-scrollbar {')
-    expect(source).toContain('height: 12px;')
+    expect(source).toContain('overflow-x: auto;')
+    expect(source).toContain('.project-member-gantt__top-scroll::-webkit-scrollbar {')
+    expect(source).toContain('height: var(--project-member-gantt-top-scroll-height);')
     expect(source).not.toContain('scrollbar-width: none;')
+  })
+
+  it('visually merges the member sidebar and timeline into one shared shell with only a center divider', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
+
+    expect(source).toContain('.project-member-gantt__body {')
+    expect(source).toContain('gap: 0;')
+    expect(source).toContain('border: 1px solid var(--meta-surface-border);')
+    expect(source).toContain('border-radius: 22px;')
+    expect(source).toContain('.project-member-gantt__sidebar,\n.project-member-gantt__timeline-shell {')
+    expect(source).toContain('border: 0;')
+    expect(source).toContain('border-radius: 0;')
+    expect(source).toContain('background: transparent;')
+    expect(source).toContain('.project-member-gantt__sidebar {')
+    expect(source).toContain('border-right: 1px solid var(--meta-surface-border);')
+  })
+
+  it('keeps the left member header stack aligned with the right top scrollbar plus axis header heights', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectMemberGanttView.vue'), 'utf8')
+
+    expect(source).toContain('--project-member-gantt-top-scroll-height: 18px;')
+    expect(source).toContain('project-member-gantt__sidebar-top-spacer')
+    expect(source).toContain('.project-member-gantt__sidebar-top-spacer {')
+    expect(source).toContain('height: var(--project-member-gantt-top-scroll-height);')
+    expect(source).toContain('.project-member-gantt__top-scroll {')
+    expect(source).toContain('height: var(--project-member-gantt-top-scroll-height);')
+    expect(source).toContain('.project-member-gantt__sidebar-head {')
+    expect(source).toContain('top: var(--project-member-gantt-top-scroll-height);')
+    expect(source).toContain('.project-member-gantt__axis-scroll {')
+    expect(source).toContain('top: var(--project-member-gantt-top-scroll-height);')
+  })
+
+  it('keeps the left member rows visually synced when the right timeline scrolls vertically', () => {
+    const wrapper = mount(ProjectMemberGanttView, {
+      props: {
+        gantt: sampleMemberGantt,
+        perspective: 'member',
+        scale: 'week',
+      },
+    })
+
+    const sidebarRail = wrapper.get('.project-member-gantt__sidebar-rows-rail').element as HTMLElement
+    const rowsScroll = wrapper.get('[data-testid="project-member-gantt-rows-scroll"]').element as HTMLElement
+
+    rowsScroll.scrollTop = 96
+    rowsScroll.dispatchEvent(new Event('scroll'))
+
+    expect(sidebarRail.style.transform).toBe('translateY(-96px)')
+
+    wrapper.unmount()
   })
 
   it('uses token-based axis and track surfaces for the member gantt instead of old glass-bg mixes', () => {

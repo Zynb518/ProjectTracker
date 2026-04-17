@@ -10,6 +10,7 @@ import type {
 } from '@/types/gantt'
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout, packGanttLaneItems } from '@/utils/gantt'
+import { normalizeWheelDelta } from '@/utils/smoothWheel'
 
 const props = withDefaults(defineProps<{
   error?: string | null
@@ -44,8 +45,11 @@ const hoveredMemberUserId = ref<number | null>(null)
 const hoveredSubtaskAnchor = ref({ x: 0, y: 0 })
 const hoveredSubtaskPlacement = ref<HoverCardPlacement>('top-right')
 let hideDetailTimer: ReturnType<typeof window.setTimeout> | null = null
+const sidebarRowsRailRef = ref<HTMLElement | null>(null)
 const axisScrollRef = ref<HTMLElement | null>(null)
+const topScrollRef = ref<HTMLElement | null>(null)
 const rowsScrollRef = ref<HTMLElement | null>(null)
+const ignoredHorizontalScroll = new WeakMap<HTMLElement, number>()
 
 const axisItems = computed(() =>
   props.gantt === null
@@ -206,20 +210,112 @@ function clearSubtaskDetail(subtaskId?: number) {
   scheduleHideSubtaskDetail()
 }
 
-function syncHorizontalScroll(source: HTMLElement | null, target: HTMLElement | null) {
-  if (source === null || target === null || target.scrollLeft === source.scrollLeft) {
+function markIgnoredScroll(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  target: HTMLElement,
+  value: number,
+) {
+  ignoredScrollMap.set(target, value)
+}
+
+function shouldIgnoreProgrammaticScroll(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  source: HTMLElement | null,
+  scrollKey: 'scrollLeft' | 'scrollTop',
+) {
+  if (source === null) {
+    return false
+  }
+
+  const ignoredValue = ignoredScrollMap.get(source)
+
+  if (ignoredValue === undefined) {
+    return false
+  }
+
+  const currentValue = source[scrollKey]
+
+  if (currentValue === ignoredValue) {
+    ignoredScrollMap.delete(source)
+    return true
+  }
+
+  ignoredScrollMap.delete(source)
+  return false
+}
+
+function syncScrollPosition(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  source: HTMLElement | null,
+  target: HTMLElement | null,
+  scrollKey: 'scrollLeft' | 'scrollTop',
+) {
+  if (source === null || target === null) {
     return
   }
 
-  target.scrollLeft = source.scrollLeft
+  const value = source[scrollKey]
+
+  if (target[scrollKey] === value) {
+    return
+  }
+
+  markIgnoredScroll(ignoredScrollMap, target, value)
+  target[scrollKey] = value
 }
 
-function handleAxisScroll() {
-  syncHorizontalScroll(axisScrollRef.value, rowsScrollRef.value)
+function syncSidebarOffset(scrollTop: number) {
+  if (sidebarRowsRailRef.value !== null) {
+    sidebarRowsRailRef.value.style.transform = `translateY(-${scrollTop}px)`
+  }
+}
+
+function handleSidebarWheel(event: WheelEvent) {
+  if (event.defaultPrevented || event.ctrlKey || rowsScrollRef.value === null) {
+    return
+  }
+
+  const delta = normalizeWheelDelta(event, rowsScrollRef.value.clientHeight).y
+
+  if (Math.abs(delta) < 0.1) {
+    return
+  }
+
+  const maxScrollTop = Math.max(rowsScrollRef.value.scrollHeight - rowsScrollRef.value.clientHeight, 0)
+  const unclampedScrollTop = rowsScrollRef.value.scrollTop + delta
+  const nextScrollTop = maxScrollTop > 0
+    ? Math.min(Math.max(unclampedScrollTop, 0), maxScrollTop)
+    : unclampedScrollTop
+
+  if (nextScrollTop === rowsScrollRef.value.scrollTop) {
+    return
+  }
+
+  event.preventDefault()
+  rowsScrollRef.value.scrollTop = nextScrollTop
+  syncSidebarOffset(nextScrollTop)
+}
+
+function handleTopHorizontalScroll() {
+  if (!shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, topScrollRef.value, 'scrollLeft')) {
+    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, rowsScrollRef.value, 'scrollLeft')
+    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, axisScrollRef.value, 'scrollLeft')
+  }
 }
 
 function handleRowsScroll() {
-  syncHorizontalScroll(rowsScrollRef.value, axisScrollRef.value)
+  if (rowsScrollRef.value === null) {
+    return
+  }
+
+  syncSidebarOffset(rowsScrollRef.value.scrollTop)
+
+  if (shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, rowsScrollRef.value, 'scrollLeft')) {
+    return
+  }
+
+  syncScrollPosition(ignoredHorizontalScroll, rowsScrollRef.value, topScrollRef.value, 'scrollLeft')
+  syncScrollPosition(ignoredHorizontalScroll, rowsScrollRef.value, axisScrollRef.value, 'scrollLeft')
 }
 
 onBeforeUnmount(() => {
@@ -278,49 +374,60 @@ onBeforeUnmount(() => {
       当前还没有可展示的成员排期。
     </section>
 
-    <div
-      v-else
-      v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"
-      class="project-member-gantt__body-scroll smooth-scroll-surface"
-    >
+    <div v-else class="project-member-gantt__body-scroll smooth-scroll-surface">
       <div class="project-member-gantt__body">
         <aside class="project-member-gantt__sidebar">
+          <div aria-hidden="true" class="project-member-gantt__sidebar-top-spacer" />
           <div class="project-member-gantt__sidebar-head">
             <span>成员</span>
             <span>任务数</span>
           </div>
 
           <div
-            v-for="memberRow in memberRows"
-            :key="memberRow.user_id"
-            :data-testid="`project-member-gantt-row-label-${memberRow.user_id}`"
-            :style="getRowStyle(memberRow.rowHeightPx)"
-            class="project-member-gantt__sidebar-row"
+            data-testid="project-member-gantt-sidebar-scroll"
+            class="project-member-gantt__sidebar-scroll smooth-scroll-surface"
+            @wheel="handleSidebarWheel"
           >
-            <strong>{{ memberRow.real_name }}</strong>
-            <span class="project-member-gantt__member-count">{{ memberRow.subtasks.length }} 项</span>
+            <div ref="sidebarRowsRailRef" class="project-member-gantt__sidebar-rows-rail">
+              <div
+                v-for="memberRow in memberRows"
+                :key="memberRow.user_id"
+                :data-testid="`project-member-gantt-row-label-${memberRow.user_id}`"
+                :style="getRowStyle(memberRow.rowHeightPx)"
+                class="project-member-gantt__sidebar-row"
+              >
+                <strong>{{ memberRow.real_name }}</strong>
+                <span class="project-member-gantt__member-count">{{ memberRow.subtasks.length }} 项</span>
+              </div>
+            </div>
           </div>
         </aside>
 
         <div class="project-member-gantt__timeline-shell">
           <div
-            ref="axisScrollRef"
+            ref="topScrollRef"
             data-testid="project-member-gantt-axis-scroll"
-            v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"
-            class="project-member-gantt__axis-scroll smooth-scroll-surface"
-            @scroll="handleAxisScroll"
+            class="project-member-gantt__top-scroll smooth-scroll-surface"
+            @scroll="handleTopHorizontalScroll"
           >
-            <div class="project-member-gantt__timeline-canvas" :style="timelineCanvasStyle">
-              <div class="project-member-gantt__axis" data-testid="project-member-gantt-axis">
-                <div
-                  v-for="item in axisItems"
-                  :key="item.key"
-                  :class="['project-member-gantt__axis-cell', `project-member-gantt__axis-cell--${scale}`]"
-                  :style="{ width: `${item.widthPx}px` }"
-                  :title="`${item.startDate} 至 ${item.endDate}`"
-                >
-                  {{ item.label }}
-                </div>
+            <div
+              aria-hidden="true"
+              data-testid="project-member-gantt-top-scroll-content"
+              class="project-member-gantt__top-scroll-content"
+              :style="timelineCanvasStyle"
+            />
+          </div>
+
+          <div ref="axisScrollRef" class="project-member-gantt__axis-scroll">
+            <div class="project-member-gantt__axis" data-testid="project-member-gantt-axis" :style="timelineCanvasStyle">
+              <div
+                v-for="item in axisItems"
+                :key="item.key"
+                :class="['project-member-gantt__axis-cell', `project-member-gantt__axis-cell--${scale}`]"
+                :style="{ width: `${item.widthPx}px` }"
+                :title="`${item.startDate} 至 ${item.endDate}`"
+              >
+                {{ item.label }}
               </div>
             </div>
           </div>
@@ -328,7 +435,6 @@ onBeforeUnmount(() => {
           <div
             ref="rowsScrollRef"
             data-testid="project-member-gantt-rows-scroll"
-            v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"
             class="project-member-gantt__timeline-scroll smooth-scroll-surface"
             @scroll="handleRowsScroll"
           >
@@ -461,6 +567,9 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .project-member-gantt {
+  --project-member-gantt-top-scroll-height: 18px;
+  --project-member-gantt-axis-height: 56px;
+  --project-member-gantt-viewport-height: 620px;
   position: relative;
   overflow: hidden;
   display: grid;
@@ -603,57 +712,97 @@ onBeforeUnmount(() => {
 }
 
 .project-member-gantt__body-scroll {
-  max-height: 620px;
-  overflow: auto;
+  max-height: var(--project-member-gantt-viewport-height);
+  overflow: hidden;
   padding-right: 4px;
 }
 
 .project-member-gantt__body {
   display: grid;
-  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
-  gap: 18px;
+  grid-template-columns: minmax(240px, 280px) minmax(0, 1fr);
+  gap: 0;
   align-items: start;
   min-width: 0;
+  border: 1px solid var(--meta-surface-border);
+  border-radius: 22px;
+  background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);
+  box-shadow: var(--meta-surface-shadow);
 }
 
 .project-member-gantt__sidebar,
 .project-member-gantt__timeline-shell {
   min-width: 0;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
 }
 
 .project-member-gantt__sidebar {
   display: grid;
-  gap: 10px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  align-content: start;
+  border-right: 1px solid var(--meta-surface-border);
+  overflow: hidden;
 }
 
+.project-member-gantt__sidebar-top-spacer,
 .project-member-gantt__sidebar-head,
 .project-member-gantt__sidebar-row {
+  box-sizing: border-box;
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 12px;
   align-items: center;
-  padding: 14px 16px;
-  border: 1px solid var(--dialog-control-border);
-  border-radius: 18px;
-  background: var(--dialog-control-bg), var(--meta-surface-glow), var(--card-sheen);
-  box-shadow: var(--dialog-control-shadow);
+  min-width: 0;
+  padding: 0 16px;
+}
+
+.project-member-gantt__sidebar-top-spacer {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  height: var(--project-member-gantt-top-scroll-height);
+  padding: 0;
+  border-bottom: 1px solid var(--meta-surface-border);
+  background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
 }
 
 .project-member-gantt__sidebar-head {
   position: sticky;
-  top: 0;
+  top: var(--project-member-gantt-top-scroll-height);
   z-index: 3;
-  min-height: 56px;
+  height: var(--project-member-gantt-axis-height);
+  min-height: var(--project-member-gantt-axis-height);
+  border-bottom: 1px solid var(--meta-surface-border);
   font-size: 0.78rem;
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--text-soft);
+  background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
 }
 
 .project-member-gantt__sidebar-row {
+  border-bottom: 1px solid var(--meta-surface-border);
   overflow: hidden;
   content-visibility: auto;
   contain-intrinsic-size: 62px;
+  background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
+}
+
+.project-member-gantt__sidebar-scroll {
+  min-height: 0;
+  max-height: calc(var(--project-member-gantt-viewport-height) - var(--project-member-gantt-top-scroll-height) - var(--project-member-gantt-axis-height));
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
+}
+
+.project-member-gantt__sidebar-rows-rail {
+  transform: translateY(0);
+}
+
+.project-member-gantt__sidebar-row:last-child {
+  border-bottom: 0;
 }
 
 .project-member-gantt__sidebar-row strong {
@@ -680,51 +829,77 @@ onBeforeUnmount(() => {
 
 .project-member-gantt__timeline-shell {
   display: grid;
-  gap: 10px;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
 }
 
-.project-member-gantt__axis-scroll {
+.project-member-gantt__top-scroll {
+  box-sizing: border-box;
   position: sticky;
   top: 0;
   z-index: 4;
-  overflow-x: scroll;
+  height: var(--project-member-gantt-top-scroll-height);
+  overflow-x: auto;
   overflow-y: hidden;
-  padding-bottom: 4px;
+  border-bottom: 1px solid var(--meta-surface-border);
   scrollbar-gutter: stable;
   scrollbar-width: thin;
   scrollbar-color: color-mix(in srgb, var(--accent-end) 58%, var(--panel-bg)) color-mix(in srgb, var(--panel-bg) 84%, transparent);
+  background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
 }
 
-.project-member-gantt__axis-scroll::-webkit-scrollbar {
-  height: 12px;
+.project-member-gantt__top-scroll-content {
+  height: 1px;
 }
 
-.project-member-gantt__axis-scroll::-webkit-scrollbar-track {
+.project-member-gantt__top-scroll::-webkit-scrollbar {
+  height: var(--project-member-gantt-top-scroll-height);
+}
+
+.project-member-gantt__top-scroll::-webkit-scrollbar-track {
   border-radius: 999px;
   background: color-mix(in srgb, var(--panel-bg) 84%, transparent);
 }
 
-.project-member-gantt__axis-scroll::-webkit-scrollbar-thumb {
+.project-member-gantt__top-scroll::-webkit-scrollbar-thumb {
   border: 2px solid transparent;
   border-radius: 999px;
   background: linear-gradient(90deg, color-mix(in srgb, var(--accent-start) 72%, #0d2754 28%), color-mix(in srgb, var(--accent-end) 72%, #0f2c5b 28%));
   background-clip: padding-box;
 }
 
+.project-member-gantt__axis-scroll {
+  box-sizing: border-box;
+  position: sticky;
+  top: var(--project-member-gantt-top-scroll-height);
+  z-index: 3;
+  height: var(--project-member-gantt-axis-height);
+  overflow: hidden;
+  background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
+}
+
 .project-member-gantt__timeline-scroll {
-  overflow-x: hidden;
-  overflow-y: hidden;
+  min-height: 0;
+  max-height: calc(var(--project-member-gantt-viewport-height) - var(--project-member-gantt-top-scroll-height) - var(--project-member-gantt-axis-height));
+  overflow-x: auto;
+  overflow-y: auto;
   padding-bottom: 0;
 }
 
 .project-member-gantt__timeline-canvas {
   min-width: 100%;
+  min-height: 100%;
   box-sizing: content-box;
 }
 
 .project-member-gantt__axis {
+  box-sizing: border-box;
   display: flex;
-  min-height: 56px;
+  min-height: 100%;
+  height: 100%;
+  border-bottom: 1px solid var(--meta-surface-border);
   background: var(--dialog-control-bg), var(--card-sheen);
 }
 
@@ -734,8 +909,6 @@ onBeforeUnmount(() => {
   align-items: center;
   justify-content: flex-start;
   padding: 0 12px;
-  border-top: 1px solid color-mix(in srgb, var(--accent-line) 20%, transparent);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent-line) 20%, transparent);
   border-right: 1px solid color-mix(in srgb, var(--accent-line) 16%, transparent);
   font-size: 0.8rem;
   color: var(--text-soft);
@@ -773,34 +946,30 @@ onBeforeUnmount(() => {
 
 .project-member-gantt__axis-cell:first-child {
   border-left: 1px solid color-mix(in srgb, var(--accent-line) 20%, transparent);
-  border-top-left-radius: 16px;
-  border-bottom-left-radius: 16px;
-}
-
-.project-member-gantt__axis-cell:last-child {
-  border-top-right-radius: 16px;
-  border-bottom-right-radius: 16px;
 }
 
 .project-member-gantt__rows {
   display: grid;
-  gap: 10px;
 }
 
 .project-member-gantt__row {
-  min-height: 62px;
+  box-sizing: border-box;
+  border-bottom: 1px solid var(--meta-surface-border);
   contain: layout paint;
   content-visibility: auto;
   contain-intrinsic-size: 62px;
 }
 
+.project-member-gantt__row:last-child {
+  border-bottom: 0;
+}
+
 .project-member-gantt__track {
   position: relative;
   height: 100%;
-  min-height: 62px;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, transparent);
-  border-radius: 18px;
+  border: 0;
+  border-radius: 0;
   background: linear-gradient(
     180deg,
     color-mix(in srgb, var(--accent-end) 6%, var(--dialog-control-bg)),
@@ -1115,7 +1284,7 @@ onBeforeUnmount(() => {
 
 @media (max-width: 1100px) {
   .project-member-gantt__body {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(200px, 220px) minmax(0, 1fr);
   }
 
   .project-member-gantt__toolbar {
