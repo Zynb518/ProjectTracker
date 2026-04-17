@@ -347,7 +347,9 @@ describe('ProjectListView', () => {
     expect(source).not.toContain('syncSidebarOffset')
     expect(source).toContain('project-list-gantt-dialog__table-scroll')
     expect(source).toContain('.project-list-gantt-dialog__table-scroll {')
-    expect(source).toContain('overflow: auto;')
+    expect(source).toContain('overflow-x: scroll;')
+    expect(source).toContain('overflow-y: scroll;')
+    expect(source).toContain('scrollbar-gutter: stable;')
     expect(source).toContain('.project-list-gantt-dialog__table-header {')
   })
 
@@ -456,6 +458,8 @@ describe('ProjectListView', () => {
     expect(source).not.toContain(`v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"`)
     expect(source).not.toContain('backdrop-filter: blur(18px);')
     expect(source).not.toContain('animation: project-list-gantt-glow-drift')
+    expect(source).toContain('.project-list-gantt-dialog__body-scroll {')
+    expect(source).toContain('padding: 0;')
   })
 
   it('uses native horizontal scrolling and flatter moving-region styles in the project gantt dialog', () => {
@@ -469,6 +473,9 @@ describe('ProjectListView', () => {
     expect(source).toContain('.project-list-gantt-dialog__table-header {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('top: 0;')
+    expect(source).toContain('.project-list-gantt-dialog__table-scroll::-webkit-scrollbar {')
+    expect(source).toContain('height: 12px;')
+    expect(source).toContain('width: 12px;')
     expect(source).toContain('.project-list-gantt-dialog__row-label {')
     expect(source).toContain('.project-list-gantt-dialog__row-status {')
     expect(source).toContain('.project-list-gantt-dialog__bar--pending {')
@@ -487,6 +494,27 @@ describe('ProjectListView', () => {
     expect(source).not.toContain('background: linear-gradient(135deg, var(--work-status-active-color)')
     expect(source).not.toContain('background: linear-gradient(135deg, var(--work-status-done-color)')
     expect(source).not.toContain('background: linear-gradient(135deg, var(--work-status-delayed-color)')
+  })
+
+  it('renders an explicit close button label in the gantt dialog toolbar so exit is visible at a glance', async () => {
+    const screen = render(ProjectListView)
+    const user = userEvent.setup()
+
+    await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '打开项目甘特图' }))
+    await screen.findByText('项目时间总览')
+
+    expect(screen.getByRole('button', { name: '关闭项目甘特图' }).textContent).toContain('关闭')
+  })
+
+  it('reduces horizontal scroll repaint pressure by sticking one summary slab per row instead of two sticky cells', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain('project-list-gantt-dialog__header-summary')
+    expect(source).toContain('project-list-gantt-dialog__row-summary')
+    expect(source).toContain('.project-list-gantt-dialog__row-summary {')
+    expect(source).toContain('position: sticky;')
+    expect(source).toContain('left: 0;')
   })
 
   it('removes the project-row track grid layer while keeping the axis cells for timeline coordinates', () => {

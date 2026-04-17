@@ -71,6 +71,7 @@ const canvasWidth = computed(() => axisItems.value.reduce((total, item) => total
 const tableStyle = computed(() => ({
   '--project-list-gantt-project-column-width': `${PROJECT_COLUMN_WIDTH_PX}px`,
   '--project-list-gantt-status-column-width': `${STATUS_COLUMN_WIDTH_PX}px`,
+  '--project-list-gantt-summary-width': `${PROJECT_COLUMN_WIDTH_PX + STATUS_COLUMN_WIDTH_PX}px`,
   '--project-list-gantt-timeline-width': `${canvasWidth.value}px`,
 }))
 
@@ -195,6 +196,7 @@ onBeforeUnmount(() => {
                   stroke-width="1.8"
                 />
               </svg>
+              <span>关闭</span>
             </button>
           </div>
         </header>
@@ -227,11 +229,13 @@ onBeforeUnmount(() => {
           >
             <div class="project-list-gantt-dialog__table" :style="tableStyle">
               <div class="project-list-gantt-dialog__table-header">
-                <div class="project-list-gantt-dialog__header-cell project-list-gantt-dialog__header-cell--project">
-                  项目
-                </div>
-                <div class="project-list-gantt-dialog__header-cell project-list-gantt-dialog__header-cell--status">
-                  状态
+                <div class="project-list-gantt-dialog__header-summary">
+                  <div class="project-list-gantt-dialog__header-cell project-list-gantt-dialog__header-cell--project">
+                    项目
+                  </div>
+                  <div class="project-list-gantt-dialog__header-cell project-list-gantt-dialog__header-cell--status">
+                    状态
+                  </div>
                 </div>
                 <div class="project-list-gantt-dialog__axis" data-testid="project-list-gantt-axis">
                   <div
@@ -256,19 +260,21 @@ onBeforeUnmount(() => {
                   :data-testid="`project-list-gantt-row-${project.id}`"
                   class="project-list-gantt-dialog__table-row"
                 >
-                  <div class="project-list-gantt-dialog__row-label">
-                    <strong>{{ project.name }}</strong>
-                  </div>
+                  <div class="project-list-gantt-dialog__row-summary">
+                    <div class="project-list-gantt-dialog__row-label">
+                      <strong>{{ project.name }}</strong>
+                    </div>
 
-                  <div class="project-list-gantt-dialog__row-status">
-                    <span
-                      :class="[
-                        'project-list-gantt-dialog__status-pill',
-                        `project-list-gantt-dialog__status-pill--${getWorkStatusTone(project.status)}`,
-                      ]"
-                    >
-                      {{ getWorkStatusLabel(project.status) }}
-                    </span>
+                    <div class="project-list-gantt-dialog__row-status">
+                      <span
+                        :class="[
+                          'project-list-gantt-dialog__status-pill',
+                          `project-list-gantt-dialog__status-pill--${getWorkStatusTone(project.status)}`,
+                        ]"
+                      >
+                        {{ getWorkStatusLabel(project.status) }}
+                      </span>
+                    </div>
                   </div>
 
                   <div class="project-list-gantt-dialog__timeline-cell">
@@ -303,6 +309,7 @@ onBeforeUnmount(() => {
   --project-list-gantt-row-height: 72px;
   --project-list-gantt-project-column-width: 248px;
   --project-list-gantt-status-column-width: 112px;
+  --project-list-gantt-summary-width: 360px;
   --project-list-gantt-timeline-width: 0px;
   --project-list-gantt-divider: color-mix(in srgb, var(--border-soft) 78%, transparent);
   min-height: 0;
@@ -403,18 +410,25 @@ onBeforeUnmount(() => {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
+  gap: 8px;
+  min-width: 76px;
   height: 40px;
+  padding: 0 14px;
   border: 1px solid var(--project-list-gantt-divider);
   border-radius: 12px;
-  background: var(--panel-bg);
+  background: color-mix(in srgb, var(--panel-bg) 92%, #ffffff 8%);
   color: var(--text-main);
   cursor: pointer;
+  flex-shrink: 0;
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 700;
 }
 
 .project-list-gantt-dialog__close svg {
   width: 18px;
   height: 18px;
+  flex-shrink: 0;
 }
 
 .project-list-gantt-dialog__state {
@@ -452,17 +466,42 @@ onBeforeUnmount(() => {
 
 .project-list-gantt-dialog__body-scroll {
   min-height: 0;
-  padding: 0 24px 24px;
+  padding: 0;
+  overflow: hidden;
 }
 
 .project-list-gantt-dialog__table-scroll {
   min-height: 0;
   height: 100%;
-  overflow: auto;
-  border: 1px solid var(--project-list-gantt-divider);
-  border-radius: 18px;
+  overflow-x: scroll;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-width: auto;
+  scrollbar-color: color-mix(in srgb, var(--text-soft) 68%, transparent) color-mix(in srgb, var(--panel-bg) 90%, transparent);
+  border-radius: 0 0 24px 24px;
   background: var(--panel-bg);
   overscroll-behavior: contain;
+}
+
+.project-list-gantt-dialog__table-scroll::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+
+.project-list-gantt-dialog__table-scroll::-webkit-scrollbar-track {
+  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
+}
+
+.project-list-gantt-dialog__table-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--text-soft) 68%, transparent);
+  background-clip: padding-box;
+}
+
+.project-list-gantt-dialog__table-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--text-main) 72%, transparent);
+  background-clip: padding-box;
 }
 
 .project-list-gantt-dialog__table {
@@ -478,8 +517,7 @@ onBeforeUnmount(() => {
 .project-list-gantt-dialog__table-row {
   display: grid;
   grid-template-columns:
-    var(--project-list-gantt-project-column-width)
-    var(--project-list-gantt-status-column-width)
+    var(--project-list-gantt-summary-width)
     var(--project-list-gantt-timeline-width);
 }
 
@@ -490,6 +528,27 @@ onBeforeUnmount(() => {
   min-height: var(--project-list-gantt-axis-height);
   border-bottom: 1px solid var(--project-list-gantt-divider);
   background: var(--panel-bg);
+}
+
+.project-list-gantt-dialog__header-summary,
+.project-list-gantt-dialog__row-summary {
+  display: grid;
+  grid-template-columns:
+    var(--project-list-gantt-project-column-width)
+    var(--project-list-gantt-status-column-width);
+  min-width: 0;
+  position: sticky;
+  left: 0;
+  background: var(--panel-bg);
+  border-right: 1px solid var(--project-list-gantt-divider);
+}
+
+.project-list-gantt-dialog__header-summary {
+  z-index: 8;
+}
+
+.project-list-gantt-dialog__row-summary {
+  z-index: 3;
 }
 
 .project-list-gantt-dialog__header-cell,
@@ -511,33 +570,13 @@ onBeforeUnmount(() => {
   text-transform: uppercase;
 }
 
-.project-list-gantt-dialog__header-cell--project,
-.project-list-gantt-dialog__row-label {
-  position: sticky;
-  left: 0;
-}
-
-.project-list-gantt-dialog__header-cell--status,
 .project-list-gantt-dialog__row-status {
-  position: sticky;
-  left: var(--project-list-gantt-project-column-width);
-}
-
-.project-list-gantt-dialog__header-cell--project {
-  z-index: 9;
-}
-
-.project-list-gantt-dialog__header-cell--status {
-  z-index: 8;
-}
-
-.project-list-gantt-dialog__row-label {
-  z-index: 4;
-}
-
-.project-list-gantt-dialog__row-status {
-  z-index: 3;
   justify-content: center;
+  border-right: 0;
+}
+
+.project-list-gantt-dialog__row-label {
+  min-width: 0;
 }
 
 .project-list-gantt-dialog__axis {
@@ -582,6 +621,7 @@ onBeforeUnmount(() => {
 .project-list-gantt-dialog__timeline-cell {
   min-width: 0;
   background: var(--panel-bg);
+  contain: paint;
 }
 
 .project-list-gantt-dialog__track {
@@ -690,7 +730,7 @@ onBeforeUnmount(() => {
   }
 
   .project-list-gantt-dialog__body-scroll {
-    padding: 0 12px 12px;
+    padding: 0;
   }
 
   .project-list-gantt-dialog__header {
