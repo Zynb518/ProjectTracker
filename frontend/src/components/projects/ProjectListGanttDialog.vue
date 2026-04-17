@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import GanttScaleSwitcher from '@/components/workspace/GanttScaleSwitcher.vue'
 import type { GanttScale } from '@/types/gantt'
@@ -7,6 +7,10 @@ import type { ProjectListItem } from '@/types/project'
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout } from '@/utils/gantt'
 import { normalizeWheelDelta } from '@/utils/smoothWheel'
+
+let activePageScrollLocks = 0
+let previousHtmlOverflow = ''
+let previousBodyOverflow = ''
 
 type DialogMotionOrigin = {
   x: number
@@ -86,6 +90,34 @@ const backdropStyle = computed(() => {
 
 function closeDialog() {
   emit('update:modelValue', false)
+}
+
+function lockPageScroll() {
+  if (typeof document === 'undefined') {
+    return
+  }
+
+  if (activePageScrollLocks === 0) {
+    previousHtmlOverflow = document.documentElement.style.overflow
+    previousBodyOverflow = document.body.style.overflow
+    document.documentElement.style.overflow = 'hidden'
+    document.body.style.overflow = 'hidden'
+  }
+
+  activePageScrollLocks += 1
+}
+
+function unlockPageScroll() {
+  if (typeof document === 'undefined' || activePageScrollLocks === 0) {
+    return
+  }
+
+  activePageScrollLocks -= 1
+
+  if (activePageScrollLocks === 0) {
+    document.documentElement.style.overflow = previousHtmlOverflow
+    document.body.style.overflow = previousBodyOverflow
+  }
 }
 
 function openProject(project: ProjectListItem) {
@@ -213,6 +245,25 @@ function handleTimelineScroll() {
   syncScrollPosition(ignoredHorizontalScroll, timelineScrollRef.value, topScrollRef.value, 'scrollLeft')
   syncScrollPosition(ignoredHorizontalScroll, timelineScrollRef.value, axisScrollRef.value, 'scrollLeft')
 }
+
+watch(() => props.modelValue, (isOpen, wasOpen) => {
+  if (isOpen === wasOpen) {
+    return
+  }
+
+  if (isOpen) {
+    lockPageScroll()
+    return
+  }
+
+  unlockPageScroll()
+}, { immediate: true })
+
+onBeforeUnmount(() => {
+  if (props.modelValue) {
+    unlockPageScroll()
+  }
+})
 </script>
 
 <template>
@@ -654,7 +705,7 @@ function handleTimelineScroll() {
 }
 
 .project-list-gantt-dialog__sidebar-rows-rail {
-  will-change: transform;
+  transform: translateY(0);
 }
 
 .project-list-gantt-dialog__sidebar-head,
@@ -681,8 +732,6 @@ function handleTimelineScroll() {
   height: var(--project-list-gantt-row-height);
   border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
   contain: layout paint;
-  content-visibility: auto;
-  contain-intrinsic-size: var(--project-list-gantt-row-height);
 }
 
 .project-list-gantt-dialog__sidebar-row:last-child {
@@ -808,8 +857,6 @@ function handleTimelineScroll() {
   height: var(--project-list-gantt-row-height);
   border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
   contain: layout paint;
-  content-visibility: auto;
-  contain-intrinsic-size: var(--project-list-gantt-row-height);
 }
 
 .project-list-gantt-dialog__track {

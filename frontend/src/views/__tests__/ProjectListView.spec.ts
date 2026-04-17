@@ -245,6 +245,30 @@ describe('ProjectListView', () => {
     expect(pushMock).toHaveBeenCalledWith('/projects/1001')
   })
 
+  it('locks page scrolling while the project gantt dialog is open and restores it after closing', async () => {
+    const screen = render(ProjectListView)
+    const user = userEvent.setup()
+
+    document.documentElement.style.overflow = ''
+    document.body.style.overflow = ''
+
+    await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '打开项目甘特图' }))
+    await screen.findByText('项目时间总览')
+
+    expect(document.documentElement.style.overflow).toBe('hidden')
+    expect(document.body.style.overflow).toBe('hidden')
+
+    await user.click(screen.getByRole('button', { name: '关闭项目甘特图' }))
+
+    await waitFor(() => {
+      expect(screen.queryByText('项目时间总览')).toBeNull()
+    })
+
+    expect(document.documentElement.style.overflow).toBe('')
+    expect(document.body.style.overflow).toBe('')
+  })
+
   it('keeps sidebar rows vertically aligned with timeline rows while scrolling', async () => {
     vi.mocked(listProjects)
       .mockResolvedValueOnce({
@@ -474,13 +498,14 @@ describe('ProjectListView', () => {
     expect(source).toContain("'project-list-gantt-dialog__axis-cell'")
   })
 
-  it('uses row containment in the project gantt dialog so long lists skip offscreen painting work', () => {
+  it('avoids heavy row-containment hints in the project gantt dialog so small lists keep vertical scrolling lighter', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
 
     expect(source).toContain('.project-list-gantt-dialog__sidebar-row {')
     expect(source).toContain('.project-list-gantt-dialog__row {')
-    expect(source).toContain('content-visibility: auto;')
-    expect(source).toContain('contain-intrinsic-size: var(--project-list-gantt-row-height);')
+    expect(source).not.toContain('will-change: transform;')
+    expect(source).not.toContain('content-visibility: auto;')
+    expect(source).not.toContain('contain-intrinsic-size: var(--project-list-gantt-row-height);')
   })
 
   it('uses fog-white light-theme surfaces so the project hero, cards and pagination feel like a light overlay over the shared sky background', () => {
