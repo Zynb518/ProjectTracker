@@ -376,7 +376,8 @@ describe('ProjectGanttView', () => {
     expect(source).toContain('.project-gantt__body-scroll {')
     expect(source).toContain('max-height: 80vh;')
     expect(source).toContain('overflow: auto;')
-    expect(source).toMatch(/v-else\s+v-smooth-wheel="\{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1\.3 \}"\s+class="project-gantt__body-scroll smooth-scroll-surface"/)
+    expect(source).toContain('class="project-gantt__body-scroll smooth-scroll-surface"')
+    expect(source).not.toContain(`v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"`)
     expect(source).toContain('.project-gantt__axis-scroll {')
     expect(source).toContain('position: sticky;')
     expect(source).toContain('top: 0;')
@@ -429,6 +430,12 @@ describe('ProjectGanttView', () => {
   })
 
   it('keeps the sticky stage time axis horizontally synced with the rows scroller', () => {
+    const animationFrames: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback)
+      return animationFrames.length
+    })
+
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
@@ -441,14 +448,71 @@ describe('ProjectGanttView', () => {
 
     rowsScroll.scrollLeft = 120
     rowsScroll.dispatchEvent(new Event('scroll'))
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1)
+    animationFrames[0]?.(16)
     expect(axisScroll.scrollLeft).toBe(120)
 
     axisScroll.scrollLeft = 84
     axisScroll.dispatchEvent(new Event('scroll'))
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(2)
+    animationFrames[1]?.(32)
     expect(rowsScroll.scrollLeft).toBe(84)
+
+    wrapper.unmount()
+    requestAnimationFrameSpy.mockRestore()
+  })
+
+  it('coalesces mirrored horizontal sync into one animation frame for rapid stage gantt scroll events', () => {
+    const animationFrames: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback)
+      return animationFrames.length
+    })
+
+    const wrapper = mount(ProjectGanttView, {
+      props: {
+        gantt: sampleProjectGantt,
+        scale: 'week',
+      },
+    })
+
+    const axisScroll = wrapper.get('[data-testid="project-gantt-axis-scroll"]').element as HTMLElement
+    const rowsScroll = wrapper.get('[data-testid="project-gantt-rows-scroll"]').element as HTMLElement
+
+    axisScroll.scrollLeft = 0
+    rowsScroll.scrollLeft = 48
+    rowsScroll.dispatchEvent(new Event('scroll'))
+    rowsScroll.scrollLeft = 156
+    rowsScroll.dispatchEvent(new Event('scroll'))
+
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1)
+    expect(axisScroll.scrollLeft).toBe(0)
+
+    animationFrames[0]?.(16)
+    expect(axisScroll.scrollLeft).toBe(156)
+
+    axisScroll.scrollLeft = 84
+    axisScroll.dispatchEvent(new Event('scroll'))
+    axisScroll.scrollLeft = 24
+    axisScroll.dispatchEvent(new Event('scroll'))
+
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(2)
+    expect(rowsScroll.scrollLeft).toBe(156)
+
+    animationFrames[1]?.(32)
+    expect(rowsScroll.scrollLeft).toBe(24)
+
+    wrapper.unmount()
+    requestAnimationFrameSpy.mockRestore()
   })
 
   it('does not lose stage gantt sync after a mirrored rows scroll event followed by another fast axis drag', () => {
+    const animationFrames: FrameRequestCallback[] = []
+    const requestAnimationFrameSpy = vi.spyOn(window, 'requestAnimationFrame').mockImplementation((callback) => {
+      animationFrames.push(callback)
+      return animationFrames.length
+    })
+
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
@@ -461,13 +525,20 @@ describe('ProjectGanttView', () => {
 
     axisScroll.scrollLeft = 156
     axisScroll.dispatchEvent(new Event('scroll'))
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(1)
+    animationFrames[0]?.(16)
     expect(rowsScroll.scrollLeft).toBe(156)
 
     rowsScroll.dispatchEvent(new Event('scroll'))
 
     axisScroll.scrollLeft = 0
     axisScroll.dispatchEvent(new Event('scroll'))
+    expect(requestAnimationFrameSpy).toHaveBeenCalledTimes(2)
+    animationFrames[1]?.(32)
     expect(rowsScroll.scrollLeft).toBe(0)
+
+    wrapper.unmount()
+    requestAnimationFrameSpy.mockRestore()
   })
 
   it('emits the selected node id when a stage bar is clicked', async () => {

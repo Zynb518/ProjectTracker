@@ -302,18 +302,108 @@ describe('ProjectListView', () => {
     await screen.findByText('项目时间总览')
 
     const sidebarScroll = screen.getByTestId('project-list-gantt-sidebar-scroll')
-    const rowsScroll = screen.getByTestId('project-list-gantt-rows-scroll')
+    const rowsScroll = screen.getByTestId('project-list-gantt-timeline-scroll')
+    const sidebarRowsRail = document.querySelector('.project-list-gantt-dialog__sidebar-rows-rail') as HTMLElement | null
 
-    Object.defineProperty(sidebarScroll, 'scrollTop', { value: 0, writable: true })
+    expect(sidebarRowsRail).not.toBeNull()
     Object.defineProperty(rowsScroll, 'scrollTop', { value: 0, writable: true })
 
     rowsScroll.scrollTop = 144
     rowsScroll.dispatchEvent(new Event('scroll'))
-    expect(sidebarScroll.scrollTop).toBe(144)
+    expect(sidebarRowsRail?.style.transform).toContain('-144px')
 
-    sidebarScroll.scrollTop = 216
-    sidebarScroll.dispatchEvent(new Event('scroll'))
+    sidebarScroll.dispatchEvent(new WheelEvent('wheel', {
+      deltaY: 72,
+      cancelable: true,
+    }))
     expect(rowsScroll.scrollTop).toBe(216)
+  })
+
+  it('uses one main scroll host for the axis and project rows, plus a mirrored top scrollbar and no nested vertical rows scroller', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain('data-testid="project-list-gantt-top-scroll"')
+    expect(source).toContain('data-testid="project-list-gantt-timeline-scroll"')
+    expect(source).not.toContain('data-testid="project-list-gantt-axis-scroll"')
+    expect(source).not.toContain('handleAxisScroll')
+    expect(source).toContain('project-list-gantt-dialog__top-scroll')
+    expect(source).toContain('project-list-gantt-dialog__timeline-scroll-host')
+    expect(source).toContain('project-list-gantt-dialog__rows-viewport')
+    expect(source).toContain('.project-list-gantt-dialog__timeline-scroll-host {')
+    expect(source).toContain('overflow-y: auto;')
+    expect(source).toContain('.project-list-gantt-dialog__rows-viewport {')
+    expect(source).not.toContain('.project-list-gantt-dialog__rows-viewport {\n  min-height: 0;\n  overflow-y: auto;')
+  })
+
+  it('keeps time cells only in the top axis while project rows render without a track grid layer', async () => {
+    vi.mocked(listProjects)
+      .mockResolvedValueOnce({
+        list: [
+          {
+            id: 1001,
+            name: '内部进度平台',
+            description: '用于内部项目进度跟踪',
+            owner_user_id: 1,
+            owner_real_name: '张三',
+            status: 2,
+            planned_start_date: '2026-03-20',
+            planned_end_date: '2026-06-30',
+            completed_at: null,
+            member_count: 5,
+            node_count: 3,
+            sub_task_count: 12,
+            created_at: '2026-03-19T11:00:00+08:00',
+            updated_at: '2026-03-27T09:30:00+08:00',
+            is_owner: true,
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 9,
+      })
+      .mockResolvedValueOnce({
+        list: [
+          {
+            id: 6001,
+            name: '背景网格项目',
+            description: '背景网格项目',
+            owner_user_id: 1,
+            owner_real_name: '张三',
+            status: 2,
+            planned_start_date: '2026-03-20',
+            planned_end_date: '2026-06-30',
+            completed_at: null,
+            member_count: 5,
+            node_count: 3,
+            sub_task_count: 12,
+            created_at: '2026-03-19T11:00:00+08:00',
+            updated_at: '2026-03-27T09:30:00+08:00',
+            is_owner: true,
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 100,
+      })
+
+    const screen = render(ProjectListView)
+    const user = userEvent.setup()
+
+    await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '打开项目甘特图' }))
+    await screen.findByText('项目时间总览')
+
+    const axisCells = document.querySelectorAll('.project-list-gantt-dialog__axis-cell')
+    const trackCells = document.querySelectorAll('.project-list-gantt-dialog__track-cell')
+    const trackGrid = document.querySelector('.project-list-gantt-dialog__track-grid') as HTMLElement | null
+    const firstBar = document.querySelector('.project-list-gantt-dialog__bar') as HTMLElement | null
+
+    expect(axisCells.length).toBeGreaterThan(0)
+    expect(trackCells).toHaveLength(0)
+    expect(trackGrid).toBeNull()
+    expect(firstBar).not.toBeNull()
+    expect(firstBar?.style.left).not.toBe('')
+    expect(firstBar?.style.width).not.toBe('')
   })
 
   it('merges the overview and filter areas into one shared top panel', async () => {
@@ -338,6 +428,59 @@ describe('ProjectListView', () => {
     expect(source).toContain('background: var(--gradient-surface), var(--project-card-glow);')
     expect(source).toContain('.project-list__pagination {')
     expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
+  })
+
+  it('keeps the project gantt dialog on native vertical scrolling and removes always-on blur glow effects', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain('class="project-list-gantt-dialog__body-scroll smooth-scroll-surface"')
+    expect(source).not.toContain(`v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"`)
+    expect(source).not.toContain('backdrop-filter: blur(18px);')
+    expect(source).not.toContain('animation: project-list-gantt-glow-drift')
+  })
+
+  it('uses native horizontal scrolling and flatter moving-region styles in the project gantt dialog', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).not.toContain(`v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"`)
+    expect(source).toContain('.project-list-gantt-dialog__track {')
+    expect(source).toContain('background: var(--panel-bg);')
+    expect(source).not.toContain('.project-list-gantt-dialog__axis-cell:nth-child(even) {')
+    expect(source).not.toContain('box-shadow: 0 16px 28px rgba(7, 18, 40, 0.2);')
+    expect(source).toContain('.project-list-gantt-dialog__bar--pending {')
+    expect(source).toContain('background: var(--work-status-pending-strong);')
+    expect(source).toContain('color: var(--work-status-pending-contrast);')
+    expect(source).toContain('.project-list-gantt-dialog__bar--active {')
+    expect(source).toContain('background: var(--work-status-active-strong);')
+    expect(source).toContain('color: var(--work-status-active-contrast);')
+    expect(source).toContain('.project-list-gantt-dialog__bar--done {')
+    expect(source).toContain('background: var(--work-status-done-strong);')
+    expect(source).toContain('color: var(--work-status-done-contrast);')
+    expect(source).toContain('.project-list-gantt-dialog__bar--delayed {')
+    expect(source).toContain('background: var(--work-status-delayed-strong);')
+    expect(source).toContain('color: var(--work-status-delayed-contrast);')
+    expect(source).not.toContain('background: linear-gradient(135deg, var(--work-status-pending-color)')
+    expect(source).not.toContain('background: linear-gradient(135deg, var(--work-status-active-color)')
+    expect(source).not.toContain('background: linear-gradient(135deg, var(--work-status-done-color)')
+    expect(source).not.toContain('background: linear-gradient(135deg, var(--work-status-delayed-color)')
+  })
+
+  it('removes the project-row track grid layer while keeping the axis cells for timeline coordinates', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).not.toContain('const trackGridStyle = computed(() => ({')
+    expect(source).not.toContain('project-list-gantt-dialog__track-grid')
+    expect(source).not.toContain("'project-list-gantt-dialog__track-cell'")
+    expect(source).toContain("'project-list-gantt-dialog__axis-cell'")
+  })
+
+  it('uses row containment in the project gantt dialog so long lists skip offscreen painting work', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain('.project-list-gantt-dialog__sidebar-row {')
+    expect(source).toContain('.project-list-gantt-dialog__row {')
+    expect(source).toContain('content-visibility: auto;')
+    expect(source).toContain('contain-intrinsic-size: var(--project-list-gantt-row-height);')
   })
 
   it('uses fog-white light-theme surfaces so the project hero, cards and pagination feel like a light overlay over the shared sky background', () => {

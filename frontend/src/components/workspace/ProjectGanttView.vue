@@ -38,6 +38,9 @@ const DETAIL_CARD_HEIGHT_HINT_PX = 220
 const DETAIL_CARD_WIDTH_PX = 288
 const axisScrollRef = ref<HTMLElement | null>(null)
 const rowsScrollRef = ref<HTMLElement | null>(null)
+let pendingHorizontalSyncTarget: HTMLElement | null = null
+let pendingHorizontalScrollLeft = 0
+let horizontalSyncFrameId: number | null = null
 
 const axisItems = computed(() =>
   props.gantt === null
@@ -161,24 +164,53 @@ function clearNodeDetail(nodeId?: number) {
   scheduleHideNodeDetail()
 }
 
-function syncHorizontalScroll(source: HTMLElement | null, target: HTMLElement | null) {
+function cancelScheduledHorizontalSync() {
+  if (horizontalSyncFrameId !== null) {
+    window.cancelAnimationFrame(horizontalSyncFrameId)
+    horizontalSyncFrameId = null
+  }
+}
+
+function flushScheduledHorizontalSync() {
+  horizontalSyncFrameId = null
+
+  if (pendingHorizontalSyncTarget === null) {
+    return
+  }
+
+  if (pendingHorizontalSyncTarget.scrollLeft !== pendingHorizontalScrollLeft) {
+    pendingHorizontalSyncTarget.scrollLeft = pendingHorizontalScrollLeft
+  }
+
+  pendingHorizontalSyncTarget = null
+}
+
+function scheduleHorizontalSync(source: HTMLElement | null, target: HTMLElement | null) {
   if (source === null || target === null || source.scrollLeft === target.scrollLeft) {
     return
   }
 
-  target.scrollLeft = source.scrollLeft
+  pendingHorizontalSyncTarget = target
+  pendingHorizontalScrollLeft = source.scrollLeft
+
+  if (horizontalSyncFrameId !== null) {
+    return
+  }
+
+  horizontalSyncFrameId = window.requestAnimationFrame(flushScheduledHorizontalSync)
 }
 
 function handleAxisScroll() {
-  syncHorizontalScroll(axisScrollRef.value, rowsScrollRef.value)
+  scheduleHorizontalSync(axisScrollRef.value, rowsScrollRef.value)
 }
 
 function handleRowsScroll() {
-  syncHorizontalScroll(rowsScrollRef.value, axisScrollRef.value)
+  scheduleHorizontalSync(rowsScrollRef.value, axisScrollRef.value)
 }
 
 onBeforeUnmount(() => {
   cancelHideNodeDetail()
+  cancelScheduledHorizontalSync()
 })
 </script>
 
@@ -230,11 +262,7 @@ onBeforeUnmount(() => {
       当前还没有可展示的阶段排期。
     </section>
 
-    <div
-      v-else
-      v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"
-      class="project-gantt__body-scroll smooth-scroll-surface"
-    >
+    <div v-else class="project-gantt__body-scroll smooth-scroll-surface">
       <div class="project-gantt__body">
         <aside class="project-gantt__sidebar">
           <div class="project-gantt__sidebar-head">

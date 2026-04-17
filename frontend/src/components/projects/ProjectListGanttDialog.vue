@@ -6,6 +6,7 @@ import type { GanttScale } from '@/types/gantt'
 import type { ProjectListItem } from '@/types/project'
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout } from '@/utils/gantt'
+import { normalizeWheelDelta } from '@/utils/smoothWheel'
 
 type DialogMotionOrigin = {
   x: number
@@ -35,9 +36,12 @@ const emit = defineEmits<{
   'update:scale': [scale: GanttScale]
 }>()
 
-const axisScrollRef = ref<HTMLElement | null>(null)
 const sidebarScrollRef = ref<HTMLElement | null>(null)
-const rowsScrollRef = ref<HTMLElement | null>(null)
+const sidebarRowsRailRef = ref<HTMLElement | null>(null)
+const axisScrollRef = ref<HTMLElement | null>(null)
+const topScrollRef = ref<HTMLElement | null>(null)
+const timelineScrollRef = ref<HTMLElement | null>(null)
+const ignoredHorizontalScroll = new WeakMap<HTMLElement, number>()
 
 const timelineRange = computed(() => {
   if (props.projects.length === 0) {
@@ -102,33 +106,112 @@ function getBarStyle(project: ProjectListItem) {
   }
 }
 
-function syncHorizontalScroll(source: HTMLElement | null, target: HTMLElement | null) {
-  if (source === null || target === null || source.scrollLeft === target.scrollLeft) {
+function markIgnoredScroll(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  target: HTMLElement,
+  value: number,
+) {
+  ignoredScrollMap.set(target, value)
+}
+
+function shouldIgnoreProgrammaticScroll(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  source: HTMLElement | null,
+  scrollKey: 'scrollLeft' | 'scrollTop',
+) {
+  if (source === null) {
+    return false
+  }
+
+  const ignoredValue = ignoredScrollMap.get(source)
+
+  if (ignoredValue === undefined) {
+    return false
+  }
+
+  const currentValue = source[scrollKey]
+
+  if (currentValue === ignoredValue) {
+    ignoredScrollMap.delete(source)
+    return true
+  }
+
+  ignoredScrollMap.delete(source)
+  return false
+}
+
+function syncScrollPosition(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  source: HTMLElement | null,
+  target: HTMLElement | null,
+  scrollKey: 'scrollLeft' | 'scrollTop',
+) {
+  if (source === null || target === null) {
     return
   }
 
-  target.scrollLeft = source.scrollLeft
-}
+  const value = source[scrollKey]
 
-function syncVerticalScroll(source: HTMLElement | null, target: HTMLElement | null) {
-  if (source === null || target === null || source.scrollTop === target.scrollTop) {
+  if (target[scrollKey] === value) {
     return
   }
 
-  target.scrollTop = source.scrollTop
+  markIgnoredScroll(ignoredScrollMap, target, value)
+  target[scrollKey] = value
 }
 
-function handleAxisScroll() {
-  syncHorizontalScroll(axisScrollRef.value, rowsScrollRef.value)
+function syncSidebarOffset(scrollTop: number) {
+  if (sidebarRowsRailRef.value !== null) {
+    sidebarRowsRailRef.value.style.transform = `translateY(-${scrollTop}px)`
+  }
 }
 
-function handleRowsScroll() {
-  syncHorizontalScroll(rowsScrollRef.value, axisScrollRef.value)
-  syncVerticalScroll(rowsScrollRef.value, sidebarScrollRef.value)
+function handleSidebarWheel(event: WheelEvent) {
+  if (event.defaultPrevented || event.ctrlKey || timelineScrollRef.value === null) {
+    return
+  }
+
+  const delta = normalizeWheelDelta(event, timelineScrollRef.value.clientHeight).y
+
+  if (Math.abs(delta) < 0.1) {
+    return
+  }
+
+  const maxScrollTop = Math.max(timelineScrollRef.value.scrollHeight - timelineScrollRef.value.clientHeight, 0)
+  const unclampedScrollTop = timelineScrollRef.value.scrollTop + delta
+  const nextScrollTop = maxScrollTop > 0
+    ? Math.min(Math.max(unclampedScrollTop, 0), maxScrollTop)
+    : unclampedScrollTop
+
+  if (nextScrollTop === timelineScrollRef.value.scrollTop) {
+    return
+  }
+
+  event.preventDefault()
+  timelineScrollRef.value.scrollTop = nextScrollTop
+  syncSidebarOffset(nextScrollTop)
 }
 
-function handleSidebarScroll() {
-  syncVerticalScroll(sidebarScrollRef.value, rowsScrollRef.value)
+function handleTopHorizontalScroll() {
+  if (!shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, topScrollRef.value, 'scrollLeft')) {
+    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, timelineScrollRef.value, 'scrollLeft')
+    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, axisScrollRef.value, 'scrollLeft')
+  }
+}
+
+function handleTimelineScroll() {
+  if (timelineScrollRef.value === null) {
+    return
+  }
+
+  syncSidebarOffset(timelineScrollRef.value.scrollTop)
+
+  if (shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, timelineScrollRef.value, 'scrollLeft')) {
+    return
+  }
+
+  syncScrollPosition(ignoredHorizontalScroll, timelineScrollRef.value, topScrollRef.value, 'scrollLeft')
+  syncScrollPosition(ignoredHorizontalScroll, timelineScrollRef.value, axisScrollRef.value, 'scrollLeft')
 }
 </script>
 
@@ -197,11 +280,7 @@ function handleSidebarScroll() {
           当前筛选条件下没有可展示的项目排期。
         </section>
 
-        <div
-          v-else
-          v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"
-          class="project-list-gantt-dialog__body-scroll smooth-scroll-surface"
-        >
+        <div v-else class="project-list-gantt-dialog__body-scroll smooth-scroll-surface">
           <div class="project-list-gantt-dialog__body">
             <aside class="project-list-gantt-dialog__sidebar">
               <div class="project-list-gantt-dialog__sidebar-head">
@@ -213,25 +292,27 @@ function handleSidebarScroll() {
                 ref="sidebarScrollRef"
                 data-testid="project-list-gantt-sidebar-scroll"
                 class="project-list-gantt-dialog__sidebar-scroll smooth-scroll-surface"
-                @scroll="handleSidebarScroll"
+                @wheel="handleSidebarWheel"
               >
-                <div
-                  v-for="project in projects"
-                  :key="project.id"
-                  :data-testid="`project-list-gantt-row-${project.id}`"
-                  class="project-list-gantt-dialog__sidebar-row"
-                >
-                  <strong>{{ project.name }}</strong>
-                  <div class="project-list-gantt-dialog__sidebar-meta">
-                    <span
-                      :class="[
-                        'project-list-gantt-dialog__status-pill',
-                        `project-list-gantt-dialog__status-pill--${getWorkStatusTone(project.status)}`,
-                      ]"
-                    >
-                      {{ getWorkStatusLabel(project.status) }}
-                    </span>
-                    <span>{{ project.owner_real_name }}</span>
+                <div ref="sidebarRowsRailRef" class="project-list-gantt-dialog__sidebar-rows-rail">
+                  <div
+                    v-for="project in projects"
+                    :key="project.id"
+                    :data-testid="`project-list-gantt-row-${project.id}`"
+                    class="project-list-gantt-dialog__sidebar-row"
+                  >
+                    <strong>{{ project.name }}</strong>
+                    <div class="project-list-gantt-dialog__sidebar-meta">
+                      <span
+                        :class="[
+                          'project-list-gantt-dialog__status-pill',
+                          `project-list-gantt-dialog__status-pill--${getWorkStatusTone(project.status)}`,
+                        ]"
+                      >
+                        {{ getWorkStatusLabel(project.status) }}
+                      </span>
+                      <span>{{ project.owner_real_name }}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -239,69 +320,64 @@ function handleSidebarScroll() {
 
             <div class="project-list-gantt-dialog__timeline-shell">
               <div
-                ref="axisScrollRef"
-                data-testid="project-list-gantt-axis-scroll"
-                v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"
-                class="project-list-gantt-dialog__axis-scroll smooth-scroll-surface"
-                @scroll="handleAxisScroll"
+                ref="topScrollRef"
+                data-testid="project-list-gantt-top-scroll"
+                class="project-list-gantt-dialog__top-scroll smooth-scroll-surface"
+                @scroll="handleTopHorizontalScroll"
               >
-                <div class="project-list-gantt-dialog__timeline-canvas" :style="timelineCanvasStyle">
-                  <div class="project-list-gantt-dialog__axis" data-testid="project-list-gantt-axis">
-                    <div
-                      v-for="item in axisItems"
-                      :key="item.key"
-                      :class="[
-                        'project-list-gantt-dialog__axis-cell',
-                        `project-list-gantt-dialog__axis-cell--${scale}`,
-                      ]"
-                      :style="{ width: `${item.widthPx}px` }"
-                      :title="`${item.startDate} 至 ${item.endDate}`"
-                    >
-                      {{ item.label }}
-                    </div>
+                <div
+                  aria-hidden="true"
+                  data-testid="project-list-gantt-top-scroll-content"
+                  class="project-list-gantt-dialog__top-scroll-content"
+                  :style="timelineCanvasStyle"
+                />
+              </div>
+
+              <div ref="axisScrollRef" class="project-list-gantt-dialog__axis-scroll-viewport">
+                <div class="project-list-gantt-dialog__axis" data-testid="project-list-gantt-axis" :style="timelineCanvasStyle">
+                  <div
+                    v-for="item in axisItems"
+                    :key="item.key"
+                    :class="[
+                      'project-list-gantt-dialog__axis-cell',
+                      `project-list-gantt-dialog__axis-cell--${scale}`,
+                    ]"
+                    :style="{ width: `${item.widthPx}px` }"
+                    :title="`${item.startDate} 至 ${item.endDate}`"
+                  >
+                    {{ item.label }}
                   </div>
                 </div>
               </div>
 
               <div
-                ref="rowsScrollRef"
-                data-testid="project-list-gantt-rows-scroll"
-                v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"
-                class="project-list-gantt-dialog__timeline-scroll smooth-scroll-surface"
-                @scroll="handleRowsScroll"
+                ref="timelineScrollRef"
+                data-testid="project-list-gantt-timeline-scroll"
+                class="project-list-gantt-dialog__timeline-scroll-host smooth-scroll-surface"
+                @scroll="handleTimelineScroll"
               >
                 <div class="project-list-gantt-dialog__timeline-canvas" :style="timelineCanvasStyle">
-                  <div class="project-list-gantt-dialog__rows">
-                    <div
-                      v-for="project in projects"
-                      :key="project.id"
-                      class="project-list-gantt-dialog__row"
-                    >
-                      <div class="project-list-gantt-dialog__track">
-                        <div class="project-list-gantt-dialog__track-grid">
-                          <div
-                            v-for="item in axisItems"
-                            :key="item.key"
+                  <div data-testid="project-list-gantt-rows-scroll" class="project-list-gantt-dialog__rows-viewport">
+                    <div class="project-list-gantt-dialog__rows">
+                      <div
+                        v-for="project in projects"
+                        :key="project.id"
+                        class="project-list-gantt-dialog__row"
+                      >
+                        <div class="project-list-gantt-dialog__track">
+                          <button
+                            :aria-label="`打开项目 ${project.name} 的详情页`"
                             :class="[
-                              'project-list-gantt-dialog__track-cell',
-                              `project-list-gantt-dialog__track-cell--${scale}`,
+                              'project-list-gantt-dialog__bar',
+                              `project-list-gantt-dialog__bar--${getWorkStatusTone(project.status)}`,
                             ]"
-                            :style="{ width: `${item.widthPx}px` }"
-                          />
+                            :style="getBarStyle(project)"
+                            type="button"
+                            @click="openProject(project)"
+                          >
+                            <span>{{ project.name }}</span>
+                          </button>
                         </div>
-
-                        <button
-                          :aria-label="`打开项目 ${project.name} 的详情页`"
-                          :class="[
-                            'project-list-gantt-dialog__bar',
-                            `project-list-gantt-dialog__bar--${getWorkStatusTone(project.status)}`,
-                          ]"
-                          :style="getBarStyle(project)"
-                          type="button"
-                          @click="openProject(project)"
-                        >
-                          <span>{{ project.name }}</span>
-                        </button>
                       </div>
                     </div>
                   </div>
@@ -325,7 +401,6 @@ function handleSidebarScroll() {
 .project-list-gantt-dialog-leave-active {
   transition:
     opacity 420ms ease-out,
-    backdrop-filter 420ms ease-out,
     background-color 420ms ease-out;
 }
 
@@ -349,7 +424,6 @@ function handleSidebarScroll() {
 .project-list-gantt-dialog-enter-from,
 .project-list-gantt-dialog-leave-to {
   opacity: 0;
-  backdrop-filter: blur(0px);
 }
 
 .project-list-gantt-dialog-enter-from .project-list-gantt-dialog__glow,
@@ -385,7 +459,6 @@ function handleSidebarScroll() {
     radial-gradient(circle at 16% 20%, color-mix(in srgb, var(--accent-end) 20%, transparent), transparent 22%),
     radial-gradient(circle at 82% 76%, color-mix(in srgb, var(--accent-start) 14%, transparent), transparent 24%),
     rgba(4, 10, 20, 0.72);
-  backdrop-filter: blur(18px);
 }
 
 .project-list-gantt-dialog__backdrop::before {
@@ -410,10 +483,9 @@ function handleSidebarScroll() {
   background:
     radial-gradient(circle, rgba(0, 194, 255, 0.28) 0%, rgba(10, 102, 255, 0.18) 38%, transparent 72%);
   filter: blur(20px);
-  opacity: 0.74;
+  opacity: 0.42;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  animation: project-list-gantt-glow-drift 8s cubic-bezier(0.45, 0, 0.2, 1) infinite alternate;
 }
 
 .project-list-gantt-dialog {
@@ -578,8 +650,11 @@ function handleSidebarScroll() {
 
 .project-list-gantt-dialog__sidebar-scroll {
   min-height: 0;
-  overflow-y: auto;
-  overflow-x: hidden;
+  overflow: hidden;
+}
+
+.project-list-gantt-dialog__sidebar-rows-rail {
+  will-change: transform;
 }
 
 .project-list-gantt-dialog__sidebar-head,
@@ -605,6 +680,9 @@ function handleSidebarScroll() {
 .project-list-gantt-dialog__sidebar-row {
   height: var(--project-list-gantt-row-height);
   border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
+  contain: layout paint;
+  content-visibility: auto;
+  contain-intrinsic-size: var(--project-list-gantt-row-height);
 }
 
 .project-list-gantt-dialog__sidebar-row:last-child {
@@ -662,27 +740,47 @@ function handleSidebarScroll() {
 }
 
 .project-list-gantt-dialog__timeline-shell {
+  min-height: 0;
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: var(--panel-bg);
+  overflow: hidden;
 }
 
-.project-list-gantt-dialog__axis-scroll {
+.project-list-gantt-dialog__top-scroll {
+  height: 18px;
   overflow-x: auto;
   overflow-y: hidden;
+  background: var(--panel-bg);
   border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
 }
 
-.project-list-gantt-dialog__timeline-scroll {
+.project-list-gantt-dialog__top-scroll-content {
+  height: 1px;
+}
+
+.project-list-gantt-dialog__axis-scroll-viewport {
+  overflow: hidden;
+  background: var(--panel-bg);
+  border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 88%, transparent);
+}
+
+.project-list-gantt-dialog__timeline-scroll-host {
   min-height: 0;
-  overflow: auto;
+  height: 100%;
+  background: var(--panel-bg);
+  overflow-x: auto;
+  overflow-y: auto;
 }
 
 .project-list-gantt-dialog__timeline-canvas {
   min-width: 100%;
+  min-height: 100%;
 }
 
 .project-list-gantt-dialog__axis {
   display: flex;
+  background: var(--panel-bg);
 }
 
 .project-list-gantt-dialog__axis-cell {
@@ -697,39 +795,27 @@ function handleSidebarScroll() {
   font-weight: 700;
 }
 
-.project-list-gantt-dialog__axis-cell:nth-child(even) {
-  background: color-mix(in srgb, var(--glass-bg) 68%, transparent);
-}
-
 .project-list-gantt-dialog__rows {
   display: grid;
+}
+
+.project-list-gantt-dialog__rows-viewport {
+  min-height: 0;
 }
 
 .project-list-gantt-dialog__row {
   box-sizing: border-box;
   height: var(--project-list-gantt-row-height);
   border-bottom: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
+  contain: layout paint;
+  content-visibility: auto;
+  contain-intrinsic-size: var(--project-list-gantt-row-height);
 }
 
 .project-list-gantt-dialog__track {
   position: relative;
   height: var(--project-list-gantt-row-height);
-}
-
-.project-list-gantt-dialog__track-grid {
-  position: absolute;
-  inset: 0;
-  display: flex;
-}
-
-.project-list-gantt-dialog__track-cell {
-  flex: 0 0 auto;
-  height: 100%;
-  border-right: 1px solid color-mix(in srgb, var(--border-soft) 74%, transparent);
-}
-
-.project-list-gantt-dialog__track-cell:nth-child(even) {
-  background: color-mix(in srgb, var(--glass-bg) 62%, transparent);
+  background: var(--panel-bg);
 }
 
 .project-list-gantt-dialog__bar {
@@ -747,7 +833,6 @@ function handleSidebarScroll() {
   font-size: 0.84rem;
   font-weight: 700;
   cursor: pointer;
-  box-shadow: 0 16px 28px rgba(7, 18, 40, 0.2);
 }
 
 .project-list-gantt-dialog__bar span {
@@ -757,29 +842,23 @@ function handleSidebarScroll() {
 }
 
 .project-list-gantt-dialog__bar--pending {
-  background: linear-gradient(135deg, var(--work-status-pending-color), color-mix(in srgb, var(--work-status-pending-color) 60%, #ffffff));
+  background: var(--work-status-pending-strong);
+  color: var(--work-status-pending-contrast);
 }
 
 .project-list-gantt-dialog__bar--active {
-  background: linear-gradient(135deg, var(--work-status-active-color), color-mix(in srgb, var(--work-status-active-color) 62%, #ffffff));
+  background: var(--work-status-active-strong);
+  color: var(--work-status-active-contrast);
 }
 
 .project-list-gantt-dialog__bar--done {
-  background: linear-gradient(135deg, var(--work-status-done-color), color-mix(in srgb, var(--work-status-done-color) 62%, #ffffff));
+  background: var(--work-status-done-strong);
+  color: var(--work-status-done-contrast);
 }
 
 .project-list-gantt-dialog__bar--delayed {
-  background: linear-gradient(135deg, var(--work-status-delayed-color), color-mix(in srgb, var(--work-status-delayed-color) 62%, #ffffff));
-}
-
-@keyframes project-list-gantt-glow-drift {
-  from {
-    transform: translate(-52%, -48%) scale(0.98);
-  }
-
-  to {
-    transform: translate(-46%, -54%) scale(1.05);
-  }
+  background: var(--work-status-delayed-strong);
+  color: var(--work-status-delayed-contrast);
 }
 
 @media (max-width: 960px) {
