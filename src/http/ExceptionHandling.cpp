@@ -4,6 +4,7 @@
 
 #include "common/api/ApiResponse.h"
 #include "common/error/BusinessException.h"
+#include "http/RequestLogging.h"
 
 namespace project_tracker::http {
     void registerExceptionHandling(drogon::HttpAppFramework &app) {
@@ -11,17 +12,20 @@ namespace project_tracker::http {
             [](const std::exception &exception,
                const drogon::HttpRequestPtr &request,
                std::function<void(const drogon::HttpResponsePtr &)> &&callback) {
+                const auto requestId = getOrCreateRequestId(request);
 
                 if (const auto *businessException =
                         dynamic_cast<const common::error::BusinessException *>(
                             &exception)) {
                     if (businessException->status() >= drogon::k500InternalServerError) {
                         LOG_ERROR << "全局异常"
+                                  << " | request_id=" << requestId
                                   << " | 方法=" << request->getMethodString()
                                   << " | 路径=" << request->getPath()
                                   << " | 原因=" << businessException->what();
                     } else {
                         LOG_WARN << "全局异常"
+                                 << " | request_id=" << requestId
                                  << " | 方法=" << request->getMethodString()
                                  << " | 路径=" << request->getPath()
                                  << " | 原因=" << businessException->what();
@@ -32,6 +36,7 @@ namespace project_tracker::http {
                 }
 
                 LOG_ERROR << "全局异常"
+                          << " | request_id=" << requestId
                           << " | 方法=" << request->getMethodString()
                           << " | 路径=" << request->getPath()
                           << " | 原因=" << exception.what();

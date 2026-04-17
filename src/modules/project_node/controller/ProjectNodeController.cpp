@@ -6,7 +6,6 @@
 #include <drogon/drogon.h>
 
 #include "common/api/ApiResponse.h"
-#include "common/error/BusinessException.h"
 #include "common/error/ErrorCode.h"
 #include "common/util/JsonUtil.h"
 

@@ -2,11 +2,12 @@
 #include <string>
 
 #include <drogon/drogon.h>
+#include <unistd.h>
 
 #include "http/RequestLogging.h"
 #include "http/ExceptionHandling.h"
 #include "bootstrap/ThreadNumConfig.h"
-#include "modules/project/controller/ProjectController.h"
+
 
 int main(int argc, char **argv) {
     std::string configPath = "config/config.dev.json";
@@ -29,7 +30,16 @@ int main(int argc, char **argv) {
         project_tracker::http::registerExceptionHandling(drogon::app());
         project_tracker::http::registerRequestLogging(drogon::app());
 
-        LOG_INFO << "服务启动完成，开始接收请求";
+        const std::string threadNumText = threadNum.has_value()
+                                              ? std::to_string(*threadNum)
+                                              : "default";
+        LOG_INFO << "服务启动完成"
+                 << " | config_path=" << configPath
+                 << " | threads_num=" << threadNumText
+                 << " | session_cookie=JSESSIONID"
+                 << " | pid=" << ::getpid()
+                 << " | 开始接收请求";
+
 
         drogon::app().run();
     } catch (const std::exception &ex) {
