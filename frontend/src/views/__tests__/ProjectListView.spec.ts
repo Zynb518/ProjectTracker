@@ -269,7 +269,7 @@ describe('ProjectListView', () => {
     expect(document.body.style.overflow).toBe('')
   })
 
-  it('renders each project as one table row with summary cells beside the timeline bar', async () => {
+  it('renders each project in a fixed sidebar row that keeps only the project name beside the timeline bar', async () => {
     vi.mocked(listProjects)
       .mockResolvedValueOnce({
         list: [
@@ -325,32 +325,30 @@ describe('ProjectListView', () => {
     await user.click(screen.getByRole('button', { name: '打开项目甘特图' }))
     await screen.findByText('项目时间总览')
 
-    const tableScroll = screen.getByTestId('project-list-gantt-table-scroll')
+    const sidebarScroll = screen.getByTestId('project-list-gantt-sidebar-scroll')
     const firstRow = screen.getByTestId('project-list-gantt-row-3000')
-    const firstBar = within(firstRow).getByRole('button', { name: '打开项目 对齐项目 1 的详情页' })
+    const firstBar = screen.getByRole('button', { name: '打开项目 对齐项目 1 的详情页' })
 
-    expect(tableScroll).toBeTruthy()
+    expect(sidebarScroll).toBeTruthy()
     expect(firstRow.textContent).toContain('对齐项目 1')
-    expect(firstRow.textContent).toContain('进行中')
+    expect(firstRow.textContent).not.toContain('进行中')
+    expect(firstRow.textContent).not.toContain('张三')
     expect(firstBar).toBeTruthy()
   })
 
-  it('uses one unified table scroll host instead of mirrored top-scroll and sidebar sync rails', () => {
+  it('uses a dedicated top timeline scrollbar instead of one unified table scroll host', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
 
-    expect(source).toContain('data-testid="project-list-gantt-table-scroll"')
-    expect(source).not.toContain('data-testid="project-list-gantt-top-scroll"')
-    expect(source).not.toContain('data-testid="project-list-gantt-timeline-scroll"')
-    expect(source).not.toContain('project-list-gantt-dialog__sidebar-scroll')
-    expect(source).not.toContain('project-list-gantt-dialog__sidebar-rows-rail')
-    expect(source).not.toContain('handleSidebarWheel')
-    expect(source).not.toContain('syncSidebarOffset')
-    expect(source).toContain('project-list-gantt-dialog__table-scroll')
-    expect(source).toContain('.project-list-gantt-dialog__table-scroll {')
-    expect(source).toContain('overflow-x: scroll;')
-    expect(source).toContain('overflow-y: scroll;')
-    expect(source).toContain('scrollbar-gutter: stable;')
-    expect(source).toContain('.project-list-gantt-dialog__table-header {')
+    expect(source).toContain('data-testid="project-list-gantt-top-scroll"')
+    expect(source).toContain('data-testid="project-list-gantt-timeline-scroll"')
+    expect(source).toContain('data-testid="project-list-gantt-sidebar-scroll"')
+    expect(source).not.toContain('data-testid="project-list-gantt-table-scroll"')
+    expect(source).toContain('project-list-gantt-dialog__top-scroll')
+    expect(source).toContain('project-list-gantt-dialog__timeline-scroll-host')
+    expect(source).toContain('project-list-gantt-dialog__sidebar-scroll')
+    expect(source).toContain('project-list-gantt-dialog__sidebar-rows-rail')
+    expect(source).toContain('handleSidebarWheel')
+    expect(source).toContain('syncSidebarOffset')
   })
 
   it('keeps time cells only in the top axis while project rows render without a track grid layer', async () => {
@@ -415,16 +413,90 @@ describe('ProjectListView', () => {
     const trackCells = document.querySelectorAll('.project-list-gantt-dialog__track-cell')
     const trackGrid = document.querySelector('.project-list-gantt-dialog__track-grid') as HTMLElement | null
     const firstRow = screen.getByTestId('project-list-gantt-row-6001')
-    const firstBar = firstRow.querySelector('.project-list-gantt-dialog__bar') as HTMLElement | null
+    const firstBar = screen.getByRole('button', { name: '打开项目 背景网格项目 的详情页' }) as HTMLElement | null
 
     expect(axisCells.length).toBeGreaterThan(0)
     expect(trackCells).toHaveLength(0)
     expect(trackGrid).toBeNull()
     expect(firstBar).not.toBeNull()
     expect(firstRow.textContent).toContain('背景网格项目')
-    expect(firstRow.textContent).toContain('进行中')
+    expect(firstRow.textContent).not.toContain('进行中')
     expect(firstBar?.style.left).not.toBe('')
     expect(firstBar?.style.width).not.toBe('')
+  })
+
+  it('keeps sidebar rows vertically aligned with timeline rows while the timeline remains the main vertical scroller', async () => {
+    vi.mocked(listProjects)
+      .mockResolvedValueOnce({
+        list: [
+          {
+            id: 1001,
+            name: '内部进度平台',
+            description: '用于内部项目进度跟踪',
+            owner_user_id: 1,
+            owner_real_name: '张三',
+            status: 2,
+            planned_start_date: '2026-03-20',
+            planned_end_date: '2026-06-30',
+            completed_at: null,
+            member_count: 5,
+            node_count: 3,
+            sub_task_count: 12,
+            created_at: '2026-03-19T11:00:00+08:00',
+            updated_at: '2026-03-27T09:30:00+08:00',
+            is_owner: true,
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 9,
+      })
+      .mockResolvedValueOnce({
+        list: Array.from({ length: 18 }, (_, index) => ({
+          id: 4000 + index,
+          name: `联动项目 ${index + 1}`,
+          description: `滚动联动项目 ${index + 1}`,
+          owner_user_id: 1,
+          owner_real_name: '张三',
+          status: 2,
+          planned_start_date: '2026-03-20',
+          planned_end_date: '2026-06-30',
+          completed_at: null,
+          member_count: 5,
+          node_count: 3,
+          sub_task_count: 12,
+          created_at: '2026-03-19T11:00:00+08:00',
+          updated_at: '2026-03-27T09:30:00+08:00',
+          is_owner: true,
+        })),
+        total: 18,
+        page: 1,
+        page_size: 100,
+      })
+
+    const screen = render(ProjectListView)
+    const user = userEvent.setup()
+
+    await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '打开项目甘特图' }))
+    await screen.findByText('项目时间总览')
+
+    const sidebarScroll = screen.getByTestId('project-list-gantt-sidebar-scroll')
+    const timelineScroll = screen.getByTestId('project-list-gantt-timeline-scroll')
+    const sidebarRowsRail = document.querySelector('.project-list-gantt-dialog__sidebar-rows-rail') as HTMLElement | null
+
+    expect(sidebarRowsRail).not.toBeNull()
+    Object.defineProperty(timelineScroll, 'scrollTop', { value: 0, writable: true })
+
+    timelineScroll.scrollTop = 144
+    timelineScroll.dispatchEvent(new Event('scroll'))
+    expect(sidebarRowsRail?.style.transform).toContain('-144px')
+
+    sidebarScroll.dispatchEvent(new WheelEvent('wheel', {
+      deltaY: 72,
+      cancelable: true,
+    }))
+    expect(timelineScroll.scrollTop).toBe(216)
   })
 
   it('merges the overview and filter areas into one shared top panel', async () => {
@@ -451,18 +523,25 @@ describe('ProjectListView', () => {
     expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
   })
 
-  it('keeps the project gantt dialog on native vertical scrolling and removes always-on blur glow effects', () => {
+  it('keeps desktop vertical scrolling inside the timeline host so the shared header stays visible, while mobile can fall back to outer scrolling', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
 
-    expect(source).toContain('data-testid="project-list-gantt-table-scroll"')
+    expect(source).toContain('class="project-list-gantt-dialog__body-scroll smooth-scroll-surface"')
     expect(source).not.toContain(`v-smooth-wheel="{ axis: 'vertical', wheelBehavior: 'native', multiplier: 1.3 }"`)
     expect(source).not.toContain('backdrop-filter: blur(18px);')
     expect(source).not.toContain('animation: project-list-gantt-glow-drift')
-    expect(source).toContain('.project-list-gantt-dialog__body-scroll {')
-    expect(source).toContain('padding: 0;')
+    expect(source).toContain(`.project-list-gantt-dialog__body-scroll {
+  min-height: 0;
+  padding: 0 24px 24px;
+  overflow: hidden;`)
+    expect(source).toContain('.project-list-gantt-dialog__timeline-scroll-host {')
+    expect(source).toContain('overflow-y: auto;')
+    expect(source).toContain(`.project-list-gantt-dialog__body-scroll {
+    padding: 0 0 16px;
+    overflow: auto;`)
   })
 
-  it('uses native horizontal scrolling and flatter moving-region styles in the project gantt dialog', () => {
+  it('uses native horizontal scrolling that stays in the timeline region instead of stretching under the sidebar', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
 
     expect(source).not.toContain(`v-smooth-wheel="{ axis: 'horizontal', wheelBehavior: 'block' }"`)
@@ -470,14 +549,12 @@ describe('ProjectListView', () => {
     expect(source).toContain('background: var(--panel-bg);')
     expect(source).not.toContain('.project-list-gantt-dialog__axis-cell:nth-child(even) {')
     expect(source).not.toContain('box-shadow: 0 16px 28px rgba(7, 18, 40, 0.2);')
-    expect(source).toContain('.project-list-gantt-dialog__table-header {')
-    expect(source).toContain('position: sticky;')
-    expect(source).toContain('top: 0;')
-    expect(source).toContain('.project-list-gantt-dialog__table-scroll::-webkit-scrollbar {')
-    expect(source).toContain('height: 12px;')
-    expect(source).toContain('width: 12px;')
-    expect(source).toContain('.project-list-gantt-dialog__row-label {')
-    expect(source).toContain('.project-list-gantt-dialog__row-status {')
+    expect(source).toContain('.project-list-gantt-dialog__top-scroll {')
+    expect(source).toContain('.project-list-gantt-dialog__timeline-scroll-host {')
+    expect(source).toContain('overflow-x: auto;')
+    expect(source).toContain('overflow-y: auto;')
+    expect(source).toContain('.project-list-gantt-dialog__rows-viewport {')
+    expect(source).not.toContain('.project-list-gantt-dialog__table-scroll::-webkit-scrollbar {')
     expect(source).toContain('.project-list-gantt-dialog__bar--pending {')
     expect(source).toContain('background: var(--work-status-pending-strong);')
     expect(source).toContain('color: var(--work-status-pending-contrast);')
@@ -496,6 +573,19 @@ describe('ProjectListView', () => {
     expect(source).not.toContain('background: linear-gradient(135deg, var(--work-status-delayed-color)')
   })
 
+  it('keeps the timeline shell constrained to the available width so the top horizontal scrollbar remains visible', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain(`.project-list-gantt-dialog__body {
+  min-height: 0;
+  height: 100%;
+  width: 100%;`)
+    expect(source).toContain('.project-list-gantt-dialog__timeline-shell {')
+    expect(source).toContain('min-width: 0;')
+    expect(source).toContain('.project-list-gantt-dialog__timeline-scroll-host {')
+    expect(source).toContain('overflow-x: auto;')
+  })
+
   it('renders an explicit close button label in the gantt dialog toolbar so exit is visible at a glance', async () => {
     const screen = render(ProjectListView)
     const user = userEvent.setup()
@@ -507,14 +597,41 @@ describe('ProjectListView', () => {
     expect(screen.getByRole('button', { name: '关闭项目甘特图' }).textContent).toContain('关闭')
   })
 
-  it('reduces horizontal scroll repaint pressure by sticking one summary slab per row instead of two sticky cells', () => {
+  it('keeps only one project column in the sidebar and removes the status summary slab', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
 
-    expect(source).toContain('project-list-gantt-dialog__header-summary')
-    expect(source).toContain('project-list-gantt-dialog__row-summary')
-    expect(source).toContain('.project-list-gantt-dialog__row-summary {')
-    expect(source).toContain('position: sticky;')
-    expect(source).toContain('left: 0;')
+    expect(source).toContain('project-list-gantt-dialog__sidebar-head')
+    expect(source).toContain('project-list-gantt-dialog__sidebar-row')
+    expect(source).not.toContain('project-list-gantt-dialog__row-summary')
+    expect(source).not.toContain('project-list-gantt-dialog__row-status')
+    expect(source).not.toContain('project-list-gantt-dialog__status-pill')
+  })
+
+  it('visually merges the sidebar and timeline into one shared shell with only a center divider', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain('.project-list-gantt-dialog__body {')
+    expect(source).toContain('gap: 0;')
+    expect(source).toContain('border: 1px solid var(--project-list-gantt-divider);')
+    expect(source).toContain('border-radius: 22px;')
+    expect(source).toContain('.project-list-gantt-dialog__sidebar,\n.project-list-gantt-dialog__timeline-shell {')
+    expect(source).toContain('border: 0;')
+    expect(source).toContain('border-radius: 0;')
+    expect(source).toContain('background: transparent;')
+    expect(source).toContain('.project-list-gantt-dialog__sidebar {')
+    expect(source).toContain('border-right: 1px solid var(--project-list-gantt-divider);')
+  })
+
+  it('keeps the left header stack aligned with the right top scrollbar plus axis header heights', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
+
+    expect(source).toContain('--project-list-gantt-top-scroll-height: 18px;')
+    expect(source).toContain('project-list-gantt-dialog__sidebar-top-spacer')
+    expect(source).toContain('grid-template-rows: auto auto minmax(0, 1fr);')
+    expect(source).toContain('.project-list-gantt-dialog__sidebar-top-spacer {')
+    expect(source).toContain('height: var(--project-list-gantt-top-scroll-height);')
+    expect(source).toContain('.project-list-gantt-dialog__top-scroll {')
+    expect(source).toContain('height: var(--project-list-gantt-top-scroll-height);')
   })
 
   it('removes the project-row track grid layer while keeping the axis cells for timeline coordinates', () => {
@@ -529,9 +646,8 @@ describe('ProjectListView', () => {
   it('avoids heavy row-containment hints in the project gantt dialog so small lists keep vertical scrolling lighter', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectListGanttDialog.vue'), 'utf8')
 
-    expect(source).toContain('.project-list-gantt-dialog__table-row {')
-    expect(source).toContain('.project-list-gantt-dialog__row-label {')
-    expect(source).toContain('.project-list-gantt-dialog__row-status {')
+    expect(source).toContain('.project-list-gantt-dialog__sidebar-row {')
+    expect(source).toContain('.project-list-gantt-dialog__row {')
     expect(source).not.toContain('will-change: transform;')
     expect(source).not.toContain('content-visibility: auto;')
     expect(source).not.toContain('contain-intrinsic-size: var(--project-list-gantt-row-height);')

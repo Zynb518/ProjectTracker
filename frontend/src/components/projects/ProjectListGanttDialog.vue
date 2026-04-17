@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 
 import GanttScaleSwitcher from '@/components/workspace/GanttScaleSwitcher.vue'
 import type { GanttScale } from '@/types/gantt'
 import type { ProjectListItem } from '@/types/project'
-import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
+import { getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout } from '@/utils/gantt'
+import { normalizeWheelDelta } from '@/utils/smoothWheel'
 
 let activePageScrollLocks = 0
 let previousHtmlOverflow = ''
@@ -17,9 +18,6 @@ type DialogMotionOrigin = {
   translateX: number
   translateY: number
 }
-
-const PROJECT_COLUMN_WIDTH_PX = 248
-const STATUS_COLUMN_WIDTH_PX = 112
 
 const props = withDefaults(defineProps<{
   error?: string | null
@@ -41,6 +39,12 @@ const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   'update:scale': [scale: GanttScale]
 }>()
+
+const sidebarRowsRailRef = ref<HTMLElement | null>(null)
+const axisScrollRef = ref<HTMLElement | null>(null)
+const topScrollRef = ref<HTMLElement | null>(null)
+const timelineScrollRef = ref<HTMLElement | null>(null)
+const ignoredHorizontalScroll = new WeakMap<HTMLElement, number>()
 
 const timelineRange = computed(() => {
   if (props.projects.length === 0) {
@@ -67,12 +71,8 @@ const axisItems = computed(() => {
 
 const axisStartDate = computed(() => axisItems.value[0]?.startDate ?? timelineRange.value?.startDate ?? '')
 const canvasWidth = computed(() => axisItems.value.reduce((total, item) => total + item.widthPx, 0))
-
-const tableStyle = computed(() => ({
-  '--project-list-gantt-project-column-width': `${PROJECT_COLUMN_WIDTH_PX}px`,
-  '--project-list-gantt-status-column-width': `${STATUS_COLUMN_WIDTH_PX}px`,
-  '--project-list-gantt-summary-width': `${PROJECT_COLUMN_WIDTH_PX + STATUS_COLUMN_WIDTH_PX}px`,
-  '--project-list-gantt-timeline-width': `${canvasWidth.value}px`,
+const timelineCanvasStyle = computed(() => ({
+  width: `${canvasWidth.value}px`,
 }))
 
 const backdropStyle = computed(() => {
@@ -136,6 +136,114 @@ function getBarStyle(project: ProjectListItem) {
     left: `${layout.leftPx}px`,
     width: `${layout.widthPx}px`,
   }
+}
+
+function markIgnoredScroll(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  target: HTMLElement,
+  value: number,
+) {
+  ignoredScrollMap.set(target, value)
+}
+
+function shouldIgnoreProgrammaticScroll(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  source: HTMLElement | null,
+  scrollKey: 'scrollLeft' | 'scrollTop',
+) {
+  if (source === null) {
+    return false
+  }
+
+  const ignoredValue = ignoredScrollMap.get(source)
+
+  if (ignoredValue === undefined) {
+    return false
+  }
+
+  const currentValue = source[scrollKey]
+
+  if (currentValue === ignoredValue) {
+    ignoredScrollMap.delete(source)
+    return true
+  }
+
+  ignoredScrollMap.delete(source)
+  return false
+}
+
+function syncScrollPosition(
+  ignoredScrollMap: WeakMap<HTMLElement, number>,
+  source: HTMLElement | null,
+  target: HTMLElement | null,
+  scrollKey: 'scrollLeft' | 'scrollTop',
+) {
+  if (source === null || target === null) {
+    return
+  }
+
+  const value = source[scrollKey]
+
+  if (target[scrollKey] === value) {
+    return
+  }
+
+  markIgnoredScroll(ignoredScrollMap, target, value)
+  target[scrollKey] = value
+}
+
+function syncSidebarOffset(scrollTop: number) {
+  if (sidebarRowsRailRef.value !== null) {
+    sidebarRowsRailRef.value.style.transform = `translateY(-${scrollTop}px)`
+  }
+}
+
+function handleSidebarWheel(event: WheelEvent) {
+  if (event.defaultPrevented || event.ctrlKey || timelineScrollRef.value === null) {
+    return
+  }
+
+  const delta = normalizeWheelDelta(event, timelineScrollRef.value.clientHeight).y
+
+  if (Math.abs(delta) < 0.1) {
+    return
+  }
+
+  const maxScrollTop = Math.max(timelineScrollRef.value.scrollHeight - timelineScrollRef.value.clientHeight, 0)
+  const unclampedScrollTop = timelineScrollRef.value.scrollTop + delta
+  const nextScrollTop = maxScrollTop > 0
+    ? Math.min(Math.max(unclampedScrollTop, 0), maxScrollTop)
+    : unclampedScrollTop
+
+  if (nextScrollTop === timelineScrollRef.value.scrollTop) {
+    return
+  }
+
+  event.preventDefault()
+  timelineScrollRef.value.scrollTop = nextScrollTop
+  syncSidebarOffset(nextScrollTop)
+}
+
+function handleTopHorizontalScroll() {
+  if (!shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, topScrollRef.value, 'scrollLeft')) {
+    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, timelineScrollRef.value, 'scrollLeft')
+    syncScrollPosition(ignoredHorizontalScroll, topScrollRef.value, axisScrollRef.value, 'scrollLeft')
+  }
+}
+
+function handleTimelineScroll() {
+  if (timelineScrollRef.value === null) {
+    return
+  }
+
+  syncSidebarOffset(timelineScrollRef.value.scrollTop)
+
+  if (shouldIgnoreProgrammaticScroll(ignoredHorizontalScroll, timelineScrollRef.value, 'scrollLeft')) {
+    return
+  }
+
+  syncScrollPosition(ignoredHorizontalScroll, timelineScrollRef.value, topScrollRef.value, 'scrollLeft')
+  syncScrollPosition(ignoredHorizontalScroll, timelineScrollRef.value, axisScrollRef.value, 'scrollLeft')
 }
 
 watch(() => props.modelValue, (isOpen, wasOpen) => {
@@ -222,22 +330,53 @@ onBeforeUnmount(() => {
           当前筛选条件下没有可展示的项目排期。
         </section>
 
-        <div v-else class="project-list-gantt-dialog__body-scroll">
-          <div
-            data-testid="project-list-gantt-table-scroll"
-            class="project-list-gantt-dialog__table-scroll smooth-scroll-surface"
-          >
-            <div class="project-list-gantt-dialog__table" :style="tableStyle">
-              <div class="project-list-gantt-dialog__table-header">
-                <div class="project-list-gantt-dialog__header-summary">
-                  <div class="project-list-gantt-dialog__header-cell project-list-gantt-dialog__header-cell--project">
-                    项目
-                  </div>
-                  <div class="project-list-gantt-dialog__header-cell project-list-gantt-dialog__header-cell--status">
-                    状态
+        <div v-else class="project-list-gantt-dialog__body-scroll smooth-scroll-surface">
+          <div class="project-list-gantt-dialog__body">
+            <aside class="project-list-gantt-dialog__sidebar">
+              <div aria-hidden="true" class="project-list-gantt-dialog__sidebar-top-spacer" />
+              <div class="project-list-gantt-dialog__sidebar-head">
+                <span>项目</span>
+              </div>
+
+              <div
+                data-testid="project-list-gantt-sidebar-scroll"
+                class="project-list-gantt-dialog__sidebar-scroll smooth-scroll-surface"
+                @wheel="handleSidebarWheel"
+              >
+                <div ref="sidebarRowsRailRef" class="project-list-gantt-dialog__sidebar-rows-rail">
+                  <div
+                    v-for="project in projects"
+                    :key="project.id"
+                    :data-testid="`project-list-gantt-row-${project.id}`"
+                    class="project-list-gantt-dialog__sidebar-row"
+                  >
+                    <strong>{{ project.name }}</strong>
                   </div>
                 </div>
-                <div class="project-list-gantt-dialog__axis" data-testid="project-list-gantt-axis">
+              </div>
+            </aside>
+
+            <div class="project-list-gantt-dialog__timeline-shell">
+              <div
+                ref="topScrollRef"
+                data-testid="project-list-gantt-top-scroll"
+                class="project-list-gantt-dialog__top-scroll smooth-scroll-surface"
+                @scroll="handleTopHorizontalScroll"
+              >
+                <div
+                  aria-hidden="true"
+                  data-testid="project-list-gantt-top-scroll-content"
+                  class="project-list-gantt-dialog__top-scroll-content"
+                  :style="timelineCanvasStyle"
+                />
+              </div>
+
+              <div ref="axisScrollRef" class="project-list-gantt-dialog__axis-scroll-viewport">
+                <div
+                  class="project-list-gantt-dialog__axis"
+                  data-testid="project-list-gantt-axis"
+                  :style="timelineCanvasStyle"
+                >
                   <div
                     v-for="item in axisItems"
                     :key="item.key"
@@ -253,44 +392,35 @@ onBeforeUnmount(() => {
                 </div>
               </div>
 
-              <div class="project-list-gantt-dialog__table-body">
-                <div
-                  v-for="project in projects"
-                  :key="project.id"
-                  :data-testid="`project-list-gantt-row-${project.id}`"
-                  class="project-list-gantt-dialog__table-row"
-                >
-                  <div class="project-list-gantt-dialog__row-summary">
-                    <div class="project-list-gantt-dialog__row-label">
-                      <strong>{{ project.name }}</strong>
-                    </div>
-
-                    <div class="project-list-gantt-dialog__row-status">
-                      <span
-                        :class="[
-                          'project-list-gantt-dialog__status-pill',
-                          `project-list-gantt-dialog__status-pill--${getWorkStatusTone(project.status)}`,
-                        ]"
+              <div
+                ref="timelineScrollRef"
+                data-testid="project-list-gantt-timeline-scroll"
+                class="project-list-gantt-dialog__timeline-scroll-host smooth-scroll-surface"
+                @scroll="handleTimelineScroll"
+              >
+                <div class="project-list-gantt-dialog__timeline-canvas" :style="timelineCanvasStyle">
+                  <div data-testid="project-list-gantt-rows-scroll" class="project-list-gantt-dialog__rows-viewport">
+                    <div class="project-list-gantt-dialog__rows">
+                      <div
+                        v-for="project in projects"
+                        :key="project.id"
+                        class="project-list-gantt-dialog__row"
                       >
-                        {{ getWorkStatusLabel(project.status) }}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div class="project-list-gantt-dialog__timeline-cell">
-                    <div class="project-list-gantt-dialog__track">
-                      <button
-                        :aria-label="`打开项目 ${project.name} 的详情页`"
-                        :class="[
-                          'project-list-gantt-dialog__bar',
-                          `project-list-gantt-dialog__bar--${getWorkStatusTone(project.status)}`,
-                        ]"
-                        :style="getBarStyle(project)"
-                        type="button"
-                        @click="openProject(project)"
-                      >
-                        <span>{{ project.name }}</span>
-                      </button>
+                        <div class="project-list-gantt-dialog__track">
+                          <button
+                            :aria-label="`打开项目 ${project.name} 的详情页`"
+                            :class="[
+                              'project-list-gantt-dialog__bar',
+                              `project-list-gantt-dialog__bar--${getWorkStatusTone(project.status)}`,
+                            ]"
+                            :style="getBarStyle(project)"
+                            type="button"
+                            @click="openProject(project)"
+                          >
+                            <span>{{ project.name }}</span>
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -305,12 +435,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .project-list-gantt-dialog {
+  --project-list-gantt-top-scroll-height: 18px;
   --project-list-gantt-axis-height: 58px;
   --project-list-gantt-row-height: 72px;
-  --project-list-gantt-project-column-width: 248px;
-  --project-list-gantt-status-column-width: 112px;
-  --project-list-gantt-summary-width: 360px;
-  --project-list-gantt-timeline-width: 0px;
+  --project-list-gantt-sidebar-width: 248px;
   --project-list-gantt-divider: color-mix(in srgb, var(--border-soft) 78%, transparent);
   min-height: 0;
   display: grid;
@@ -466,117 +594,134 @@ onBeforeUnmount(() => {
 
 .project-list-gantt-dialog__body-scroll {
   min-height: 0;
-  padding: 0;
+  padding: 0 24px 24px;
   overflow: hidden;
 }
 
-.project-list-gantt-dialog__table-scroll {
+.project-list-gantt-dialog__body {
   min-height: 0;
   height: 100%;
-  overflow-x: scroll;
-  overflow-y: scroll;
-  scrollbar-gutter: stable;
-  scrollbar-width: auto;
-  scrollbar-color: color-mix(in srgb, var(--text-soft) 68%, transparent) color-mix(in srgb, var(--panel-bg) 90%, transparent);
-  border-radius: 0 0 24px 24px;
-  background: var(--panel-bg);
-  overscroll-behavior: contain;
-}
-
-.project-list-gantt-dialog__table-scroll::-webkit-scrollbar {
-  width: 12px;
-  height: 12px;
-}
-
-.project-list-gantt-dialog__table-scroll::-webkit-scrollbar-track {
-  background: color-mix(in srgb, var(--panel-bg) 92%, transparent);
-}
-
-.project-list-gantt-dialog__table-scroll::-webkit-scrollbar-thumb {
-  border: 2px solid transparent;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--text-soft) 68%, transparent);
-  background-clip: padding-box;
-}
-
-.project-list-gantt-dialog__table-scroll::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-main) 72%, transparent);
-  background-clip: padding-box;
-}
-
-.project-list-gantt-dialog__table {
-  width: calc(
-    var(--project-list-gantt-project-column-width)
-    + var(--project-list-gantt-status-column-width)
-    + var(--project-list-gantt-timeline-width)
-  );
-  min-width: 100%;
-}
-
-.project-list-gantt-dialog__table-header,
-.project-list-gantt-dialog__table-row {
+  width: 100%;
   display: grid;
-  grid-template-columns:
-    var(--project-list-gantt-summary-width)
-    var(--project-list-gantt-timeline-width);
+  grid-template-columns: var(--project-list-gantt-sidebar-width) minmax(0, 1fr);
+  gap: 0;
+  border: 1px solid var(--project-list-gantt-divider);
+  border-radius: 22px;
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--panel-bg) 100%, transparent),
+    color-mix(in srgb, var(--panel-bg) 96%, transparent)
+  );
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #ffffff 8%, transparent);
+  overflow: hidden;
 }
 
-.project-list-gantt-dialog__table-header {
-  position: sticky;
-  top: 0;
-  z-index: 6;
-  min-height: var(--project-list-gantt-axis-height);
+.project-list-gantt-dialog__sidebar,
+.project-list-gantt-dialog__timeline-shell {
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  overflow: hidden;
+}
+
+.project-list-gantt-dialog__sidebar {
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  border-right: 1px solid var(--project-list-gantt-divider);
+}
+
+.project-list-gantt-dialog__sidebar-scroll {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.project-list-gantt-dialog__sidebar-rows-rail {
+  transform: translateY(0);
+}
+
+.project-list-gantt-dialog__sidebar-top-spacer,
+.project-list-gantt-dialog__sidebar-head,
+.project-list-gantt-dialog__sidebar-row {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  padding: 0 18px;
+}
+
+.project-list-gantt-dialog__sidebar-top-spacer {
+  height: var(--project-list-gantt-top-scroll-height);
+  padding: 0;
   border-bottom: 1px solid var(--project-list-gantt-divider);
   background: var(--panel-bg);
 }
 
-.project-list-gantt-dialog__header-summary,
-.project-list-gantt-dialog__row-summary {
-  display: grid;
-  grid-template-columns:
-    var(--project-list-gantt-project-column-width)
-    var(--project-list-gantt-status-column-width);
-  min-width: 0;
-  position: sticky;
-  left: 0;
-  background: var(--panel-bg);
-  border-right: 1px solid var(--project-list-gantt-divider);
-}
-
-.project-list-gantt-dialog__header-summary {
-  z-index: 8;
-}
-
-.project-list-gantt-dialog__row-summary {
-  z-index: 3;
-}
-
-.project-list-gantt-dialog__header-cell,
-.project-list-gantt-dialog__row-label,
-.project-list-gantt-dialog__row-status {
-  display: flex;
-  align-items: center;
-  min-width: 0;
-  padding: 0 16px;
-  border-right: 1px solid var(--project-list-gantt-divider);
-  background: var(--panel-bg);
-}
-
-.project-list-gantt-dialog__header-cell {
+.project-list-gantt-dialog__sidebar-head {
+  height: var(--project-list-gantt-axis-height);
   color: var(--text-soft);
   font-size: 0.76rem;
   font-weight: 700;
   letter-spacing: 0.12em;
   text-transform: uppercase;
+  border-bottom: 1px solid var(--project-list-gantt-divider);
 }
 
-.project-list-gantt-dialog__row-status {
-  justify-content: center;
-  border-right: 0;
+.project-list-gantt-dialog__sidebar-row {
+  height: var(--project-list-gantt-row-height);
+  border-bottom: 1px solid var(--project-list-gantt-divider);
+  contain: layout paint;
 }
 
-.project-list-gantt-dialog__row-label {
+.project-list-gantt-dialog__sidebar-row:last-child {
+  border-bottom: 0;
+}
+
+.project-list-gantt-dialog__sidebar-row strong {
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-list-gantt-dialog__timeline-shell {
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  grid-template-rows: auto auto minmax(0, 1fr);
+  background: transparent;
+  overflow: hidden;
+}
+
+.project-list-gantt-dialog__top-scroll {
+  height: var(--project-list-gantt-top-scroll-height);
+  overflow-x: auto;
+  overflow-y: hidden;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--project-list-gantt-divider);
+}
+
+.project-list-gantt-dialog__top-scroll-content {
+  height: 1px;
+}
+
+.project-list-gantt-dialog__axis-scroll-viewport {
+  overflow: hidden;
+  background: var(--panel-bg);
+  border-bottom: 1px solid var(--project-list-gantt-divider);
+}
+
+.project-list-gantt-dialog__timeline-scroll-host {
+  min-height: 0;
+  height: 100%;
+  background: var(--panel-bg);
+  overflow-x: auto;
+  overflow-y: auto;
+}
+
+.project-list-gantt-dialog__timeline-canvas {
+  min-width: 100%;
+  min-height: 100%;
 }
 
 .project-list-gantt-dialog__axis {
@@ -598,73 +743,25 @@ onBeforeUnmount(() => {
   white-space: nowrap;
 }
 
-.project-list-gantt-dialog__table-body {
+.project-list-gantt-dialog__rows {
   display: grid;
 }
 
-.project-list-gantt-dialog__table-row {
-  min-height: var(--project-list-gantt-row-height);
+.project-list-gantt-dialog__rows-viewport {
+  min-height: 0;
+}
+
+.project-list-gantt-dialog__row {
+  box-sizing: border-box;
+  height: var(--project-list-gantt-row-height);
   border-bottom: 1px solid var(--project-list-gantt-divider);
-}
-
-.project-list-gantt-dialog__table-row:last-child {
-  border-bottom: 0;
-}
-
-.project-list-gantt-dialog__row-label strong {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.project-list-gantt-dialog__timeline-cell {
-  min-width: 0;
-  background: var(--panel-bg);
-  contain: paint;
+  contain: layout paint;
 }
 
 .project-list-gantt-dialog__track {
   position: relative;
   height: var(--project-list-gantt-row-height);
   background: var(--panel-bg);
-}
-
-.project-list-gantt-dialog__status-pill {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid transparent;
-  font-size: 0.78rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.project-list-gantt-dialog__status-pill--pending {
-  border-color: var(--work-status-pending-border);
-  background: var(--work-status-pending-bg);
-  color: var(--work-status-pending-color);
-}
-
-.project-list-gantt-dialog__status-pill--active {
-  border-color: var(--work-status-active-border);
-  background: var(--work-status-active-bg);
-  color: var(--work-status-active-color);
-}
-
-.project-list-gantt-dialog__status-pill--done {
-  border-color: var(--work-status-done-border);
-  background: var(--work-status-done-bg);
-  color: var(--work-status-done-color);
-}
-
-.project-list-gantt-dialog__status-pill--delayed {
-  border-color: var(--work-status-delayed-border);
-  background: var(--work-status-delayed-bg);
-  color: var(--work-status-delayed-color);
 }
 
 .project-list-gantt-dialog__bar {
@@ -725,12 +822,23 @@ onBeforeUnmount(() => {
   }
 
   .project-list-gantt-dialog {
-    --project-list-gantt-project-column-width: 210px;
-    --project-list-gantt-status-column-width: 96px;
+    --project-list-gantt-sidebar-width: 210px;
   }
 
   .project-list-gantt-dialog__body-scroll {
-    padding: 0;
+    padding: 0 0 16px;
+    overflow: auto;
+  }
+
+  .project-list-gantt-dialog__body {
+    min-height: 100%;
+    height: auto;
+    grid-template-columns: 1fr;
+  }
+
+  .project-list-gantt-dialog__sidebar {
+    border-right: 0;
+    border-bottom: 1px solid var(--project-list-gantt-divider);
   }
 
   .project-list-gantt-dialog__header {
