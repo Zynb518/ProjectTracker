@@ -8,6 +8,8 @@ add_executable(
     filters/AdminRequiredFilter.cpp
     filters/LoginRequiredFilter.cpp
     modules/auth/controller/AuthController.cpp
+    modules/health/controller/HealthController.cpp
+    modules/health/service/HealthService.cpp
     modules/auth/repository/AuthRepository.cpp
     modules/auth/service/AuthService.cpp
     modules/project/controller/ProjectController.cpp
