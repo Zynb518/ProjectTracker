@@ -751,6 +751,115 @@ describe('ProjectDetailView', () => {
     expect(screen.getByTestId('project-gantt-subtask-bar-3001').textContent).toContain('完成登录接口开发')
   })
 
+  it('optimistically saves resized stage dates on mouseup and rolls them back if the backend rejects the resize', async () => {
+    mockWorkspaceData()
+    vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)
+
+    const updateDeferred = createDeferred<(typeof nodesFixture.list)[number]>()
+    vi.mocked(updateProjectNode).mockImplementation(() => updateDeferred.promise)
+
+    const screen = render(ProjectDetailView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+    const user = userEvent.setup()
+
+    await screen.findByTestId('project-workspace-card')
+    await user.click(screen.getByRole('button', { name: '甘特图' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-stage-bar-2002')).toBeTruthy()
+    })
+
+    await fireEvent.mouseDown(screen.getByTestId('project-gantt-stage-resize-end-2002'), {
+      button: 0,
+      clientX: 240,
+    })
+    await fireEvent.mouseMove(window, {
+      buttons: 1,
+      clientX: 264,
+    })
+    await fireEvent.mouseUp(window, {
+      clientX: 264,
+    })
+
+    await waitFor(() => {
+      expect(updateProjectNode).toHaveBeenCalledWith(1001, 2002, {
+        planned_start_date: '2026-03-26',
+        planned_end_date: '2026-04-22',
+      })
+    })
+
+    expect(screen.getByTestId('project-gantt-stage-bar-2002').getAttribute('title')).toContain('2026-04-22')
+
+    updateDeferred.reject(new Error('后端约束不允许'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-stage-bar-2002').getAttribute('title')).toContain('2026-04-20')
+    })
+  })
+
+  it('saves resized subtask dates directly from the stage gantt handles after the parent stage is expanded', async () => {
+    mockWorkspaceData()
+    vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)
+    vi.mocked(getProjectNodeGantt).mockResolvedValue(nodeGanttFixture)
+    vi.mocked(updateSubtask).mockResolvedValue({
+      id: 3001,
+      node_id: 2002,
+      name: '完成登录接口开发',
+      description: '补充登录接口对接',
+      responsible_user_id: 18,
+      responsible_real_name: '王五',
+      status: 2,
+      progress_percent: 60,
+      priority: 2,
+      planned_start_date: '2026-03-27',
+      planned_end_date: '2026-04-02',
+      completed_at: null,
+      updated_at: '2026-04-01T10:30:00+08:00',
+    })
+
+    const screen = render(ProjectDetailView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+    const user = userEvent.setup()
+
+    await screen.findByTestId('project-workspace-card')
+    await user.click(screen.getByRole('button', { name: '甘特图' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-stage-bar-2002')).toBeTruthy()
+    })
+
+    await user.click(screen.getByTestId('project-gantt-stage-bar-2002'))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-subtask-bar-3001')).toBeTruthy()
+    })
+
+    await fireEvent.mouseDown(screen.getByTestId('project-gantt-subtask-resize-end-3001'), {
+      button: 0,
+      clientX: 180,
+    })
+    await fireEvent.mouseMove(window, {
+      buttons: 1,
+      clientX: 204,
+    })
+    await fireEvent.mouseUp(window, {
+      clientX: 204,
+    })
+
+    await waitFor(() => {
+      expect(updateSubtask).toHaveBeenCalledWith(3001, {
+        planned_start_date: '2026-03-27',
+        planned_end_date: '2026-04-02',
+      })
+    })
+  })
+
   it('expands all stage subtrees sequentially from top to bottom to avoid parallel gantt request spikes', async () => {
     mockWorkspaceData()
     vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)

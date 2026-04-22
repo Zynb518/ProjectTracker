@@ -3,17 +3,20 @@ import { computed, onBeforeUnmount, ref } from 'vue'
 
 import GanttScaleSwitcher from '@/components/workspace/GanttScaleSwitcher.vue'
 import type {
+  GanttNodeResizePayload,
   GanttNodeSummary,
   GanttPerspective,
   GanttScale,
+  GanttSubtaskResizePayload,
   GanttSubtaskSummary,
   ProjectStageGantt,
 } from '@/types/gantt'
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
-import { buildGanttAxisItems, getGanttBarLayout } from '@/utils/gantt'
+import { buildGanttAxisItems, getGanttBarLayout, getPixelsPerDay } from '@/utils/gantt'
 import { normalizeWheelDelta } from '@/utils/smoothWheel'
 
 const props = withDefaults(defineProps<{
+  canEditSchedule?: boolean
   expandedNodeIds?: number[]
   error?: string | null
   gantt: ProjectStageGantt | null
@@ -24,7 +27,10 @@ const props = withDefaults(defineProps<{
   nodeSubtasksById?: Record<number, GanttSubtaskSummary[]>
   perspective?: GanttPerspective
   scale: GanttScale
+  savingNodeIds?: number[]
+  savingSubtaskIds?: number[]
 }>(), {
+  canEditSchedule: false,
   expandedNodeIds: () => [],
   error: null,
   isExpandingAll: false,
@@ -33,11 +39,15 @@ const props = withDefaults(defineProps<{
   nodeLoadErrors: () => ({}),
   nodeSubtasksById: () => ({}),
   perspective: 'stage',
+  savingNodeIds: () => [],
+  savingSubtaskIds: () => [],
 })
 
 const emit = defineEmits<{
   'collapse-all': []
   'expand-all': []
+  'resize-node': [payload: GanttNodeResizePayload]
+  'resize-subtask': [payload: GanttSubtaskResizePayload]
   retry: []
   'retry-node': [nodeId: number]
   'toggle-node': [nodeId: number]
@@ -46,6 +56,32 @@ const emit = defineEmits<{
 }>()
 
 type HoverCardPlacement = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
+type ResizeEdge = 'start' | 'end'
+type ResizeTarget =
+  | {
+      edge: ResizeEdge
+      kind: 'node'
+      maxDate: string
+      minDate: string
+      nodeId: number
+      originalEndDate: string
+      originalStartDate: string
+    }
+  | {
+      edge: ResizeEdge
+      kind: 'subtask'
+      maxDate: string
+      minDate: string
+      nodeId: number
+      originalEndDate: string
+      originalStartDate: string
+      subtaskId: number
+    }
+type ActiveResizeState = ResizeTarget & {
+  plannedEndDate: string
+  plannedStartDate: string
+  pointerStartX: number
+}
 type VisibleGanttRow =
   | {
       key: string
@@ -81,9 +117,13 @@ const hoveredNodePlacement = ref<HoverCardPlacement>('top-right')
 const hoveredSubtaskId = ref<number | null>(null)
 const hoveredSubtaskAnchor = ref({ x: 0, y: 0 })
 const hoveredSubtaskPlacement = ref<HoverCardPlacement>('top-right')
+const activeResize = ref<ActiveResizeState | null>(null)
+let showNodeDetailTimer: ReturnType<typeof window.setTimeout> | null = null
+let showSubtaskDetailTimer: ReturnType<typeof window.setTimeout> | null = null
 let hideNodeDetailTimer: ReturnType<typeof window.setTimeout> | null = null
 let hideSubtaskDetailTimer: ReturnType<typeof window.setTimeout> | null = null
 
+const DETAIL_SHOW_DELAY_MS = 1000
 const DETAIL_HIDE_DELAY_MS = 180
 const DETAIL_CARD_EDGE_GAP_PX = 24
 const DETAIL_CARD_HEIGHT_HINT_PX = 220
@@ -118,6 +158,8 @@ const timelineCanvasStyle = computed(() => ({
 
 const expandedNodeIdSet = computed(() => new Set(props.expandedNodeIds))
 const loadingNodeIdSet = computed(() => new Set(props.loadingNodeIds))
+const savingNodeIdSet = computed(() => new Set(props.savingNodeIds))
+const savingSubtaskIdSet = computed(() => new Set(props.savingSubtaskIds))
 
 const visibleRows = computed<VisibleGanttRow[]>(() => {
   if (props.gantt === null) {
@@ -211,11 +253,72 @@ function formatCompletedAt(value: string) {
   return value.slice(0, 16).replace('T', ' ')
 }
 
-function getBarStyle(node: GanttNodeSummary | GanttSubtaskSummary) {
+function parseDate(value: string) {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day))
+}
+
+function formatDate(value: Date) {
+  return value.toISOString().slice(0, 10)
+}
+
+function shiftDate(value: string, days: number) {
+  const date = parseDate(value)
+  date.setUTCDate(date.getUTCDate() + days)
+  return formatDate(date)
+}
+
+function clampDate(value: string, minDate: string, maxDate: string) {
+  if (value < minDate) {
+    return minDate
+  }
+
+  if (value > maxDate) {
+    return maxDate
+  }
+
+  return value
+}
+
+function getVisibleRange(
+  item: GanttNodeSummary | GanttSubtaskSummary,
+  kind: 'node' | 'subtask',
+) {
+  const draft = activeResize.value
+
+  if (draft === null || draft.kind !== kind) {
+    return {
+      planned_end_date: item.planned_end_date,
+      planned_start_date: item.planned_start_date,
+    }
+  }
+
+  if (kind === 'node' && draft.nodeId === item.id) {
+    return {
+      planned_end_date: draft.plannedEndDate,
+      planned_start_date: draft.plannedStartDate,
+    }
+  }
+
+  if (kind === 'subtask' && 'subtaskId' in draft && draft.subtaskId === item.id) {
+    return {
+      planned_end_date: draft.plannedEndDate,
+      planned_start_date: draft.plannedStartDate,
+    }
+  }
+
+  return {
+    planned_end_date: item.planned_end_date,
+    planned_start_date: item.planned_start_date,
+  }
+}
+
+function getBarStyle(node: GanttNodeSummary | GanttSubtaskSummary, kind: 'node' | 'subtask') {
+  const range = getVisibleRange(node, kind)
   const layout = getGanttBarLayout(
     axisStartDate.value,
-    node.planned_start_date,
-    node.planned_end_date,
+    range.planned_start_date,
+    range.planned_end_date,
     props.scale,
   )
 
@@ -260,18 +363,72 @@ function getHoverPlacement(anchor: { x: number; y: number }): HoverCardPlacement
   return shouldFlipHorizontally ? 'top-left' : 'top-right'
 }
 
-function showNodeDetail(nodeId: number, event?: FocusEvent | MouseEvent) {
+function dismissNodeDetail(nodeId?: number) {
+  cancelShowNodeDetail()
   cancelHideNodeDetail()
+
+  if (nodeId !== undefined && hoveredNodeId.value !== null && hoveredNodeId.value !== nodeId) {
+    return
+  }
+
+  hoveredNodeId.value = null
+}
+
+function showNodeDetail(nodeId: number, event?: FocusEvent | MouseEvent) {
+  dismissNodeDetail(nodeId)
   hoveredNodeId.value = nodeId
   hoveredNodeAnchor.value = getHoverPoint(event)
   hoveredNodePlacement.value = getHoverPlacement(hoveredNodeAnchor.value)
 }
 
+function scheduleShowNodeDetail(nodeId: number, event?: MouseEvent) {
+  if (activeResize.value !== null) {
+    return
+  }
+
+  cancelShowNodeDetail()
+  cancelHideNodeDetail()
+  const anchor = getHoverPoint(event)
+  const placement = getHoverPlacement(anchor)
+
+  showNodeDetailTimer = window.setTimeout(() => {
+    hoveredNodeId.value = nodeId
+    hoveredNodeAnchor.value = anchor
+    hoveredNodePlacement.value = placement
+    showNodeDetailTimer = null
+  }, DETAIL_SHOW_DELAY_MS)
+}
+
 function showSubtaskDetail(subtaskId: number, event?: FocusEvent | MouseEvent) {
-  cancelHideSubtaskDetail()
+  dismissSubtaskDetail(subtaskId)
   hoveredSubtaskId.value = subtaskId
   hoveredSubtaskAnchor.value = getHoverPoint(event)
   hoveredSubtaskPlacement.value = getHoverPlacement(hoveredSubtaskAnchor.value)
+}
+
+function scheduleShowSubtaskDetail(subtaskId: number, event?: MouseEvent) {
+  if (activeResize.value !== null) {
+    return
+  }
+
+  cancelShowSubtaskDetail()
+  cancelHideSubtaskDetail()
+  const anchor = getHoverPoint(event)
+  const placement = getHoverPlacement(anchor)
+
+  showSubtaskDetailTimer = window.setTimeout(() => {
+    hoveredSubtaskId.value = subtaskId
+    hoveredSubtaskAnchor.value = anchor
+    hoveredSubtaskPlacement.value = placement
+    showSubtaskDetailTimer = null
+  }, DETAIL_SHOW_DELAY_MS)
+}
+
+function cancelShowNodeDetail() {
+  if (showNodeDetailTimer !== null) {
+    window.clearTimeout(showNodeDetailTimer)
+    showNodeDetailTimer = null
+  }
 }
 
 function cancelHideNodeDetail() {
@@ -291,11 +448,24 @@ function scheduleHideNodeDetail() {
 }
 
 function clearNodeDetail(nodeId?: number) {
+  cancelShowNodeDetail()
+
   if (nodeId !== undefined && hoveredNodeId.value !== nodeId) {
     return
   }
 
+  if (hoveredNodeId.value === null) {
+    return
+  }
+
   scheduleHideNodeDetail()
+}
+
+function cancelShowSubtaskDetail() {
+  if (showSubtaskDetailTimer !== null) {
+    window.clearTimeout(showSubtaskDetailTimer)
+    showSubtaskDetailTimer = null
+  }
 }
 
 function cancelHideSubtaskDetail() {
@@ -314,12 +484,171 @@ function scheduleHideSubtaskDetail() {
   }, DETAIL_HIDE_DELAY_MS)
 }
 
+function dismissSubtaskDetail(subtaskId?: number) {
+  cancelShowSubtaskDetail()
+  cancelHideSubtaskDetail()
+
+  if (subtaskId !== undefined && hoveredSubtaskId.value !== null && hoveredSubtaskId.value !== subtaskId) {
+    return
+  }
+
+  hoveredSubtaskId.value = null
+}
+
 function clearSubtaskDetail(subtaskId?: number) {
+  cancelShowSubtaskDetail()
+
   if (subtaskId !== undefined && hoveredSubtaskId.value !== subtaskId) {
     return
   }
 
+  if (hoveredSubtaskId.value === null) {
+    return
+  }
+
   scheduleHideSubtaskDetail()
+}
+
+function getResizedRange(target: ResizeTarget, pointerClientX: number) {
+  const dayWidth = getPixelsPerDay(props.scale)
+  const pointerStartX = 'pointerStartX' in target
+    ? (target as ActiveResizeState).pointerStartX
+    : pointerClientX
+  const deltaDays = Math.round((pointerClientX - pointerStartX) / dayWidth)
+
+  if (target.edge === 'start') {
+    const nextStartDate = clampDate(
+      shiftDate(target.originalStartDate, deltaDays),
+      target.minDate,
+      target.maxDate,
+    )
+
+    return {
+      plannedEndDate: target.originalEndDate,
+      plannedStartDate: nextStartDate > target.originalEndDate ? target.originalEndDate : nextStartDate,
+    }
+  }
+
+  const nextEndDate = clampDate(
+    shiftDate(target.originalEndDate, deltaDays),
+    target.minDate,
+    target.maxDate,
+  )
+
+  return {
+    plannedEndDate: nextEndDate < target.originalStartDate ? target.originalStartDate : nextEndDate,
+    plannedStartDate: target.originalStartDate,
+  }
+}
+
+function stopResize() {
+  window.removeEventListener('mousemove', handleResizeMove)
+  window.removeEventListener('mouseup', handleResizeEnd)
+}
+
+function cancelDetailHoverForResize(target: ResizeTarget) {
+  if (target.kind === 'node') {
+    dismissNodeDetail(target.nodeId)
+    return
+  }
+
+  dismissSubtaskDetail(target.subtaskId)
+}
+
+function beginResize(target: ResizeTarget, event: MouseEvent) {
+  if (event.button !== 0) {
+    return
+  }
+
+  event.preventDefault()
+  event.stopPropagation()
+  cancelDetailHoverForResize(target)
+
+  activeResize.value = {
+    ...target,
+    plannedEndDate: target.originalEndDate,
+    plannedStartDate: target.originalStartDate,
+    pointerStartX: event.clientX,
+  }
+
+  window.addEventListener('mousemove', handleResizeMove)
+  window.addEventListener('mouseup', handleResizeEnd)
+}
+
+function handleResizeMove(event: MouseEvent) {
+  if (activeResize.value === null) {
+    return
+  }
+
+  const resizedRange = getResizedRange(activeResize.value, event.clientX)
+  activeResize.value = {
+    ...activeResize.value,
+    ...resizedRange,
+  }
+}
+
+function handleResizeEnd(event: MouseEvent) {
+  const resizeDraft = activeResize.value
+
+  if (resizeDraft === null) {
+    stopResize()
+    return
+  }
+
+  stopResize()
+  activeResize.value = null
+
+  const resizedRange = getResizedRange(resizeDraft, event.clientX)
+  if (
+    resizedRange.plannedStartDate === resizeDraft.originalStartDate
+    && resizedRange.plannedEndDate === resizeDraft.originalEndDate
+  ) {
+    return
+  }
+
+  if (resizeDraft.kind === 'node') {
+    emit('resize-node', {
+      nodeId: resizeDraft.nodeId,
+      plannedEndDate: resizedRange.plannedEndDate,
+      plannedStartDate: resizedRange.plannedStartDate,
+    })
+    return
+  }
+
+  emit('resize-subtask', {
+    nodeId: resizeDraft.nodeId,
+    plannedEndDate: resizedRange.plannedEndDate,
+    plannedStartDate: resizedRange.plannedStartDate,
+    subtaskId: resizeDraft.subtaskId,
+  })
+}
+
+function isNodeResizeDisabled(nodeId: number) {
+  return !props.canEditSchedule || savingNodeIdSet.value.has(nodeId)
+}
+
+function isSubtaskResizeDisabled(subtaskId: number) {
+  return !props.canEditSchedule || savingSubtaskIdSet.value.has(subtaskId)
+}
+
+function isActiveResizeTarget(kind: 'node' | 'subtask', id: number) {
+  if (activeResize.value === null || activeResize.value.kind !== kind) {
+    return false
+  }
+
+  return kind === 'node'
+    ? activeResize.value.nodeId === id
+    : 'subtaskId' in activeResize.value && activeResize.value.subtaskId === id
+}
+
+function getNodeBarTitle(node: GanttNodeSummary) {
+  const range = getVisibleRange(node, 'node')
+  return `${node.name}｜${getWorkStatusLabel(node.status)}｜${range.planned_start_date} - ${range.planned_end_date}`
+}
+
+function getSubtaskBarTitle(subtask: GanttSubtaskSummary) {
+  const range = getVisibleRange(subtask, 'subtask')
+  return `${subtask.name}｜${subtask.responsible_real_name}｜${range.planned_start_date} - ${range.planned_end_date}`
 }
 
 function markIgnoredScroll(
@@ -431,8 +760,11 @@ function handleRowsScroll() {
 }
 
 onBeforeUnmount(() => {
+  cancelShowNodeDetail()
   cancelHideNodeDetail()
+  cancelShowSubtaskDetail()
   cancelHideSubtaskDetail()
+  stopResize()
 })
 </script>
 
@@ -657,18 +989,54 @@ onBeforeUnmount(() => {
                         `project-gantt__bar--${getWorkStatusTone(row.node.status)}`,
                         {
                           'is-expanded': expandedNodeIdSet.has(row.node.id),
+                          'is-resizing': isActiveResizeTarget('node', row.node.id),
+                          'is-schedule-editable': !isNodeResizeDisabled(row.node.id),
                         },
                       ]"
-                      :style="getBarStyle(row.node)"
-                      :title="`${row.node.name}｜${getWorkStatusLabel(row.node.status)}｜${row.node.planned_start_date} - ${row.node.planned_end_date}`"
+                      :style="getBarStyle(row.node, 'node')"
+                      :title="getNodeBarTitle(row.node)"
                       type="button"
                       @blur="clearNodeDetail(row.node.id)"
                       @click="emit('toggle-node', row.node.id)"
                       @focus="showNodeDetail(row.node.id, $event)"
                       @mouseleave="clearNodeDetail(row.node.id)"
-                      @mouseenter="showNodeDetail(row.node.id, $event)"
+                      @mouseenter="scheduleShowNodeDetail(row.node.id, $event)"
                     >
-                      <span>{{ row.node.name }}</span>
+                      <span class="project-gantt__bar-label">{{ row.node.name }}</span>
+                      <span
+                        v-if="!isNodeResizeDisabled(row.node.id)"
+                        :data-testid="`project-gantt-stage-resize-start-${row.node.id}`"
+                        class="project-gantt__resize-handle project-gantt__resize-handle--start"
+                        aria-hidden="true"
+                        @click.stop.prevent
+                        @mousedown.stop.prevent="beginResize({
+                          edge: 'start',
+                          kind: 'node',
+                          maxDate: gantt.project.planned_end_date,
+                          minDate: gantt.project.planned_start_date,
+                          nodeId: row.node.id,
+                          originalEndDate: row.node.planned_end_date,
+                          originalStartDate: row.node.planned_start_date,
+                        }, $event)"
+                        @mouseenter.stop="dismissNodeDetail(row.node.id)"
+                      />
+                      <span
+                        v-if="!isNodeResizeDisabled(row.node.id)"
+                        :data-testid="`project-gantt-stage-resize-end-${row.node.id}`"
+                        class="project-gantt__resize-handle project-gantt__resize-handle--end"
+                        aria-hidden="true"
+                        @click.stop.prevent
+                        @mousedown.stop.prevent="beginResize({
+                          edge: 'end',
+                          kind: 'node',
+                          maxDate: gantt.project.planned_end_date,
+                          minDate: gantt.project.planned_start_date,
+                          nodeId: row.node.id,
+                          originalEndDate: row.node.planned_end_date,
+                          originalStartDate: row.node.planned_start_date,
+                        }, $event)"
+                        @mouseenter.stop="dismissNodeDetail(row.node.id)"
+                      />
                     </button>
 
                     <button
@@ -678,16 +1046,56 @@ onBeforeUnmount(() => {
                         'project-gantt__bar',
                         'project-gantt__bar--subtask',
                         `project-gantt__bar--${getWorkStatusTone(row.subtask.status)}`,
+                        {
+                          'is-resizing': isActiveResizeTarget('subtask', row.subtask.id),
+                          'is-schedule-editable': !isSubtaskResizeDisabled(row.subtask.id),
+                        },
                       ]"
-                      :style="getBarStyle(row.subtask)"
-                      :title="`${row.subtask.name}｜${row.subtask.responsible_real_name}｜${row.subtask.progress_percent}%`"
+                      :style="getBarStyle(row.subtask, 'subtask')"
+                      :title="getSubtaskBarTitle(row.subtask)"
                       type="button"
                       @blur="clearSubtaskDetail(row.subtask.id)"
                       @focus="showSubtaskDetail(row.subtask.id, $event)"
                       @mouseleave="clearSubtaskDetail(row.subtask.id)"
-                      @mouseenter="showSubtaskDetail(row.subtask.id, $event)"
+                      @mouseenter="scheduleShowSubtaskDetail(row.subtask.id, $event)"
                     >
-                      <span>{{ row.subtask.name }}</span>
+                      <span class="project-gantt__bar-label">{{ row.subtask.name }}</span>
+                      <span
+                        v-if="!isSubtaskResizeDisabled(row.subtask.id)"
+                        :data-testid="`project-gantt-subtask-resize-start-${row.subtask.id}`"
+                        class="project-gantt__resize-handle project-gantt__resize-handle--start"
+                        aria-hidden="true"
+                        @click.stop.prevent
+                        @mousedown.stop.prevent="beginResize({
+                          edge: 'start',
+                          kind: 'subtask',
+                          maxDate: row.node.planned_end_date,
+                          minDate: row.node.planned_start_date,
+                          nodeId: row.node.id,
+                          originalEndDate: row.subtask.planned_end_date,
+                          originalStartDate: row.subtask.planned_start_date,
+                          subtaskId: row.subtask.id,
+                        }, $event)"
+                        @mouseenter.stop="dismissSubtaskDetail(row.subtask.id)"
+                      />
+                      <span
+                        v-if="!isSubtaskResizeDisabled(row.subtask.id)"
+                        :data-testid="`project-gantt-subtask-resize-end-${row.subtask.id}`"
+                        class="project-gantt__resize-handle project-gantt__resize-handle--end"
+                        aria-hidden="true"
+                        @click.stop.prevent
+                        @mousedown.stop.prevent="beginResize({
+                          edge: 'end',
+                          kind: 'subtask',
+                          maxDate: row.node.planned_end_date,
+                          minDate: row.node.planned_start_date,
+                          nodeId: row.node.id,
+                          originalEndDate: row.subtask.planned_end_date,
+                          originalStartDate: row.subtask.planned_start_date,
+                          subtaskId: row.subtask.id,
+                        }, $event)"
+                        @mouseenter.stop="dismissSubtaskDetail(row.subtask.id)"
+                      />
                     </button>
 
                     <div
@@ -1430,6 +1838,7 @@ onBeforeUnmount(() => {
   top: 50%;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   height: 38px;
   padding: 0 14px;
   border: 0;
@@ -1443,12 +1852,53 @@ onBeforeUnmount(() => {
     filter 180ms ease-out;
 }
 
-.project-gantt__bar span {
+.project-gantt__bar.is-schedule-editable {
+  padding-inline: 20px;
+}
+
+.project-gantt__bar.is-resizing {
+  cursor: ew-resize;
+  transition: none;
+}
+
+.project-gantt__bar-label {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.84rem;
   font-weight: 600;
+}
+
+.project-gantt__resize-handle {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  width: 12px;
+  border-radius: 999px;
+  opacity: 0;
+  transition:
+    opacity 160ms ease-out,
+    background 160ms ease-out,
+    box-shadow 160ms ease-out;
+  cursor: ew-resize;
+}
+
+.project-gantt__resize-handle--start {
+  left: 4px;
+}
+
+.project-gantt__resize-handle--end {
+  right: 4px;
+}
+
+.project-gantt__bar.is-schedule-editable:hover .project-gantt__resize-handle,
+.project-gantt__bar.is-schedule-editable:focus-visible .project-gantt__resize-handle,
+.project-gantt__bar.is-resizing .project-gantt__resize-handle {
+  opacity: 1;
+  background: color-mix(in srgb, #ffffff 18%, transparent);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #ffffff 28%, transparent),
+    0 0 0 1px color-mix(in srgb, #071221 16%, transparent);
 }
 
 .project-gantt__bar--stage.is-expanded {

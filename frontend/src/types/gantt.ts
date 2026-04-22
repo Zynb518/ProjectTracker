@@ -70,3 +70,16 @@ export interface ProjectMemberGantt {
   project: GanttProjectSummary
   member_rows: GanttMemberRowSummary[]
 }
+
+export interface GanttNodeResizePayload {
+  nodeId: number
+  plannedStartDate: string
+  plannedEndDate: string
+}
+
+export interface GanttSubtaskResizePayload {
+  nodeId: number
+  subtaskId: number
+  plannedStartDate: string
+  plannedEndDate: string
+}

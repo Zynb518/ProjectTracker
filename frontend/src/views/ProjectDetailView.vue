@@ -40,14 +40,16 @@ import {
 import { useNotificationStore } from '@/stores/notifications'
 import { useProjectWorkspaceStore } from '@/stores/projectWorkspace'
 import type {
+  GanttNodeResizePayload,
   GanttPerspective,
   GanttScale,
+  GanttSubtaskResizePayload,
   ProjectMemberGantt,
   ProjectNodeSubtaskGantt,
   ProjectStageGantt,
 } from '@/types/gantt'
 import type { ProjectMember } from '@/types/member'
-import type { ProjectNodePayload } from '@/types/node'
+import type { ProjectNode, ProjectNodePayload } from '@/types/node'
 import type { Subtask, SubtaskPayload, SubtaskProgressRecord } from '@/types/subtask'
 
 type NodeReorderPayload = { nodes: Array<{ node_id: number; sequence_no: number }> }
@@ -89,6 +91,8 @@ const isGanttLoading = ref(false)
 const expandedGanttNodeIds = ref<number[]>([])
 const ganttNodeLoadErrors = ref<Record<number, string | null>>({})
 const loadingGanttNodeIds = ref<number[]>([])
+const savingGanttNodeIds = ref<number[]>([])
+const savingGanttSubtaskIds = ref<number[]>([])
 const isExpandingAllGanttNodes = ref(false)
 const projectMemberGantt = ref<ProjectMemberGantt | null>(null)
 const memberGanttLoadError = ref<string | null>(null)
@@ -166,6 +170,8 @@ function invalidateGanttCache() {
   expandedGanttNodeIds.value = []
   ganttNodeLoadErrors.value = {}
   loadingGanttNodeIds.value = []
+  savingGanttNodeIds.value = []
+  savingGanttSubtaskIds.value = []
   isExpandingAllGanttNodes.value = false
   projectMemberGantt.value = null
   memberGanttLoadError.value = null
@@ -267,6 +273,199 @@ async function loadNodeGantt(nodeId: number, force = false): Promise<ProjectNode
 
   nodeGanttRequestMap.set(nodeId, request)
   return request
+}
+
+function addSavingGanttNode(nodeId: number) {
+  if (savingGanttNodeIds.value.includes(nodeId)) {
+    return
+  }
+
+  savingGanttNodeIds.value = [...savingGanttNodeIds.value, nodeId]
+}
+
+function removeSavingGanttNode(nodeId: number) {
+  savingGanttNodeIds.value = savingGanttNodeIds.value.filter((currentNodeId) => currentNodeId !== nodeId)
+}
+
+function addSavingGanttSubtask(subtaskId: number) {
+  if (savingGanttSubtaskIds.value.includes(subtaskId)) {
+    return
+  }
+
+  savingGanttSubtaskIds.value = [...savingGanttSubtaskIds.value, subtaskId]
+}
+
+function removeSavingGanttSubtask(subtaskId: number) {
+  savingGanttSubtaskIds.value = savingGanttSubtaskIds.value.filter((currentSubtaskId) => currentSubtaskId !== subtaskId)
+}
+
+function patchNodeEverywhere(nodeId: number, patch: Partial<ProjectNode>) {
+  nodes.value = nodes.value.map((node) => (
+    node.id === nodeId
+      ? {
+          ...node,
+          ...patch,
+        }
+      : node
+  ))
+
+  if (projectGantt.value !== null) {
+    projectGantt.value = {
+      ...projectGantt.value,
+      nodes: projectGantt.value.nodes.map((node) => (
+        node.id === nodeId
+          ? {
+              ...node,
+              completed_at: patch.completed_at ?? node.completed_at,
+              name: patch.name ?? node.name,
+              planned_end_date: patch.planned_end_date ?? node.planned_end_date,
+              planned_start_date: patch.planned_start_date ?? node.planned_start_date,
+              sequence_no: patch.sequence_no ?? node.sequence_no,
+              status: patch.status ?? node.status,
+            }
+          : node
+      )),
+    }
+  }
+
+  const cachedGantt = nodeGanttCache.value[nodeId]
+  if (cachedGantt !== undefined) {
+    nodeGanttCache.value = {
+      ...nodeGanttCache.value,
+      [nodeId]: {
+        ...cachedGantt,
+        node: {
+          ...cachedGantt.node,
+          completed_at: patch.completed_at ?? cachedGantt.node.completed_at,
+          name: patch.name ?? cachedGantt.node.name,
+          planned_end_date: patch.planned_end_date ?? cachedGantt.node.planned_end_date,
+          planned_start_date: patch.planned_start_date ?? cachedGantt.node.planned_start_date,
+          sequence_no: patch.sequence_no ?? cachedGantt.node.sequence_no,
+          status: patch.status ?? cachedGantt.node.status,
+        },
+      },
+    }
+  }
+}
+
+function patchSubtaskEverywhere(
+  nodeId: number,
+  subtaskId: number,
+  patch: Partial<Subtask>,
+) {
+  subtasks.value = subtasks.value.map((subtask) => (
+    subtask.id === subtaskId
+      ? {
+          ...subtask,
+          ...patch,
+        }
+      : subtask
+  ))
+
+  const cachedGantt = nodeGanttCache.value[nodeId]
+  if (cachedGantt !== undefined) {
+    nodeGanttCache.value = {
+      ...nodeGanttCache.value,
+      [nodeId]: {
+        ...cachedGantt,
+        subtasks: cachedGantt.subtasks.map((subtask) => (
+          subtask.id === subtaskId
+            ? {
+                ...subtask,
+                completed_at: patch.completed_at ?? subtask.completed_at,
+                name: patch.name ?? subtask.name,
+                planned_end_date: patch.planned_end_date ?? subtask.planned_end_date,
+                planned_start_date: patch.planned_start_date ?? subtask.planned_start_date,
+                priority: patch.priority ?? subtask.priority,
+                progress_percent: patch.progress_percent ?? subtask.progress_percent,
+                responsible_real_name: patch.responsible_real_name ?? subtask.responsible_real_name,
+                responsible_user_id: patch.responsible_user_id ?? subtask.responsible_user_id,
+                status: patch.status ?? subtask.status,
+              }
+            : subtask
+        )),
+      },
+    }
+  }
+}
+
+async function handleResizeGanttNode(payload: GanttNodeResizePayload) {
+  if (savingGanttNodeIds.value.includes(payload.nodeId)) {
+    return
+  }
+
+  const previousNode = nodes.value.find((node) => node.id === payload.nodeId)
+  if (previousNode === undefined) {
+    return
+  }
+
+  addSavingGanttNode(payload.nodeId)
+  patchNodeEverywhere(payload.nodeId, {
+    planned_end_date: payload.plannedEndDate,
+    planned_start_date: payload.plannedStartDate,
+  })
+
+  try {
+    const updatedNode = await updateProjectNode(projectId, payload.nodeId, {
+      planned_end_date: payload.plannedEndDate,
+      planned_start_date: payload.plannedStartDate,
+    })
+    patchNodeEverywhere(payload.nodeId, updatedNode)
+  } catch (error) {
+    patchNodeEverywhere(payload.nodeId, {
+      completed_at: previousNode.completed_at,
+      name: previousNode.name,
+      planned_end_date: previousNode.planned_end_date,
+      planned_start_date: previousNode.planned_start_date,
+      sequence_no: previousNode.sequence_no,
+      status: previousNode.status,
+    })
+    notificationStore.notifyError(getErrorMessage(error, '阶段排期更新失败'))
+  } finally {
+    removeSavingGanttNode(payload.nodeId)
+  }
+}
+
+async function handleResizeGanttSubtask(payload: GanttSubtaskResizePayload) {
+  if (savingGanttSubtaskIds.value.includes(payload.subtaskId)) {
+    return
+  }
+
+  const previousSubtask = subtasks.value.find((subtask) => subtask.id === payload.subtaskId)
+    ?? nodeGanttCache.value[payload.nodeId]?.subtasks.find((subtask) => subtask.id === payload.subtaskId)
+
+  if (previousSubtask === undefined) {
+    return
+  }
+
+  addSavingGanttSubtask(payload.subtaskId)
+  patchSubtaskEverywhere(payload.nodeId, payload.subtaskId, {
+    planned_end_date: payload.plannedEndDate,
+    planned_start_date: payload.plannedStartDate,
+  })
+
+  try {
+    const updatedSubtask = await updateSubtask(payload.subtaskId, {
+      planned_end_date: payload.plannedEndDate,
+      planned_start_date: payload.plannedStartDate,
+    })
+    patchSubtaskEverywhere(payload.nodeId, payload.subtaskId, updatedSubtask)
+  } catch (error) {
+    patchSubtaskEverywhere(payload.nodeId, payload.subtaskId, {
+      completed_at: previousSubtask.completed_at,
+      name: previousSubtask.name,
+      planned_end_date: previousSubtask.planned_end_date,
+      planned_start_date: previousSubtask.planned_start_date,
+      priority: previousSubtask.priority,
+      progress_percent: previousSubtask.progress_percent,
+      responsible_real_name: previousSubtask.responsible_real_name,
+      responsible_user_id: previousSubtask.responsible_user_id,
+      status: previousSubtask.status,
+    })
+    notificationStore.notifyError(getErrorMessage(error, '子任务排期更新失败'))
+  } finally {
+    removeSavingGanttSubtask(payload.subtaskId)
+  }
 }
 
 async function switchView(mode: ProjectDetailViewMode) {
@@ -787,6 +986,7 @@ async function openHistoryDrawer(subtaskId: number) {
 
       <ProjectGanttView
         v-else-if="ganttPerspective === 'stage'"
+        :can-edit-schedule="canManageNodes"
         :expanded-node-ids="expandedGanttNodeIds"
         :error="ganttLoadError"
         :gantt="projectGantt"
@@ -797,8 +997,12 @@ async function openHistoryDrawer(subtaskId: number) {
         :node-subtasks-by-id="ganttNodeSubtasksById"
         :perspective="ganttPerspective"
         :scale="ganttScale"
+        :saving-node-ids="savingGanttNodeIds"
+        :saving-subtask-ids="savingGanttSubtaskIds"
         @collapse-all="collapseAllGanttNodes"
         @expand-all="expandAllGanttNodes"
+        @resize-node="handleResizeGanttNode"
+        @resize-subtask="handleResizeGanttSubtask"
         @retry="loadProjectGantt(true)"
         @retry-node="retryGanttNode"
         @toggle-node="toggleGanttNode"

@@ -140,6 +140,8 @@ describe('ProjectGanttView', () => {
   })
 
   it('renders a color-coded stage hover detail card with semantic summary blocks', async () => {
+    vi.useFakeTimers()
+
     const wrapper = mount(ProjectGanttView, {
       attachTo: document.body,
       props: {
@@ -149,6 +151,7 @@ describe('ProjectGanttView', () => {
     })
 
     await wrapper.get('[data-testid="project-gantt-stage-bar-2002"]').trigger('mouseenter')
+    await vi.advanceTimersByTimeAsync(1000)
 
     const detailCard = document.body.querySelector('[data-testid="project-gantt-detail-card"]')
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
@@ -166,6 +169,7 @@ describe('ProjectGanttView', () => {
     expect(source).toContain('.project-gantt__detail-stat--active')
 
     wrapper.unmount()
+    vi.useRealTimers()
   })
 
   it('uses a more compact stage hover card footprint for tighter anchor positioning', () => {
@@ -220,6 +224,8 @@ describe('ProjectGanttView', () => {
   })
 
   it('anchors the stage detail card to the hover point and flips placement near viewport edges', async () => {
+    vi.useFakeTimers()
+
     const wrapper = mount(ProjectGanttView, {
       attachTo: document.body,
       props: {
@@ -232,6 +238,7 @@ describe('ProjectGanttView', () => {
       clientX: 320,
       clientY: 260,
     })
+    await vi.advanceTimersByTimeAsync(1000)
 
     let detailCard = document.body.querySelector('[data-testid="project-gantt-detail-card"]') as HTMLElement | null
 
@@ -244,11 +251,13 @@ describe('ProjectGanttView', () => {
       clientX: 980,
       clientY: 60,
     })
+    await vi.advanceTimersByTimeAsync(1000)
 
     detailCard = document.body.querySelector('[data-testid="project-gantt-detail-card"]') as HTMLElement | null
     expect(detailCard?.dataset.placement).toBe('bottom-left')
 
     wrapper.unmount()
+    vi.useRealTimers()
   })
 
   it('keeps the fixed stage detail card visible while moving from the bar into the card', async () => {
@@ -263,6 +272,10 @@ describe('ProjectGanttView', () => {
     })
 
     await wrapper.get('[data-testid="project-gantt-stage-bar-2002"]').trigger('mouseenter')
+    expect(document.body.querySelector('[data-testid="project-gantt-detail-card"]')).toBeNull()
+    await vi.advanceTimersByTimeAsync(999)
+    expect(document.body.querySelector('[data-testid="project-gantt-detail-card"]')).toBeNull()
+    await vi.advanceTimersByTimeAsync(1)
 
     const detailCard = document.body.querySelector('[data-testid="project-gantt-detail-card"]')
     expect(detailCard).not.toBeNull()
@@ -277,6 +290,30 @@ describe('ProjectGanttView', () => {
     detailCard?.dispatchEvent(new MouseEvent('mouseleave', { bubbles: true }))
     await vi.advanceTimersByTimeAsync(240)
     expect(document.body.querySelector('[data-testid="project-gantt-detail-card"]')).toBeNull()
+
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('uses a 1000ms delayed hover before showing stage detail cards so resize intent does not immediately conflict', async () => {
+    vi.useFakeTimers()
+
+    const wrapper = mount(ProjectGanttView, {
+      attachTo: document.body,
+      props: {
+        gantt: sampleProjectGantt,
+        scale: 'week',
+      },
+    })
+
+    await wrapper.get('[data-testid="project-gantt-stage-bar-2002"]').trigger('mouseenter')
+    expect(document.body.querySelector('[data-testid="project-gantt-detail-card"]')).toBeNull()
+
+    await vi.advanceTimersByTimeAsync(999)
+    expect(document.body.querySelector('[data-testid="project-gantt-detail-card"]')).toBeNull()
+
+    await vi.advanceTimersByTimeAsync(1)
+    expect(document.body.querySelector('[data-testid="project-gantt-detail-card"]')).not.toBeNull()
 
     wrapper.unmount()
     vi.useRealTimers()
@@ -623,6 +660,84 @@ describe('ProjectGanttView', () => {
     expect(wrapper.emitted('toggle-node')).toEqual([[2002]])
   })
 
+  it('emits resized stage dates from the handle without toggling subtree expansion', async () => {
+    const wrapper = mount(ProjectGanttView, {
+      props: {
+        canEditSchedule: true,
+        gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
+        scale: 'week',
+      },
+    })
+
+    await wrapper.get('[data-testid="project-gantt-stage-resize-end-2002"]').trigger('mousedown', {
+      button: 0,
+      clientX: 240,
+    })
+
+    window.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      buttons: 1,
+      clientX: 264,
+    }))
+    window.dispatchEvent(new MouseEvent('mouseup', {
+      bubbles: true,
+      clientX: 264,
+    }))
+
+    expect(wrapper.emitted('resize-node')).toEqual([[
+      {
+        nodeId: 2002,
+        plannedStartDate: '2026-03-26',
+        plannedEndDate: '2026-04-22',
+      },
+    ]])
+    expect(wrapper.emitted('toggle-node')).toBeUndefined()
+  })
+
+  it('emits resized subtask dates from the handle using day-level snapping even when the gantt is in week scale', async () => {
+    const wrapper = mount(ProjectGanttView, {
+      props: {
+        canEditSchedule: true,
+        gantt: sampleProjectGantt,
+        expandedNodeIds: [2002],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {
+          2002: sampleNodeGantt.subtasks,
+        },
+        scale: 'week',
+      },
+    })
+
+    await wrapper.get('[data-testid="project-gantt-subtask-resize-start-3001"]').trigger('mousedown', {
+      button: 0,
+      clientX: 180,
+    })
+
+    window.dispatchEvent(new MouseEvent('mousemove', {
+      bubbles: true,
+      buttons: 1,
+      clientX: 156,
+    }))
+    window.dispatchEvent(new MouseEvent('mouseup', {
+      bubbles: true,
+      clientX: 156,
+    }))
+
+    expect(wrapper.emitted('resize-subtask')).toEqual([[
+      {
+        nodeId: 2002,
+        subtaskId: 3001,
+        plannedStartDate: '2026-03-26',
+        plannedEndDate: '2026-03-31',
+      },
+    ]])
+  })
+
   it('emits expand-all and collapse-all actions from the toolbar controls', async () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
@@ -655,6 +770,15 @@ describe('ProjectGanttView', () => {
     expect(scaleSource).not.toContain('aria-label="放大时间粒度"')
     expect(scaleSource).not.toContain('aria-label="缩小时间粒度"')
     expect(scaleSource).not.toContain('.gantt-scale-switcher__zoom')
+  })
+
+  it('adds dedicated resize handles and a delayed hover constant to separate edit intent from detail-card hover intent', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+
+    expect(source).toContain('const DETAIL_SHOW_DELAY_MS = 1000')
+    expect(source).toContain('project-gantt__resize-handle')
+    expect(source).toContain("emit('resize-node'")
+    expect(source).toContain("emit('resize-subtask'")
   })
 })
 
