@@ -36,14 +36,17 @@ describe('ProjectGrid', () => {
     expect(getComputedStyle(card).minHeight).toBe('492px')
   })
 
-  it('uses fixed-width project columns instead of stretching cards across the row', () => {
+  it('uses three responsive columns on desktop so cards fill the full row width without trailing gaps', () => {
     const source = readFileSync(
       resolve(process.cwd(), 'src/components/projects/ProjectGrid.vue'),
       'utf8',
     )
 
-    expect(source).toContain('grid-template-columns: repeat(auto-fill, 400px);')
-    expect(source).toContain('justify-content: start;')
+    expect(source).toContain('grid-template-columns: repeat(3, minmax(0, 1fr));')
+    expect(source).not.toContain('grid-template-columns: repeat(auto-fill, 400px);')
+    expect(source).not.toContain('justify-content: start;')
+    expect(source).toContain('@media (max-width: 1080px) {')
+    expect(source).toContain('.project-grid {\n    grid-template-columns: repeat(2, minmax(0, 1fr));')
     expect(source).toContain('.project-grid {\n    grid-template-columns: minmax(0, 1fr);')
   })
 

@@ -205,8 +205,7 @@ defineEmits<{
 <style scoped>
 .project-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, 400px);
-  justify-content: start;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   grid-auto-rows: 492px;
   gap: 18px;
 }
@@ -514,6 +513,12 @@ defineEmits<{
 .project-card__footer :deep(.project-actions) {
   width: 100%;
   margin-top: 0;
+}
+
+@media (max-width: 1080px) {
+  .project-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 720px) {

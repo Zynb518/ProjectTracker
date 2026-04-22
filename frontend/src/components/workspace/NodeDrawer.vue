@@ -52,7 +52,10 @@ defineEmits<{
       <dl class="node-drawer__metrics">
         <div>
           <dt>计划周期</dt>
-          <dd>{{ node.planned_start_date }} - {{ node.planned_end_date }}</dd>
+          <dd class="node-drawer__schedule-range">
+            <span>{{ node.planned_start_date }}</span>
+            <span>{{ node.planned_end_date }}</span>
+          </dd>
         </div>
         <div>
           <dt>子任务完成</dt>
@@ -232,6 +235,16 @@ defineEmits<{
   font-size: 0.96rem;
   font-weight: 700;
   line-height: 1.5;
+}
+
+.node-drawer__schedule-range {
+  display: grid;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.node-drawer__schedule-range span {
+  display: block;
 }
 
 .node-drawer__content {

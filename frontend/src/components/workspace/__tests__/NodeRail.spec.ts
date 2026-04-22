@@ -274,6 +274,45 @@ describe('NodeRail', () => {
     wrapper.unmount()
   })
 
+  it('stacks the hover-card schedule dates on separate lines for a tidier phase timeline summary', async () => {
+    const wrapper = mount(NodeRail, {
+      attachTo: document.body,
+      props: {
+        nodes: sampleNodes,
+        selectedNodeId: null,
+      },
+    })
+
+    const hoveredItem = wrapper.get('[data-testid="node-item-2002"]')
+    Object.defineProperty(hoveredItem.element, 'getBoundingClientRect', {
+      configurable: true,
+      value: () => ({
+        x: 180,
+        y: 120,
+        width: 260,
+        height: 84,
+        top: 120,
+        left: 180,
+        right: 440,
+        bottom: 204,
+        toJSON: () => null,
+      }),
+    })
+
+    await hoveredItem.trigger('mouseenter')
+
+    const hoverCard = document.body.querySelector('[data-testid="node-hover-card"]') as HTMLElement | null
+    const scheduleLines = hoverCard?.querySelectorAll('.node-rail__hover-date-range span') ?? []
+
+    expect(scheduleLines).toHaveLength(2)
+    expect(Array.from(scheduleLines, (line) => line.textContent?.trim())).toEqual([
+      '2026-03-26',
+      '2026-04-20',
+    ])
+
+    wrapper.unmount()
+  })
+
   it('emits selection only for unfinished timeline nodes', async () => {
     const wrapper = mount(NodeRail, {
       props: {

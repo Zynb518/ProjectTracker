@@ -52,7 +52,7 @@ const previewMovableNodeIds = ref<number[] | null>(null)
 const dropTargetNodeId = ref<number | null>(null)
 
 const HOVER_CARD_WIDTH = 320
-const HOVER_CARD_HEIGHT = 224
+const HOVER_CARD_HEIGHT = 244
 const HOVER_CARD_GAP = 18
 const HOVER_CARD_MARGIN = 20
 const CONTROL_TOOLTIP_WIDTH = 112
@@ -605,7 +605,10 @@ onBeforeUnmount(() => {
           <dl class="node-rail__hover-meta">
             <div>
               <dt>计划周期</dt>
-              <dd>{{ hoveredNode.planned_start_date }} - {{ hoveredNode.planned_end_date }}</dd>
+              <dd class="node-rail__hover-date-range">
+                <span>{{ hoveredNode.planned_start_date }}</span>
+                <span>{{ hoveredNode.planned_end_date }}</span>
+              </dd>
             </div>
             <div>
               <dt>子任务进度</dt>
@@ -1291,6 +1294,16 @@ onBeforeUnmount(() => {
   font-size: 0.84rem;
   font-weight: 600;
   line-height: 1.5;
+}
+
+.node-rail__hover-date-range {
+  display: grid;
+  gap: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+.node-rail__hover-date-range span {
+  display: block;
 }
 
 @media (max-width: 980px) {
