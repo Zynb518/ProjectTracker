@@ -961,25 +961,6 @@ onBeforeUnmount(() => {
                   ]"
                 >
                   <div class="project-gantt__track">
-                    <div
-                      :data-testid="
-                        row.type === 'node'
-                          ? `project-gantt-track-grid-${row.node.id}`
-                          : row.type === 'subtask'
-                            ? `project-gantt-subtask-track-grid-${row.subtask.id}`
-                            : undefined
-                      "
-                      aria-hidden="true"
-                      class="project-gantt__track-grid"
-                    >
-                      <div
-                        v-for="item in axisItems"
-                        :key="`${row.key}-${item.key}`"
-                        :class="['project-gantt__track-cell', `project-gantt__track-cell--${scale}`]"
-                        :style="{ width: `${item.widthPx}px` }"
-                      />
-                    </div>
-
                     <button
                       v-if="row.type === 'node'"
                       :data-testid="`project-gantt-stage-bar-${row.node.id}`"
@@ -1499,8 +1480,6 @@ onBeforeUnmount(() => {
   border-bottom: 1px solid var(--meta-surface-border);
   overflow: hidden;
   contain: layout paint;
-  content-visibility: auto;
-  contain-intrinsic-size: 62px;
   background: color-mix(in srgb, var(--panel-bg) 94%, transparent);
 }
 
@@ -1575,7 +1554,6 @@ onBeforeUnmount(() => {
   height: var(--project-gantt-subtask-row-height);
   grid-template-columns: minmax(0, 1fr);
   padding-left: 42px;
-  contain-intrinsic-size: 46px;
 }
 
 .project-gantt__sidebar-branch {
@@ -1781,8 +1759,6 @@ onBeforeUnmount(() => {
   height: var(--project-gantt-row-height);
   border-bottom: 1px solid var(--meta-surface-border);
   contain: layout paint;
-  content-visibility: auto;
-  contain-intrinsic-size: 62px;
 }
 
 .project-gantt__row:last-child {
@@ -1799,40 +1775,6 @@ onBeforeUnmount(() => {
     180deg,
     color-mix(in srgb, var(--accent-end) 6%, var(--dialog-control-bg)),
     color-mix(in srgb, var(--accent-start) 2%, var(--panel-bg))
-  );
-}
-
-.project-gantt__track-grid {
-  position: absolute;
-  inset: 0;
-  display: flex;
-  pointer-events: none;
-}
-
-.project-gantt__track-cell {
-  flex: 0 0 auto;
-  height: 100%;
-  border-right: 1px solid color-mix(in srgb, var(--accent-line) 14%, transparent);
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent-end) 8%, var(--dialog-control-bg)),
-    var(--dialog-control-bg)
-  );
-}
-
-.project-gantt__track-cell:nth-child(even) {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent-start) 6%, var(--dialog-control-bg)),
-    var(--dialog-control-bg)
-  );
-}
-
-.project-gantt__track-cell--day {
-  background: linear-gradient(
-    180deg,
-    color-mix(in srgb, var(--accent-end) 9%, var(--dialog-control-bg)),
-    var(--dialog-control-bg)
   );
 }
 
@@ -1957,7 +1899,6 @@ onBeforeUnmount(() => {
 .project-gantt__row--error,
 .project-gantt__row--empty {
   height: var(--project-gantt-subtask-row-height);
-  contain-intrinsic-size: 46px;
 }
 
 .project-gantt__row--subtask .project-gantt__track {

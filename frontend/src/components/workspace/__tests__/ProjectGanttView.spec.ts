@@ -246,7 +246,7 @@ describe('ProjectGanttView', () => {
     expect(source).toContain('.project-gantt__sidebar-row--subtask,')
     expect(source).toContain('height: var(--project-gantt-subtask-row-height);')
     expect(source).toContain('.project-gantt__row--subtask,')
-    expect(source).toContain('contain-intrinsic-size: 46px;')
+    expect(source).not.toContain('contain-intrinsic-size: 46px;')
   })
 
   it('anchors the stage detail card to the hover point and flips placement near viewport edges', async () => {
@@ -427,7 +427,7 @@ describe('ProjectGanttView', () => {
     expect(source).not.toContain('padding-right: 28px;')
   })
 
-  it('renders track cells that align with the axis instead of fixed stripe dividers', () => {
+  it('uses the shared axis as the only time coordinate layer so stage rows do not render a per-row track grid', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
@@ -440,13 +440,11 @@ describe('ProjectGanttView', () => {
     })
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
     const axisCells = wrapper.get('[data-testid="project-gantt-axis"]').findAll('.project-gantt__axis-cell')
-    const trackCells = wrapper.get('[data-testid="project-gantt-track-grid-2001"]').findAll('.project-gantt__track-cell')
 
-    expect(trackCells).toHaveLength(axisCells.length)
-    expect(trackCells[0]?.attributes('style')).toBe(axisCells[0]?.attributes('style'))
-    expect(source).toContain('.project-gantt__track-grid {')
-    expect(source).toContain('.project-gantt__track-cell {')
-    expect(source).not.toContain('repeating-linear-gradient(90deg')
+    expect(axisCells.length).toBeGreaterThan(0)
+    expect(wrapper.find('[data-testid="project-gantt-track-grid-2001"]').exists()).toBe(false)
+    expect(source).not.toContain('project-gantt__track-grid')
+    expect(source).not.toContain('project-gantt__track-cell')
   })
 
   it('keeps desktop vertical scrolling inside the right stage timeline host so the shared headers stay visible', () => {
@@ -535,7 +533,7 @@ describe('ProjectGanttView', () => {
     wrapper.unmount()
   })
 
-  it('keeps the sticky stage axis free of backdrop blur and isolates each row paint to reduce scroll jank', () => {
+  it('keeps the sticky stage axis free of backdrop blur and avoids heavy row visibility hints that make scrolling feel sticky', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
     const axisBlock = source.match(/\.project-gantt__axis \{[\s\S]*?\n\}/)?.[0]
     const rowBlock = source.match(/\.project-gantt__row \{[\s\S]*?\n\}/)?.[0]
@@ -545,11 +543,11 @@ describe('ProjectGanttView', () => {
     expect(axisBlock).not.toContain('backdrop-filter')
     expect(rowBlock).toBeTruthy()
     expect(rowBlock).toContain('contain: layout paint;')
-    expect(rowBlock).toContain('content-visibility: auto;')
-    expect(rowBlock).toContain('contain-intrinsic-size: 62px;')
+    expect(rowBlock).not.toContain('content-visibility: auto;')
+    expect(rowBlock).not.toContain('contain-intrinsic-size:')
     expect(sidebarRowBlocks.length).toBeGreaterThan(0)
-    expect(sidebarRowBlocks.some((block) => block.includes('content-visibility: auto;'))).toBe(true)
-    expect(sidebarRowBlocks.some((block) => block.includes('contain-intrinsic-size: 62px;'))).toBe(true)
+    expect(sidebarRowBlocks.some((block) => block.includes('content-visibility: auto;'))).toBe(false)
+    expect(sidebarRowBlocks.some((block) => block.includes('contain-intrinsic-size:'))).toBe(false)
   })
 
   it('uses galaxy meta surfaces for the project and member gantt workspace shells instead of the old frosted glass wrappers', () => {
@@ -666,7 +664,7 @@ describe('ProjectGanttView', () => {
     })
 
     expect(wrapper.get('[data-testid="project-gantt-subtask-bar-3001"]').text()).toContain('完成登录接口开发')
-    expect(wrapper.get('[data-testid="project-gantt-subtask-track-grid-3001"]').exists()).toBe(true)
+    expect(wrapper.find('[data-testid="project-gantt-subtask-track-grid-3001"]').exists()).toBe(false)
   })
 
   it('emits the target node id when a stage bar is clicked so the parent can toggle subtree expansion', async () => {
