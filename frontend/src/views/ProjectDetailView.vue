@@ -10,7 +10,6 @@ import SubtaskFormDialog from '@/components/subtasks/SubtaskFormDialog.vue'
 import SubtaskHistoryDrawer from '@/components/subtasks/SubtaskHistoryDrawer.vue'
 import SubtaskProgressDialog from '@/components/subtasks/SubtaskProgressDialog.vue'
 import NodeDrawer from '@/components/workspace/NodeDrawer.vue'
-import NodeGanttDialog from '@/components/workspace/NodeGanttDialog.vue'
 import NodeFormDialog from '@/components/workspace/NodeFormDialog.vue'
 import NodeRail from '@/components/workspace/NodeRail.vue'
 import ProjectGanttView from '@/components/workspace/ProjectGanttView.vue'
@@ -67,9 +66,7 @@ const showNodeDialog = ref(false)
 const showSubtaskDialog = ref(false)
 const showProgressDialog = ref(false)
 const showHistoryDrawer = ref(false)
-const showNodeGanttDialog = ref(false)
 const selectedSubtaskId = ref<number | null>(null)
-const selectedGanttNodeId = ref<number | null>(null)
 const historyTitle = ref('')
 const progressRecords = ref<SubtaskProgressRecord[]>([])
 const drawerNodeId = ref<number | null>(null)
@@ -89,14 +86,17 @@ const ganttScale = ref<GanttScale>('week')
 const projectGantt = ref<ProjectStageGantt | null>(null)
 const ganttLoadError = ref<string | null>(null)
 const isGanttLoading = ref(false)
+const expandedGanttNodeIds = ref<number[]>([])
+const ganttNodeLoadErrors = ref<Record<number, string | null>>({})
+const loadingGanttNodeIds = ref<number[]>([])
+const isExpandingAllGanttNodes = ref(false)
 const projectMemberGantt = ref<ProjectMemberGantt | null>(null)
 const memberGanttLoadError = ref<string | null>(null)
 const isMemberGanttLoading = ref(false)
-const nodeGantt = ref<ProjectNodeSubtaskGantt | null>(null)
-const nodeGanttLoadError = ref<string | null>(null)
-const isNodeGanttLoading = ref(false)
 const isOwnerTransferSubmitting = ref(false)
 const nodeGanttCache = ref<Record<number, ProjectNodeSubtaskGantt>>({})
+let expandAllGanttRunId = 0
+const nodeGanttRequestMap = new Map<number, Promise<ProjectNodeSubtaskGantt | null>>()
 const subtaskFormInitial = ref<SubtaskPayload>({
   name: '',
   description: '',
@@ -120,6 +120,11 @@ const projectStartDate = computed(() => project.value?.planned_start_date)
 const projectEndDate = computed(() => project.value?.planned_end_date)
 const selectedNodeStartDate = computed(() => drawerNode.value?.planned_start_date ?? projectStartDate.value)
 const selectedNodeEndDate = computed(() => drawerNode.value?.planned_end_date ?? projectEndDate.value)
+const ganttNodeSubtasksById = computed(() =>
+  Object.fromEntries(
+    Object.entries(nodeGanttCache.value).map(([nodeId, gantt]) => [Number(nodeId), gantt.subtasks]),
+  ),
+)
 const subtaskAssignees = computed<ProjectMember[]>(() => {
   if (project.value === null) {
     return members.value
@@ -158,13 +163,15 @@ onMounted(async () => {
 function invalidateGanttCache() {
   projectGantt.value = null
   ganttLoadError.value = null
+  expandedGanttNodeIds.value = []
+  ganttNodeLoadErrors.value = {}
+  loadingGanttNodeIds.value = []
+  isExpandingAllGanttNodes.value = false
   projectMemberGantt.value = null
   memberGanttLoadError.value = null
-  nodeGantt.value = null
-  nodeGanttLoadError.value = null
-  selectedGanttNodeId.value = null
-  showNodeGanttDialog.value = false
   nodeGanttCache.value = {}
+  nodeGanttRequestMap.clear()
+  expandAllGanttRunId += 1
 }
 
 async function loadProjectGantt(force = false) {
@@ -201,40 +208,73 @@ async function loadProjectMemberGantt(force = false) {
   }
 }
 
-async function loadNodeGantt(nodeId: number, force = false) {
+function addLoadingGanttNode(nodeId: number) {
+  if (loadingGanttNodeIds.value.includes(nodeId)) {
+    return
+  }
+
+  loadingGanttNodeIds.value = [...loadingGanttNodeIds.value, nodeId]
+}
+
+function removeLoadingGanttNode(nodeId: number) {
+  loadingGanttNodeIds.value = loadingGanttNodeIds.value.filter((currentNodeId) => currentNodeId !== nodeId)
+}
+
+async function loadNodeGantt(nodeId: number, force = false): Promise<ProjectNodeSubtaskGantt | null> {
   if (!force) {
     const cached = nodeGanttCache.value[nodeId]
 
     if (cached !== undefined) {
-      nodeGantt.value = cached
-      nodeGanttLoadError.value = null
-      return
+      return cached
+    }
+
+    const pendingRequest = nodeGanttRequestMap.get(nodeId)
+
+    if (pendingRequest !== undefined) {
+      return pendingRequest
     }
   }
 
-  isNodeGanttLoading.value = true
-  nodeGanttLoadError.value = null
-  nodeGantt.value = null
-
-  try {
-    const response = await getProjectNodeGantt(projectId, nodeId)
-    nodeGantt.value = response
-    nodeGanttCache.value = {
-      ...nodeGanttCache.value,
-      [nodeId]: response,
-    }
-  } catch (error) {
-    nodeGanttLoadError.value = getErrorMessage(error, '阶段子任务甘特图加载失败')
-  } finally {
-    isNodeGanttLoading.value = false
+  ganttNodeLoadErrors.value = {
+    ...ganttNodeLoadErrors.value,
+    [nodeId]: null,
   }
+  addLoadingGanttNode(nodeId)
+
+  let request: Promise<ProjectNodeSubtaskGantt | null> | null = null
+
+  request = (async () => {
+    try {
+      const response = await getProjectNodeGantt(projectId, nodeId)
+      nodeGanttCache.value = {
+        ...nodeGanttCache.value,
+        [nodeId]: response,
+      }
+      return response
+    } catch (error) {
+      ganttNodeLoadErrors.value = {
+        ...ganttNodeLoadErrors.value,
+        [nodeId]: getErrorMessage(error, '阶段子任务甘特图加载失败'),
+      }
+      return null
+    } finally {
+      removeLoadingGanttNode(nodeId)
+      if (request !== null && nodeGanttRequestMap.get(nodeId) === request) {
+        nodeGanttRequestMap.delete(nodeId)
+      }
+    }
+  })()
+
+  nodeGanttRequestMap.set(nodeId, request)
+  return request
 }
 
 async function switchView(mode: ProjectDetailViewMode) {
   currentViewMode.value = mode
 
   if (mode === 'workspace') {
-    showNodeGanttDialog.value = false
+    isExpandingAllGanttNodes.value = false
+    expandAllGanttRunId += 1
     return
   }
 
@@ -248,7 +288,8 @@ async function switchView(mode: ProjectDetailViewMode) {
 
 async function switchGanttPerspective(perspective: GanttPerspective) {
   ganttPerspective.value = perspective
-  showNodeGanttDialog.value = false
+  isExpandingAllGanttNodes.value = false
+  expandAllGanttRunId += 1
 
   if (currentViewMode.value !== 'gantt') {
     return
@@ -262,18 +303,52 @@ async function switchGanttPerspective(perspective: GanttPerspective) {
   await loadProjectGantt()
 }
 
-async function openNodeGantt(nodeId: number) {
-  selectedGanttNodeId.value = nodeId
-  showNodeGanttDialog.value = true
-  await loadNodeGantt(nodeId)
-}
-
-async function retryNodeGantt() {
-  if (selectedGanttNodeId.value === null) {
+async function toggleGanttNode(nodeId: number) {
+  if (expandedGanttNodeIds.value.includes(nodeId)) {
+    expandedGanttNodeIds.value = expandedGanttNodeIds.value.filter((currentNodeId) => currentNodeId !== nodeId)
     return
   }
 
-  await loadNodeGantt(selectedGanttNodeId.value, true)
+  expandedGanttNodeIds.value = [...expandedGanttNodeIds.value, nodeId]
+  await loadNodeGantt(nodeId)
+}
+
+async function retryGanttNode(nodeId: number) {
+  await loadNodeGantt(nodeId, true)
+}
+
+function collapseAllGanttNodes() {
+  expandAllGanttRunId += 1
+  isExpandingAllGanttNodes.value = false
+  expandedGanttNodeIds.value = []
+}
+
+async function expandAllGanttNodes() {
+  if (projectGantt.value === null || projectGantt.value.nodes.length === 0) {
+    return
+  }
+
+  const currentRunId = expandAllGanttRunId + 1
+  expandAllGanttRunId = currentRunId
+  isExpandingAllGanttNodes.value = true
+
+  try {
+    for (const node of projectGantt.value.nodes) {
+      if (expandAllGanttRunId !== currentRunId) {
+        return
+      }
+
+      if (!expandedGanttNodeIds.value.includes(node.id)) {
+        expandedGanttNodeIds.value = [...expandedGanttNodeIds.value, node.id]
+      }
+
+      await loadNodeGantt(node.id)
+    }
+  } finally {
+    if (expandAllGanttRunId === currentRunId) {
+      isExpandingAllGanttNodes.value = false
+    }
+  }
 }
 
 async function refreshWorkspace() {
@@ -712,13 +787,21 @@ async function openHistoryDrawer(subtaskId: number) {
 
       <ProjectGanttView
         v-else-if="ganttPerspective === 'stage'"
+        :expanded-node-ids="expandedGanttNodeIds"
         :error="ganttLoadError"
         :gantt="projectGantt"
+        :is-expanding-all="isExpandingAllGanttNodes"
         :is-loading="isGanttLoading"
+        :loading-node-ids="loadingGanttNodeIds"
+        :node-load-errors="ganttNodeLoadErrors"
+        :node-subtasks-by-id="ganttNodeSubtasksById"
         :perspective="ganttPerspective"
         :scale="ganttScale"
-        @open-node="openNodeGantt"
+        @collapse-all="collapseAllGanttNodes"
+        @expand-all="expandAllGanttNodes"
         @retry="loadProjectGantt(true)"
+        @retry-node="retryGanttNode"
+        @toggle-node="toggleGanttNode"
         @update:perspective="switchGanttPerspective"
         @update:scale="ganttScale = $event"
       />
@@ -781,15 +864,6 @@ async function openHistoryDrawer(subtaskId: number) {
       v-model="showHistoryDrawer"
       :records="progressRecords"
       :title="historyTitle"
-    />
-
-    <NodeGanttDialog
-      v-model="showNodeGanttDialog"
-      :error="nodeGanttLoadError"
-      :gantt="nodeGantt"
-      :is-loading="isNodeGanttLoading"
-      :scale="ganttScale"
-      @retry="retryNodeGantt"
     />
   </section>
 </template>

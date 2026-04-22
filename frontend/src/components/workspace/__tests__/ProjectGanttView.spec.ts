@@ -286,6 +286,10 @@ describe('ProjectGanttView', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
@@ -300,6 +304,10 @@ describe('ProjectGanttView', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
@@ -312,6 +320,10 @@ describe('ProjectGanttView', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
@@ -356,6 +368,10 @@ describe('ProjectGanttView', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
@@ -437,6 +453,10 @@ describe('ProjectGanttView', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
@@ -488,6 +508,10 @@ describe('ProjectGanttView', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
@@ -510,6 +534,10 @@ describe('ProjectGanttView', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
@@ -536,6 +564,10 @@ describe('ProjectGanttView', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
@@ -556,17 +588,73 @@ describe('ProjectGanttView', () => {
     wrapper.unmount()
   })
 
-  it('emits the selected node id when a stage bar is clicked', async () => {
+  it('renders subtask bars inline beneath expanded stages while keeping the same shared time axis', () => {
     const wrapper = mount(ProjectGanttView, {
       props: {
         gantt: sampleProjectGantt,
+        expandedNodeIds: [2002],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {
+          2002: sampleNodeGantt.subtasks,
+        },
+        scale: 'week',
+      },
+    })
+
+    expect(wrapper.get('[data-testid="project-gantt-subtask-bar-3001"]').text()).toContain('完成登录接口开发')
+    expect(wrapper.get('[data-testid="project-gantt-subtask-track-grid-3001"]').exists()).toBe(true)
+  })
+
+  it('emits the target node id when a stage bar is clicked so the parent can toggle subtree expansion', async () => {
+    const wrapper = mount(ProjectGanttView, {
+      props: {
+        gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
         scale: 'week',
       },
     })
 
     await wrapper.get('[data-testid="project-gantt-stage-bar-2002"]').trigger('click')
 
-    expect(wrapper.emitted('open-node')).toEqual([[2002]])
+    expect(wrapper.emitted('toggle-node')).toEqual([[2002]])
+  })
+
+  it('emits expand-all and collapse-all actions from the toolbar controls', async () => {
+    const wrapper = mount(ProjectGanttView, {
+      props: {
+        gantt: sampleProjectGantt,
+        expandedNodeIds: [],
+        loadingNodeIds: [],
+        nodeLoadErrors: {},
+        nodeSubtasksById: {},
+        scale: 'week',
+      },
+    })
+
+    await wrapper.get('[data-testid="project-gantt-expand-all"]').trigger('click')
+    await wrapper.get('[data-testid="project-gantt-collapse-all"]').trigger('click')
+
+    expect(wrapper.emitted('expand-all')).toEqual([[]])
+    expect(wrapper.emitted('collapse-all')).toEqual([[]])
+  })
+
+  it('keeps expand and collapse controls beside the shared scale switcher and removes zoom buttons from the scale UI', () => {
+    const projectSource = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+    const scaleSource = readFileSync(resolve(process.cwd(), 'src/components/workspace/GanttScaleSwitcher.vue'), 'utf8')
+
+    expect(projectSource).toContain('class="project-gantt__toolbar-scale-row"')
+    expect(projectSource).toContain('<GanttScaleSwitcher :scale="scale" @update:scale="emit(\'update:scale\', $event)" />')
+    expect(projectSource).toContain('<div class="project-gantt__tree-actions">')
+    expect(projectSource).toContain('.project-gantt__toolbar-scale-row {')
+    expect(scaleSource).not.toContain('data-testid="gantt-scale-zoom-in"')
+    expect(scaleSource).not.toContain('data-testid="gantt-scale-zoom-out"')
+    expect(scaleSource).not.toContain('aria-label="放大时间粒度"')
+    expect(scaleSource).not.toContain('aria-label="缩小时间粒度"')
+    expect(scaleSource).not.toContain('.gantt-scale-switcher__zoom')
   })
 })
 

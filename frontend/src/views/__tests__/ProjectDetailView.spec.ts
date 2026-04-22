@@ -271,6 +271,18 @@ function mockWorkspaceData() {
   vi.mocked(listNodeSubtasks).mockResolvedValue({ list: [] })
 }
 
+function createDeferred<T>() {
+  let resolve!: (value: T) => void
+  let reject!: (reason?: unknown) => void
+
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res
+    reject = rej
+  })
+
+  return { promise, reject, resolve }
+}
+
 describe('ProjectDetailView', () => {
   beforeEach(() => {
     vi.resetAllMocks()
@@ -707,7 +719,7 @@ describe('ProjectDetailView', () => {
     expect(screen.getByTestId('project-workspace-card')).toBeTruthy()
   })
 
-  it('opens a node subtask gantt overlay on demand from the gantt view', async () => {
+  it('expands node subtasks inline on demand from the gantt view instead of opening a detached overlay', async () => {
     mockWorkspaceData()
     vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)
     vi.mocked(getProjectNodeGantt).mockResolvedValue(nodeGanttFixture)
@@ -732,10 +744,65 @@ describe('ProjectDetailView', () => {
 
     await waitFor(() => {
       expect(getProjectNodeGantt).toHaveBeenCalledWith(1001, 2002)
-      expect(screen.getByTestId('node-gantt-dialog')).toBeTruthy()
+      expect(screen.getByTestId('project-gantt-subtask-bar-3001')).toBeTruthy()
     })
 
-    expect(screen.getAllByText('完成登录接口开发').length).toBeGreaterThan(0)
+    expect(screen.queryByTestId('node-gantt-dialog')).toBeNull()
+    expect(screen.getByTestId('project-gantt-subtask-bar-3001').textContent).toContain('完成登录接口开发')
+  })
+
+  it('expands all stage subtrees sequentially from top to bottom to avoid parallel gantt request spikes', async () => {
+    mockWorkspaceData()
+    vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)
+
+    const firstNodeDeferred = createDeferred<typeof nodeGanttFixture>()
+    const secondNodeDeferred = createDeferred<typeof nodeGanttFixture>()
+
+    vi.mocked(getProjectNodeGantt)
+      .mockImplementationOnce(() => firstNodeDeferred.promise)
+      .mockImplementationOnce(() =>
+        secondNodeDeferred.promise.then(() => nodeGanttFixture),
+      )
+
+    const screen = render(ProjectDetailView, {
+      global: {
+        plugins: [createPinia()],
+      },
+    })
+    const user = userEvent.setup()
+
+    await screen.findByTestId('project-workspace-card')
+    await user.click(screen.getByRole('button', { name: '甘特图' }))
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-view')).toBeTruthy()
+    })
+
+    await user.click(screen.getByTestId('project-gantt-expand-all'))
+
+    await waitFor(() => {
+      expect(getProjectNodeGantt).toHaveBeenCalledTimes(1)
+      expect(getProjectNodeGantt).toHaveBeenNthCalledWith(1, 1001, 2001)
+    })
+
+    expect(screen.queryByTestId('project-gantt-subtask-bar-3001')).toBeNull()
+
+    firstNodeDeferred.resolve({
+      project: projectGanttFixture.project,
+      node: projectGanttFixture.nodes[0],
+      subtasks: [],
+    })
+
+    await waitFor(() => {
+      expect(getProjectNodeGantt).toHaveBeenCalledTimes(2)
+      expect(getProjectNodeGantt).toHaveBeenNthCalledWith(2, 1001, 2002)
+    })
+
+    secondNodeDeferred.resolve(nodeGanttFixture)
+
+    await waitFor(() => {
+      expect(screen.getByTestId('project-gantt-subtask-bar-3001')).toBeTruthy()
+    })
   })
 
   it('lazily loads member gantt data only after switching to the member perspective', async () => {

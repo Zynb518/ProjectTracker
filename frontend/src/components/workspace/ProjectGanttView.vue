@@ -2,36 +2,87 @@
 import { computed, onBeforeUnmount, ref } from 'vue'
 
 import GanttScaleSwitcher from '@/components/workspace/GanttScaleSwitcher.vue'
-import type { GanttNodeSummary, GanttPerspective, GanttScale, ProjectStageGantt } from '@/types/gantt'
+import type {
+  GanttNodeSummary,
+  GanttPerspective,
+  GanttScale,
+  GanttSubtaskSummary,
+  ProjectStageGantt,
+} from '@/types/gantt'
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout } from '@/utils/gantt'
 import { normalizeWheelDelta } from '@/utils/smoothWheel'
 
 const props = withDefaults(defineProps<{
+  expandedNodeIds?: number[]
   error?: string | null
   gantt: ProjectStageGantt | null
   isLoading?: boolean
+  isExpandingAll?: boolean
+  loadingNodeIds?: number[]
+  nodeLoadErrors?: Record<number, string | null>
+  nodeSubtasksById?: Record<number, GanttSubtaskSummary[]>
   perspective?: GanttPerspective
   scale: GanttScale
 }>(), {
+  expandedNodeIds: () => [],
   error: null,
+  isExpandingAll: false,
   isLoading: false,
+  loadingNodeIds: () => [],
+  nodeLoadErrors: () => ({}),
+  nodeSubtasksById: () => ({}),
   perspective: 'stage',
 })
 
 const emit = defineEmits<{
-  'open-node': [nodeId: number]
+  'collapse-all': []
+  'expand-all': []
   retry: []
+  'retry-node': [nodeId: number]
+  'toggle-node': [nodeId: number]
   'update:perspective': [perspective: GanttPerspective]
   'update:scale': [scale: GanttScale]
 }>()
 
 type HoverCardPlacement = 'bottom-left' | 'bottom-right' | 'top-left' | 'top-right'
+type VisibleGanttRow =
+  | {
+      key: string
+      node: GanttNodeSummary
+      type: 'node'
+    }
+  | {
+      key: string
+      node: GanttNodeSummary
+      subtask: GanttSubtaskSummary
+      type: 'subtask'
+    }
+  | {
+      key: string
+      node: GanttNodeSummary
+      type: 'loading'
+    }
+  | {
+      error: string
+      key: string
+      node: GanttNodeSummary
+      type: 'error'
+    }
+  | {
+      key: string
+      node: GanttNodeSummary
+      type: 'empty'
+    }
 
 const hoveredNodeId = ref<number | null>(null)
 const hoveredNodeAnchor = ref({ x: 0, y: 0 })
 const hoveredNodePlacement = ref<HoverCardPlacement>('top-right')
-let hideDetailTimer: ReturnType<typeof window.setTimeout> | null = null
+const hoveredSubtaskId = ref<number | null>(null)
+const hoveredSubtaskAnchor = ref({ x: 0, y: 0 })
+const hoveredSubtaskPlacement = ref<HoverCardPlacement>('top-right')
+let hideNodeDetailTimer: ReturnType<typeof window.setTimeout> | null = null
+let hideSubtaskDetailTimer: ReturnType<typeof window.setTimeout> | null = null
 
 const DETAIL_HIDE_DELAY_MS = 180
 const DETAIL_CARD_EDGE_GAP_PX = 24
@@ -65,13 +116,88 @@ const timelineCanvasStyle = computed(() => ({
   width: `${canvasWidth.value}px`,
 }))
 
+const expandedNodeIdSet = computed(() => new Set(props.expandedNodeIds))
+const loadingNodeIdSet = computed(() => new Set(props.loadingNodeIds))
+
+const visibleRows = computed<VisibleGanttRow[]>(() => {
+  if (props.gantt === null) {
+    return []
+  }
+
+  return props.gantt.nodes.flatMap((node) => {
+    const rows: VisibleGanttRow[] = [
+      {
+        key: `node-${node.id}`,
+        node,
+        type: 'node',
+      },
+    ]
+
+    if (!expandedNodeIdSet.value.has(node.id)) {
+      return rows
+    }
+
+    if (loadingNodeIdSet.value.has(node.id)) {
+      rows.push({
+        key: `node-loading-${node.id}`,
+        node,
+        type: 'loading',
+      })
+      return rows
+    }
+
+    const nodeError = props.nodeLoadErrors[node.id]
+    if (nodeError) {
+      rows.push({
+        error: nodeError,
+        key: `node-error-${node.id}`,
+        node,
+        type: 'error',
+      })
+      return rows
+    }
+
+    const subtasks = props.nodeSubtasksById[node.id] ?? []
+    if (subtasks.length === 0) {
+      rows.push({
+        key: `node-empty-${node.id}`,
+        node,
+        type: 'empty',
+      })
+      return rows
+    }
+
+    return rows.concat(
+      subtasks.map((subtask) => ({
+        key: `subtask-${subtask.id}`,
+        node,
+        subtask,
+        type: 'subtask' as const,
+      })),
+    )
+  })
+})
+
 const hoveredNode = computed(() =>
   props.gantt?.nodes.find((node) => node.id === hoveredNodeId.value) ?? null,
+)
+
+const allSubtasks = computed(() =>
+  Object.values(props.nodeSubtasksById).flat(),
+)
+
+const hoveredSubtask = computed(() =>
+  allSubtasks.value.find((subtask) => subtask.id === hoveredSubtaskId.value) ?? null,
 )
 
 const detailCardStyle = computed(() => ({
   left: `${hoveredNodeAnchor.value.x}px`,
   top: `${hoveredNodeAnchor.value.y}px`,
+}))
+
+const subtaskDetailCardStyle = computed(() => ({
+  left: `${hoveredSubtaskAnchor.value.x}px`,
+  top: `${hoveredSubtaskAnchor.value.y}px`,
 }))
 
 function getScheduleDays(startDate: string, endDate: string) {
@@ -85,7 +211,7 @@ function formatCompletedAt(value: string) {
   return value.slice(0, 16).replace('T', ' ')
 }
 
-function getBarStyle(node: GanttNodeSummary) {
+function getBarStyle(node: GanttNodeSummary | GanttSubtaskSummary) {
   const layout = getGanttBarLayout(
     axisStartDate.value,
     node.planned_start_date,
@@ -141,19 +267,26 @@ function showNodeDetail(nodeId: number, event?: FocusEvent | MouseEvent) {
   hoveredNodePlacement.value = getHoverPlacement(hoveredNodeAnchor.value)
 }
 
+function showSubtaskDetail(subtaskId: number, event?: FocusEvent | MouseEvent) {
+  cancelHideSubtaskDetail()
+  hoveredSubtaskId.value = subtaskId
+  hoveredSubtaskAnchor.value = getHoverPoint(event)
+  hoveredSubtaskPlacement.value = getHoverPlacement(hoveredSubtaskAnchor.value)
+}
+
 function cancelHideNodeDetail() {
-  if (hideDetailTimer !== null) {
-    window.clearTimeout(hideDetailTimer)
-    hideDetailTimer = null
+  if (hideNodeDetailTimer !== null) {
+    window.clearTimeout(hideNodeDetailTimer)
+    hideNodeDetailTimer = null
   }
 }
 
 function scheduleHideNodeDetail() {
   cancelHideNodeDetail()
 
-  hideDetailTimer = window.setTimeout(() => {
+  hideNodeDetailTimer = window.setTimeout(() => {
     hoveredNodeId.value = null
-    hideDetailTimer = null
+    hideNodeDetailTimer = null
   }, DETAIL_HIDE_DELAY_MS)
 }
 
@@ -163,6 +296,30 @@ function clearNodeDetail(nodeId?: number) {
   }
 
   scheduleHideNodeDetail()
+}
+
+function cancelHideSubtaskDetail() {
+  if (hideSubtaskDetailTimer !== null) {
+    window.clearTimeout(hideSubtaskDetailTimer)
+    hideSubtaskDetailTimer = null
+  }
+}
+
+function scheduleHideSubtaskDetail() {
+  cancelHideSubtaskDetail()
+
+  hideSubtaskDetailTimer = window.setTimeout(() => {
+    hoveredSubtaskId.value = null
+    hideSubtaskDetailTimer = null
+  }, DETAIL_HIDE_DELAY_MS)
+}
+
+function clearSubtaskDetail(subtaskId?: number) {
+  if (subtaskId !== undefined && hoveredSubtaskId.value !== subtaskId) {
+    return
+  }
+
+  scheduleHideSubtaskDetail()
 }
 
 function markIgnoredScroll(
@@ -275,6 +432,7 @@ function handleRowsScroll() {
 
 onBeforeUnmount(() => {
   cancelHideNodeDetail()
+  cancelHideSubtaskDetail()
 })
 </script>
 
@@ -285,7 +443,7 @@ onBeforeUnmount(() => {
         <p class="project-gantt__eyebrow">Timeline Matrix</p>
         <div>
           <h3>阶段甘特图</h3>
-          <p>顶部按时间粒度缩放，左侧按阶段查看，点击某个阶段即可下钻到子任务时间视图。</p>
+          <p>保持当前阶段时间视角，点击阶段条即可展开该阶段下的全部子任务排期。</p>
         </div>
       </div>
 
@@ -307,7 +465,27 @@ onBeforeUnmount(() => {
           </button>
         </div>
 
-        <GanttScaleSwitcher :scale="scale" @update:scale="emit('update:scale', $event)" />
+        <div class="project-gantt__toolbar-scale-row">
+          <GanttScaleSwitcher :scale="scale" @update:scale="emit('update:scale', $event)" />
+
+          <div class="project-gantt__tree-actions">
+            <button
+              data-testid="project-gantt-expand-all"
+              type="button"
+              :disabled="isExpandingAll"
+              @click="emit('expand-all')"
+            >
+              {{ isExpandingAll ? '展开中...' : '全部展开' }}
+            </button>
+            <button
+              data-testid="project-gantt-collapse-all"
+              type="button"
+              @click="emit('collapse-all')"
+            >
+              全部收起
+            </button>
+          </div>
+        </div>
       </div>
     </header>
 
@@ -342,20 +520,64 @@ onBeforeUnmount(() => {
           >
             <div ref="sidebarRowsRailRef" class="project-gantt__sidebar-rows-rail">
               <div
-                v-for="node in gantt.nodes"
-                :key="node.id"
-                :data-testid="`project-gantt-row-label-${node.id}`"
-                class="project-gantt__sidebar-row"
+                v-for="row in visibleRows"
+                :key="row.key"
+                :data-testid="row.type === 'node' ? `project-gantt-row-label-${row.node.id}` : undefined"
+                :class="[
+                  'project-gantt__sidebar-row',
+                  `project-gantt__sidebar-row--${row.type}`,
+                  {
+                    'is-expanded': row.type === 'node' && expandedNodeIdSet.has(row.node.id),
+                  },
+                ]"
               >
-                <strong>{{ node.name }}</strong>
-                <span
-                  :class="[
-                    'project-gantt__status-pill',
-                    `project-gantt__status-pill--${getWorkStatusTone(node.status)}`,
-                  ]"
-                >
-                  {{ getWorkStatusLabel(node.status) }}
-                </span>
+                <template v-if="row.type === 'node'">
+                  <div class="project-gantt__sidebar-title">
+                    <span
+                      :class="[
+                        'project-gantt__sidebar-caret',
+                        {
+                          'is-expanded': expandedNodeIdSet.has(row.node.id),
+                        },
+                      ]"
+                      aria-hidden="true"
+                    />
+                    <strong>{{ row.node.name }}</strong>
+                  </div>
+                  <span
+                    :class="[
+                      'project-gantt__status-pill',
+                      `project-gantt__status-pill--${getWorkStatusTone(row.node.status)}`,
+                    ]"
+                  >
+                    {{ getWorkStatusLabel(row.node.status) }}
+                  </span>
+                </template>
+
+                <template v-else-if="row.type === 'subtask'">
+                  <div class="project-gantt__sidebar-branch" aria-hidden="true">
+                    <span class="project-gantt__sidebar-branch-line" />
+                    <span class="project-gantt__sidebar-branch-dot" />
+                  </div>
+                  <span class="project-gantt__sidebar-placeholder" aria-hidden="true" />
+                </template>
+
+                <template v-else-if="row.type === 'loading'">
+                  <span class="project-gantt__sidebar-inline-state">子任务加载中...</span>
+                  <span class="project-gantt__sidebar-placeholder" aria-hidden="true" />
+                </template>
+
+                <template v-else-if="row.type === 'error'">
+                  <span class="project-gantt__sidebar-inline-state project-gantt__sidebar-inline-state--error">
+                    加载失败
+                  </span>
+                  <span class="project-gantt__sidebar-placeholder" aria-hidden="true" />
+                </template>
+
+                <template v-else>
+                  <span class="project-gantt__sidebar-inline-state">暂无子任务</span>
+                  <span class="project-gantt__sidebar-placeholder" aria-hidden="true" />
+                </template>
               </div>
             </div>
           </div>
@@ -398,36 +620,97 @@ onBeforeUnmount(() => {
           >
             <div class="project-gantt__timeline-canvas" :style="timelineCanvasStyle">
               <div class="project-gantt__rows">
-                <div v-for="node in gantt.nodes" :key="node.id" class="project-gantt__row">
+                <div
+                  v-for="row in visibleRows"
+                  :key="row.key"
+                  :class="[
+                    'project-gantt__row',
+                    `project-gantt__row--${row.type}`,
+                  ]"
+                >
                   <div class="project-gantt__track">
                     <div
-                      :data-testid="`project-gantt-track-grid-${node.id}`"
+                      :data-testid="
+                        row.type === 'node'
+                          ? `project-gantt-track-grid-${row.node.id}`
+                          : row.type === 'subtask'
+                            ? `project-gantt-subtask-track-grid-${row.subtask.id}`
+                            : undefined
+                      "
                       aria-hidden="true"
                       class="project-gantt__track-grid"
                     >
                       <div
                         v-for="item in axisItems"
-                        :key="`${node.id}-${item.key}`"
+                        :key="`${row.key}-${item.key}`"
                         :class="['project-gantt__track-cell', `project-gantt__track-cell--${scale}`]"
                         :style="{ width: `${item.widthPx}px` }"
                       />
                     </div>
+
                     <button
-                      :data-testid="`project-gantt-stage-bar-${node.id}`"
+                      v-if="row.type === 'node'"
+                      :data-testid="`project-gantt-stage-bar-${row.node.id}`"
                       :class="[
                         'project-gantt__bar',
-                        `project-gantt__bar--${getWorkStatusTone(node.status)}`,
+                        'project-gantt__bar--stage',
+                        `project-gantt__bar--${getWorkStatusTone(row.node.status)}`,
+                        {
+                          'is-expanded': expandedNodeIdSet.has(row.node.id),
+                        },
                       ]"
-                      :style="getBarStyle(node)"
-                      :title="`${node.name}｜${getWorkStatusLabel(node.status)}｜${node.planned_start_date} - ${node.planned_end_date}`"
+                      :style="getBarStyle(row.node)"
+                      :title="`${row.node.name}｜${getWorkStatusLabel(row.node.status)}｜${row.node.planned_start_date} - ${row.node.planned_end_date}`"
                       type="button"
-                      @blur="clearNodeDetail(node.id)"
-                      @click="emit('open-node', node.id)"
-                      @focus="showNodeDetail(node.id, $event)"
-                      @mouseleave="clearNodeDetail(node.id)"
-                      @mouseenter="showNodeDetail(node.id, $event)"
+                      @blur="clearNodeDetail(row.node.id)"
+                      @click="emit('toggle-node', row.node.id)"
+                      @focus="showNodeDetail(row.node.id, $event)"
+                      @mouseleave="clearNodeDetail(row.node.id)"
+                      @mouseenter="showNodeDetail(row.node.id, $event)"
                     >
-                      <span>{{ node.name }}</span>
+                      <span>{{ row.node.name }}</span>
+                    </button>
+
+                    <button
+                      v-else-if="row.type === 'subtask'"
+                      :data-testid="`project-gantt-subtask-bar-${row.subtask.id}`"
+                      :class="[
+                        'project-gantt__bar',
+                        'project-gantt__bar--subtask',
+                        `project-gantt__bar--${getWorkStatusTone(row.subtask.status)}`,
+                      ]"
+                      :style="getBarStyle(row.subtask)"
+                      :title="`${row.subtask.name}｜${row.subtask.responsible_real_name}｜${row.subtask.progress_percent}%`"
+                      type="button"
+                      @blur="clearSubtaskDetail(row.subtask.id)"
+                      @focus="showSubtaskDetail(row.subtask.id, $event)"
+                      @mouseleave="clearSubtaskDetail(row.subtask.id)"
+                      @mouseenter="showSubtaskDetail(row.subtask.id, $event)"
+                    >
+                      <span>{{ row.subtask.name }}</span>
+                    </button>
+
+                    <div
+                      v-else-if="row.type === 'loading'"
+                      class="project-gantt__inline-state-chip project-gantt__inline-state-chip--loading"
+                    >
+                      子任务加载中...
+                    </div>
+
+                    <div
+                      v-else-if="row.type === 'empty'"
+                      class="project-gantt__inline-state-chip"
+                    >
+                      该阶段下暂无子任务排期
+                    </div>
+
+                    <button
+                      v-else
+                      class="project-gantt__inline-state-chip project-gantt__inline-state-chip--error"
+                      type="button"
+                      @click="emit('retry-node', row.node.id)"
+                    >
+                      {{ row.error }}，点击重试
                     </button>
                   </div>
                 </div>
@@ -490,6 +773,60 @@ onBeforeUnmount(() => {
                 >
                   <dt>完成时间</dt>
                   <dd>{{ hoveredNode.completed_at ? formatCompletedAt(hoveredNode.completed_at) : '尚未完成' }}</dd>
+                </div>
+              </dl>
+            </aside>
+          </Teleport>
+
+          <Teleport to="body">
+            <aside
+              v-if="hoveredSubtask"
+              :data-placement="hoveredSubtaskPlacement"
+              :style="subtaskDetailCardStyle"
+              class="project-gantt__subtask-detail-card"
+              data-testid="project-gantt-subtask-detail-card"
+              @mouseenter="cancelHideSubtaskDetail"
+              @mouseleave="clearSubtaskDetail()"
+            >
+              <div class="project-gantt__subtask-detail-topline">
+                <span class="project-gantt__subtask-detail-eyebrow">子任务详情</span>
+                <span
+                  :class="[
+                    'project-gantt__subtask-detail-status',
+                    `project-gantt__subtask-detail-status--${getWorkStatusTone(hoveredSubtask.status)}`,
+                  ]"
+                >
+                  {{ getWorkStatusLabel(hoveredSubtask.status) }}
+                </span>
+              </div>
+
+              <strong class="project-gantt__subtask-detail-title">{{ hoveredSubtask.name }}</strong>
+
+              <div class="project-gantt__subtask-detail-progress">
+                <div class="project-gantt__subtask-detail-progress-head">
+                  <span>完成进度</span>
+                  <strong>{{ hoveredSubtask.progress_percent }}%</strong>
+                </div>
+                <div class="project-gantt__subtask-detail-progress-track">
+                  <span
+                    class="project-gantt__subtask-detail-progress-fill"
+                    :style="{ width: `${hoveredSubtask.progress_percent}%` }"
+                  />
+                </div>
+              </div>
+
+              <dl class="project-gantt__subtask-detail-grid">
+                <div class="project-gantt__subtask-detail-grid-item">
+                  <dt>所属阶段</dt>
+                  <dd>{{ hoveredSubtask.node_name }}</dd>
+                </div>
+                <div class="project-gantt__subtask-detail-grid-item">
+                  <dt>负责人</dt>
+                  <dd>{{ hoveredSubtask.responsible_real_name }}</dd>
+                </div>
+                <div class="project-gantt__subtask-detail-grid-item">
+                  <dt>计划周期</dt>
+                  <dd>{{ hoveredSubtask.planned_start_date }}<br>{{ hoveredSubtask.planned_end_date }}</dd>
                 </div>
               </dl>
             </aside>
@@ -576,6 +913,51 @@ onBeforeUnmount(() => {
   display: grid;
   justify-items: end;
   gap: 12px;
+}
+
+.project-gantt__toolbar-scale-row {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.project-gantt__tree-actions {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.project-gantt__tree-actions button {
+  padding: 9px 14px;
+  border: 1px solid var(--dialog-control-border);
+  border-radius: 999px;
+  background: var(--dialog-control-bg), var(--card-sheen);
+  box-shadow: var(--dialog-control-shadow);
+  color: var(--text-main);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    transform 180ms ease-out,
+    border-color 180ms ease-out,
+    box-shadow 180ms ease-out,
+    color 180ms ease-out;
+}
+
+.project-gantt__tree-actions button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-line) 42%, var(--dialog-control-border));
+  box-shadow:
+    var(--dialog-control-shadow),
+    0 10px 18px color-mix(in srgb, var(--accent-end) 12%, transparent);
+}
+
+.project-gantt__tree-actions button:disabled {
+  opacity: 0.72;
+  cursor: wait;
 }
 
 .project-gantt__perspective-switch {
@@ -753,6 +1135,70 @@ onBeforeUnmount(() => {
   text-overflow: ellipsis;
   white-space: nowrap;
   color: var(--text-main);
+}
+
+.project-gantt__sidebar-title {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.project-gantt__sidebar-caret {
+  width: 10px;
+  height: 10px;
+  border-right: 2px solid color-mix(in srgb, var(--text-soft) 80%, transparent);
+  border-bottom: 2px solid color-mix(in srgb, var(--text-soft) 80%, transparent);
+  transform: rotate(-45deg);
+  transition: transform 180ms ease-out, border-color 180ms ease-out;
+  flex: none;
+}
+
+.project-gantt__sidebar-caret.is-expanded {
+  border-color: color-mix(in srgb, var(--accent-end) 74%, var(--text-soft));
+  transform: rotate(45deg) translateY(-1px);
+}
+
+.project-gantt__sidebar-row--subtask,
+.project-gantt__sidebar-row--loading,
+.project-gantt__sidebar-row--error,
+.project-gantt__sidebar-row--empty {
+  grid-template-columns: minmax(0, 1fr);
+  padding-left: 42px;
+}
+
+.project-gantt__sidebar-branch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.project-gantt__sidebar-branch-line {
+  width: 18px;
+  height: 1px;
+  background: color-mix(in srgb, var(--accent-line) 22%, transparent);
+}
+
+.project-gantt__sidebar-branch-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-end) 46%, var(--text-soft));
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-end) 10%, transparent);
+}
+
+.project-gantt__sidebar-inline-state {
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.project-gantt__sidebar-inline-state--error {
+  color: var(--work-status-delayed-color);
+}
+
+.project-gantt__sidebar-placeholder {
+  display: none;
 }
 
 .project-gantt__status-pill {
@@ -1005,6 +1451,64 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 
+.project-gantt__bar--stage.is-expanded {
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, #ffffff 16%, transparent),
+    0 16px 28px color-mix(in srgb, var(--accent-end) 14%, transparent);
+}
+
+.project-gantt__bar--subtask {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #ffffff 12%, transparent);
+}
+
+.project-gantt__row--subtask .project-gantt__track {
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent-end) 4%, var(--dialog-control-bg)),
+    color-mix(in srgb, var(--panel-bg) 96%, var(--dialog-control-bg))
+  );
+}
+
+.project-gantt__row--loading .project-gantt__track,
+.project-gantt__row--error .project-gantt__track,
+.project-gantt__row--empty .project-gantt__track {
+  display: grid;
+  align-items: center;
+  padding: 0 16px;
+}
+
+.project-gantt__inline-state-chip {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: min(420px, calc(100% - 12px));
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid var(--dialog-control-border);
+  border-radius: 12px;
+  background: var(--dialog-control-bg-strong);
+  color: var(--text-soft);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.project-gantt__inline-state-chip--loading {
+  border-color: var(--work-status-active-border);
+  color: var(--work-status-active-color);
+}
+
+.project-gantt__inline-state-chip--error {
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
+  cursor: pointer;
+}
+
 .project-gantt__bar:hover,
 .project-gantt__bar:focus-visible {
   box-shadow: 0 16px 28px color-mix(in srgb, var(--text-main) 18%, transparent);
@@ -1243,6 +1747,180 @@ onBeforeUnmount(() => {
     color-mix(in srgb, var(--panel-bg) 82%, transparent);
 }
 
+.project-gantt__subtask-detail-card {
+  position: fixed;
+  z-index: 260;
+  width: min(288px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 38%, var(--border-soft));
+  border-radius: 22px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--accent-end) 18%, var(--panel-bg)), color-mix(in srgb, var(--accent-start) 24%, var(--panel-bg)));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-line) 58%, var(--accent-end)),
+    0 24px 44px color-mix(in srgb, #061831 26%, transparent),
+    inset 0 1px 0 color-mix(in srgb, #ffffff 14%, transparent);
+  pointer-events: auto;
+}
+
+.project-gantt__subtask-detail-card[data-placement='top-right'] {
+  transform: translate(16px, calc(-100% - 14px));
+  transform-origin: left bottom;
+}
+
+.project-gantt__subtask-detail-card[data-placement='top-left'] {
+  transform: translate(calc(-100% - 16px), calc(-100% - 14px));
+  transform-origin: right bottom;
+}
+
+.project-gantt__subtask-detail-card[data-placement='bottom-right'] {
+  transform: translate(16px, 14px);
+  transform-origin: left top;
+}
+
+.project-gantt__subtask-detail-card[data-placement='bottom-left'] {
+  transform: translate(calc(-100% - 16px), 14px);
+  transform-origin: right top;
+}
+
+.project-gantt__subtask-detail-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.project-gantt__subtask-detail-eyebrow {
+  font-size: 0.66rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-soft);
+}
+
+.project-gantt__subtask-detail-title,
+.project-gantt__subtask-detail-status,
+.project-gantt__subtask-detail-grid dt,
+.project-gantt__subtask-detail-grid dd {
+  margin: 0;
+}
+
+.project-gantt__subtask-detail-title {
+  font-size: 0.96rem;
+  line-height: 1.3;
+  color: var(--text-main);
+}
+
+.project-gantt__subtask-detail-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 74px;
+  padding: 6px 10px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  font-size: 0.74rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.project-gantt__subtask-detail-status--pending {
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--work-status-pending-color);
+}
+
+.project-gantt__subtask-detail-status--active {
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
+}
+
+.project-gantt__subtask-detail-status--done {
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
+}
+
+.project-gantt__subtask-detail-status--delayed {
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
+}
+
+.project-gantt__subtask-detail-progress {
+  display: grid;
+  gap: 8px;
+  padding: 11px 12px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 18%, transparent);
+  border-radius: 16px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--app-bg)), color-mix(in srgb, var(--accent-end) 10%, var(--panel-bg)));
+}
+
+.project-gantt__subtask-detail-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--text-soft);
+  font-size: 0.74rem;
+  font-weight: 600;
+}
+
+.project-gantt__subtask-detail-progress-head strong {
+  color: var(--text-main);
+  font-size: 1rem;
+}
+
+.project-gantt__subtask-detail-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent-line) 14%, transparent);
+}
+
+.project-gantt__subtask-detail-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--accent-start), var(--accent-end));
+}
+
+.project-gantt__subtask-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.project-gantt__subtask-detail-grid-item {
+  display: grid;
+  gap: 4px;
+  min-height: 68px;
+  padding: 10px 11px;
+  border: 1px solid color-mix(in srgb, var(--border-soft) 92%, transparent);
+  border-radius: 14px;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 92%, var(--app-bg)), color-mix(in srgb, var(--accent-end) 10%, var(--panel-bg)));
+}
+
+.project-gantt__subtask-detail-grid-item:last-child {
+  grid-column: 1 / -1;
+}
+
+.project-gantt__subtask-detail-grid-item dt {
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+
+.project-gantt__subtask-detail-grid-item dd {
+  color: var(--text-main);
+  font-size: 0.82rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 @media (max-width: 1100px) {
   .project-gantt__body {
     grid-template-columns: minmax(200px, 220px) minmax(0, 1fr);
@@ -1258,6 +1936,19 @@ onBeforeUnmount(() => {
     justify-items: stretch;
   }
 
+  .project-gantt__toolbar-scale-row {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .project-gantt__tree-actions {
+    justify-content: flex-end;
+  }
+
+  .project-gantt__tree-actions button {
+    flex: 1 1 auto;
+  }
+
   .project-gantt__perspective-switch {
     width: 100%;
     justify-content: space-between;
@@ -1268,6 +1959,14 @@ onBeforeUnmount(() => {
   }
 
   .project-gantt__detail-grid-item--completion {
+    grid-column: auto;
+  }
+
+  .project-gantt__subtask-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-gantt__subtask-detail-grid-item:last-child {
     grid-column: auto;
   }
 }
