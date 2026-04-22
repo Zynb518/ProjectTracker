@@ -1250,6 +1250,7 @@ onBeforeUnmount(() => {
   --project-gantt-top-scroll-height: 18px;
   --project-gantt-axis-height: 56px;
   --project-gantt-row-height: 62px;
+  --project-gantt-subtask-row-height: 46px;
   position: relative;
   overflow: hidden;
   display: grid;
@@ -1571,8 +1572,10 @@ onBeforeUnmount(() => {
 .project-gantt__sidebar-row--loading,
 .project-gantt__sidebar-row--error,
 .project-gantt__sidebar-row--empty {
+  height: var(--project-gantt-subtask-row-height);
   grid-template-columns: minmax(0, 1fr);
   padding-left: 42px;
+  contain-intrinsic-size: 46px;
 }
 
 .project-gantt__sidebar-branch {
@@ -1861,6 +1864,21 @@ onBeforeUnmount(() => {
   transition: none;
 }
 
+.project-gantt__bar--stage {
+  height: 40px;
+  padding-inline: 22px;
+  border-radius: 16px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 22%, transparent),
+    0 18px 32px color-mix(in srgb, var(--accent-end) 18%, transparent);
+}
+
+.project-gantt__bar--stage .project-gantt__bar-label {
+  font-size: 0.86rem;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
 .project-gantt__bar-label {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1908,10 +1926,38 @@ onBeforeUnmount(() => {
 }
 
 .project-gantt__bar--subtask {
-  height: 32px;
-  padding: 0 12px;
-  border-radius: 12px;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, #ffffff 12%, transparent);
+  height: 28px;
+  padding: 0 10px;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 10%, transparent),
+    0 6px 14px color-mix(in srgb, #06152d 12%, transparent);
+}
+
+.project-gantt__bar--subtask .project-gantt__bar-label {
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.project-gantt__bar--stage .project-gantt__resize-handle {
+  background: color-mix(in srgb, #ffffff 16%, transparent);
+}
+
+.project-gantt__bar--subtask .project-gantt__resize-handle {
+  top: 3px;
+  bottom: 3px;
+  width: 10px;
+  background: color-mix(in srgb, #ffffff 10%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #ffffff 16%, transparent);
+}
+
+.project-gantt__row--subtask,
+.project-gantt__row--loading,
+.project-gantt__row--error,
+.project-gantt__row--empty {
+  height: var(--project-gantt-subtask-row-height);
+  contain-intrinsic-size: 46px;
 }
 
 .project-gantt__row--subtask .project-gantt__track {
@@ -1966,6 +2012,22 @@ onBeforeUnmount(() => {
   outline: none;
 }
 
+.project-gantt__bar--stage:hover,
+.project-gantt__bar--stage:focus-visible {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 24%, transparent),
+    0 20px 34px color-mix(in srgb, var(--accent-end) 20%, transparent);
+  filter: saturate(1.05);
+}
+
+.project-gantt__bar--subtask:hover,
+.project-gantt__bar--subtask:focus-visible {
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #ffffff 12%, transparent),
+    0 10px 18px color-mix(in srgb, #06152d 14%, transparent);
+  filter: saturate(1.01);
+}
+
 .project-gantt__bar--pending {
   background: var(--work-status-pending-strong);
   color: var(--work-status-pending-contrast);
@@ -1984,6 +2046,30 @@ onBeforeUnmount(() => {
 .project-gantt__bar--delayed {
   background: var(--work-status-delayed-strong);
   color: var(--work-status-delayed-contrast);
+}
+
+.project-gantt__bar--subtask.project-gantt__bar--pending {
+  border-color: var(--work-status-pending-border);
+  background: var(--work-status-pending-bg);
+  color: var(--text-main);
+}
+
+.project-gantt__bar--subtask.project-gantt__bar--active {
+  border-color: var(--work-status-active-border);
+  background: var(--work-status-active-bg);
+  color: var(--work-status-active-color);
+}
+
+.project-gantt__bar--subtask.project-gantt__bar--done {
+  border-color: var(--work-status-done-border);
+  background: var(--work-status-done-bg);
+  color: var(--work-status-done-color);
+}
+
+.project-gantt__bar--subtask.project-gantt__bar--delayed {
+  border-color: var(--work-status-delayed-border);
+  background: var(--work-status-delayed-bg);
+  color: var(--work-status-delayed-color);
 }
 
 .project-gantt__detail-card {

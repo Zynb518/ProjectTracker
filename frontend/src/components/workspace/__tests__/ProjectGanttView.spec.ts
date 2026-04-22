@@ -223,6 +223,32 @@ describe('ProjectGanttView', () => {
     )
   })
 
+  it('renders stage bars as the heavier primary layer while keeping subtask bars slimmer and visually recessed', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+
+    expect(source).toContain('.project-gantt__bar--stage {')
+    expect(source).toContain('height: 40px;')
+    expect(source).toContain('padding-inline: 22px;')
+    expect(source).toContain('0 18px 32px color-mix(in srgb, var(--accent-end) 18%, transparent);')
+    expect(source).toContain('.project-gantt__bar--subtask {')
+    expect(source).toContain('height: 28px;')
+    expect(source).toContain('border: 1px solid transparent;')
+    expect(source).toContain('.project-gantt__bar--subtask.project-gantt__bar--active {')
+    expect(source).toContain('background: var(--work-status-active-bg);')
+    expect(source).toContain('color: var(--work-status-active-color);')
+  })
+
+  it('keeps stage rows at the original height while rendering expanded subtask rows in a narrower lane', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/workspace/ProjectGanttView.vue'), 'utf8')
+
+    expect(source).toContain('--project-gantt-row-height: 62px;')
+    expect(source).toContain('--project-gantt-subtask-row-height: 46px;')
+    expect(source).toContain('.project-gantt__sidebar-row--subtask,')
+    expect(source).toContain('height: var(--project-gantt-subtask-row-height);')
+    expect(source).toContain('.project-gantt__row--subtask,')
+    expect(source).toContain('contain-intrinsic-size: 46px;')
+  })
+
   it('anchors the stage detail card to the hover point and flips placement near viewport edges', async () => {
     vi.useFakeTimers()
 
