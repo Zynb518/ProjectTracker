@@ -242,6 +242,49 @@ def test_generate_plan_from_local_model_formats_prompt_with_training_prefix(monk
     assert kwargs["no_repeat_ngram_size"] == 4
 
 
+def test_generate_plan_with_local_generator_reuses_preloaded_pipeline(monkeypatch):
+    captured: dict[str, object] = {}
+    generated_plan = GeneratedPlan(
+        project=ProjectDraft(
+            name="常驻计划",
+            planned_start_date="2026-05-01",
+            planned_end_date="2026-05-31",
+        ),
+        nodes=[
+            ProjectNodeDraft(
+                name="阶段一",
+                planned_start_date="2026-05-01",
+                planned_end_date="2026-05-31",
+                subtasks=[
+                    SubTaskDraft(
+                        name="任务一",
+                        planned_start_date="2026-05-01",
+                        planned_end_date="2026-05-31",
+                    )
+                ],
+            )
+        ],
+    )
+
+    def fake_generator(prompt: str, **kwargs: object) -> list[dict[str, str]]:
+        captured["prompt"] = prompt
+        captured["kwargs"] = kwargs
+        return [{"generated_text": serialize_plan_for_model(generated_plan)}]
+
+    plan = model_generator_module.generate_plan_with_local_generator(
+        fake_generator,
+        "做一个常驻 worker 计划",
+    )
+
+    assert plan.project.name == "常驻计划"
+    assert captured["prompt"] == f"{model_generator_module.PREFIX}做一个常驻 worker 计划"
+    kwargs = captured["kwargs"]
+    assert isinstance(kwargs, dict)
+    assert kwargs["max_new_tokens"] == 768
+    assert kwargs["do_sample"] is False
+    assert kwargs["num_beams"] == 2
+
+
 def test_run_inference_main_prints_validated_plan_json(monkeypatch, capsys, tmp_path):
     script_path = Path(__file__).resolve().parents[1] / "scripts" / "run_inference.py"
     spec = importlib.util.spec_from_file_location("run_inference_script", script_path)

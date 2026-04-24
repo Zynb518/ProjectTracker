@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import date
+from typing import Any
 
 from ai_project_manager.schemas import (
     GeneratedPlan,
@@ -47,10 +48,14 @@ def normalize_generated_plan(plan: GeneratedPlan) -> GeneratedPlan:
 
 
 def plan_to_json(plan: GeneratedPlan) -> str:
+    return json.dumps(plan_to_payload(plan), indent=2, ensure_ascii=False)
+
+
+def plan_to_payload(plan: GeneratedPlan) -> dict[str, Any]:
     errors = validate_generated_plan(plan)
     if errors:
         raise ValueError("; ".join(errors))
-    return json.dumps(plan.model_dump(exclude_none=True), indent=2, ensure_ascii=False)
+    return plan.model_dump(exclude_none=True)
 
 
 def _normalize_node(

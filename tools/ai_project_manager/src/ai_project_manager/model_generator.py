@@ -14,6 +14,13 @@ from ai_project_manager.normalizer import normalize_generated_plan
 from ai_project_manager.schemas import GeneratedPlan
 from ai_project_manager.validator import validate_generated_plan
 
+GENERATION_KWARGS: dict[str, Any] = {
+    "max_new_tokens": 768,
+    "do_sample": False,
+    "num_beams": 2,
+    "no_repeat_ngram_size": 4,
+}
+
 
 def load_local_generator(model_dir: Path) -> Any:
     """Load a local text2text generation pipeline from a saved model directory."""
@@ -37,21 +44,22 @@ def format_requirement_prompt(requirement: str) -> str:
     return f"{PREFIX}{requirement}"
 
 
-def generate_plan_from_local_model(model_dir: Path, requirement: str) -> GeneratedPlan:
-    generator = load_local_generator(model_dir)
+def generate_plan_with_local_generator(generator: Any, requirement: str) -> GeneratedPlan:
     prompt = format_requirement_prompt(requirement)
     outputs = generator(
         prompt,
-        max_new_tokens=768,
-        do_sample=False,
-        num_beams=2,
-        no_repeat_ngram_size=4,
+        **GENERATION_KWARGS,
     )
     generated_text = _extract_generated_text(outputs)
     plan = _parse_and_validate_generated_plan(generated_text)
     if _should_fallback_to_heuristic(plan, requirement):
         return generate_plan_from_requirement(requirement)
     return plan
+
+
+def generate_plan_from_local_model(model_dir: Path, requirement: str) -> GeneratedPlan:
+    generator = load_local_generator(model_dir)
+    return generate_plan_with_local_generator(generator, requirement)
 
 
 def _extract_generated_text(outputs: Any) -> str:

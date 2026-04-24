@@ -22,6 +22,7 @@ const emit = defineEmits<{
   'update:keyword': [value: string]
   'update:status': [value: string]
   submit: []
+  'create-ai': [origin: DialogTriggerOrigin]
   create: [origin: DialogTriggerOrigin]
   'open-gantt': [origin: DialogTriggerOrigin]
 }>()
@@ -60,6 +61,20 @@ function emitCreateOrigin(event: MouseEvent) {
 
   const rect = trigger.getBoundingClientRect()
   emit('create', {
+    x: rect.left + rect.width / 2,
+    y: rect.top + rect.height / 2,
+  })
+}
+
+function emitAiCreateOrigin(event: MouseEvent) {
+  const trigger = event.currentTarget as HTMLElement | null
+
+  if (!trigger) {
+    return
+  }
+
+  const rect = trigger.getBoundingClientRect()
+  emit('create-ai', {
     x: rect.left + rect.width / 2,
     y: rect.top + rect.height / 2,
   })
@@ -116,6 +131,17 @@ function emitGanttOrigin(event: MouseEvent) {
     </div>
 
     <div class="project-filters__actions">
+      <button
+        type="button"
+        aria-label="AI 创建项目"
+        class="project-filters__ai-create"
+        data-testid="open-ai-project-create"
+        @click="emitAiCreateOrigin"
+      >
+        <span class="project-filters__ai-create-mark">AI</span>
+        <span>AI 创建</span>
+      </button>
+
       <button
         type="button"
         aria-label="打开项目甘特图"
@@ -345,6 +371,7 @@ function emitGanttOrigin(event: MouseEvent) {
   gap: 10px;
 }
 
+.project-filters__ai-create,
 .project-filters__overview {
   min-height: 46px;
   display: inline-flex;
@@ -370,12 +397,46 @@ function emitGanttOrigin(event: MouseEvent) {
     color 200ms ease-out;
 }
 
+.project-filters__ai-create {
+  border-color: color-mix(in srgb, var(--accent-line) 32%, var(--dialog-control-border));
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 10%, var(--dialog-control-bg)), color-mix(in srgb, var(--accent-end) 12%, var(--dialog-control-bg))),
+    var(--dialog-control-bg);
+}
+
+.project-filters__overview {
+  min-height: 46px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 0 16px;
+  border: 1px solid var(--dialog-control-border);
+  border-radius: 14px;
+  background: var(--dialog-control-bg);
+  box-shadow: var(--dialog-control-shadow);
+  color: var(--text-main);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition:
+    transform 200ms ease-out,
+    border-color 200ms ease-out,
+    box-shadow 200ms ease-out,
+    background 200ms ease-out,
+    color 200ms ease-out;
+}
+
+.project-filters__ai-create:hover,
 .project-filters__overview:hover {
   transform: translateY(-2px);
   border-color: var(--accent-line);
   box-shadow: var(--shadow-panel-hover);
 }
 
+.project-filters__ai-create:focus-visible,
 .project-filters__overview:focus-visible {
   outline: none;
   transform: translateY(-2px);
@@ -388,6 +449,20 @@ function emitGanttOrigin(event: MouseEvent) {
   width: 18px;
   height: 18px;
   color: var(--accent-start);
+}
+
+.project-filters__ai-create-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 30px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--accent-start) 78%, #183b7a), color-mix(in srgb, var(--accent-end) 72%, #08182f));
+  color: #f7fbff;
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
 }
 
 .project-filters__create {
@@ -497,6 +572,7 @@ function emitGanttOrigin(event: MouseEvent) {
     gap: 8px;
   }
 
+  .project-filters__ai-create,
   .project-filters__overview {
     flex: 1 1 180px;
   }
