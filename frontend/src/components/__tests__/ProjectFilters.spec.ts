@@ -54,12 +54,33 @@ describe('ProjectFilters', () => {
     expect(statusBarBlock).toContain('box-shadow: none;')
   })
 
+  it('keeps the project status pills on a single row instead of wrapping', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectFilters.vue'), 'utf8')
+    const statusBarBlock = source.match(/\.project-filters__status-bar\s*\{([\s\S]*?)\n\}/)?.[0]
+    const statusPillBlock = source.match(/\.project-filters__status-pill\s*\{([\s\S]*?)\n\}/)?.[0]
+
+    expect(statusBarBlock).toBeTruthy()
+    expect(statusBarBlock).toContain('flex-wrap: nowrap;')
+    expect(statusBarBlock).toContain('overflow-x: auto;')
+    expect(statusPillBlock).toBeTruthy()
+    expect(statusPillBlock).toContain('flex: 0 0 auto;')
+  })
+
   it('uses the shared galaxy meta surface for the filter shell and removes the old frosted blur wrapper', () => {
     const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectFilters.vue'), 'utf8')
 
     expect(source).toContain('background: var(--meta-surface-bg), var(--meta-surface-glow), var(--card-sheen);')
     expect(source).toContain('box-shadow: var(--meta-surface-shadow);')
     expect(source).not.toContain('backdrop-filter: var(--backdrop-blur);')
+  })
+
+  it('uses a narrower first grid column so the keyword search takes less horizontal space than the status area', () => {
+    const source = readFileSync(resolve(process.cwd(), 'src/components/projects/ProjectFilters.vue'), 'utf8')
+    const rootBlock = source.match(/\.project-filters\s*\{([\s\S]*?)\n\}/)?.[0]
+
+    expect(rootBlock).toBeTruthy()
+    expect(rootBlock).toContain('grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) auto;')
+    expect(rootBlock).not.toContain('grid-template-columns: repeat(2, minmax(0, 1fr)) auto;')
   })
 
   it('emits the create trigger origin from the new project button', async () => {

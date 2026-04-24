@@ -187,7 +187,7 @@ function emitGanttOrigin(event: MouseEvent) {
 <style scoped>
 .project-filters {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr) auto;
   gap: 14px;
   padding: 18px;
   border: 1px solid var(--meta-surface-border);
@@ -243,10 +243,12 @@ function emitGanttOrigin(event: MouseEvent) {
 .project-filters__status-bar {
   min-height: 46px;
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   gap: 10px;
   padding: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
   border: 1px solid transparent;
   border-radius: 14px;
   background: transparent;
@@ -254,6 +256,7 @@ function emitGanttOrigin(event: MouseEvent) {
 }
 
 .project-filters__status-pill {
+  flex: 0 0 auto;
   min-height: 34px;
   display: inline-flex;
   align-items: center;

@@ -569,11 +569,17 @@ onBeforeUnmount(() => {
                   <span>{{ draft.project.planned_start_date || '未设置' }} ~ {{ draft.project.planned_end_date || '未设置' }}</span>
                 </button>
 
-                <div class="project-ai-dialog__tree-list">
+                <div v-smooth-wheel class="project-ai-dialog__tree-list smooth-scroll-surface">
                   <article
                     v-for="node in draft.nodes"
                     :key="node.local_id"
-                    :class="['project-ai-dialog__tree-node', { 'is-selected': selected.kind === 'node' && selected.nodeId === node.local_id }]"
+                    :data-testid="`project-ai-draft-node-${node.local_id}`"
+                    :class="[
+                      'project-ai-dialog__tree-node',
+                      {
+                        'is-selected': selected.kind === 'node' && selected.nodeId === node.local_id,
+                      },
+                    ]"
                   >
                     <button type="button" class="project-ai-dialog__tree-node-button" @click="selectNode(node.local_id)">
                       <strong>{{ node.name || '未命名阶段' }}</strong>
@@ -1129,7 +1135,6 @@ onBeforeUnmount(() => {
 }
 
 .project-ai-dialog__tree-project.is-selected,
-.project-ai-dialog__tree-node.is-selected,
 .project-ai-dialog__tree-subtask.is-selected {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--accent-end) 36%, #ffffff),
@@ -1140,47 +1145,86 @@ onBeforeUnmount(() => {
   min-height: 0;
   overflow: auto;
   display: grid;
+  align-content: start;
   gap: 12px;
-  padding-right: 4px;
+  padding-right: 8px;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  scrollbar-gutter: stable both-edges;
   contain: layout paint;
 }
 
 .project-ai-dialog__tree-node {
+  box-sizing: border-box;
   display: grid;
   gap: 10px;
-  padding: 12px;
-  border: 1px solid color-mix(in srgb, var(--accent-line) 16%, transparent);
-  border-radius: 18px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--panel-bg) 94%, transparent), color-mix(in srgb, var(--accent-end) 5%, var(--panel-bg)));
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
   contain: layout paint;
   content-visibility: auto;
-  contain-intrinsic-size: 220px;
+  contain-intrinsic-size: 232px;
 }
 
 .project-ai-dialog__tree-node-button {
+  box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
   width: 100%;
-  padding: 0;
-  border: 0;
-  background: transparent;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 16%, transparent);
+  border-radius: 18px;
+  background: var(--dialog-control-bg), var(--card-sheen);
+  box-shadow: var(--dialog-control-shadow);
   color: var(--text-main);
   text-align: left;
   cursor: pointer;
+  min-height: 46px;
+}
+
+.project-ai-dialog__tree-node.is-selected .project-ai-dialog__tree-node-button {
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--accent-end) 36%, #ffffff),
+    0 14px 24px rgba(4, 13, 28, 0.18);
+}
+
+.project-ai-dialog__tree-node-button strong,
+.project-ai-dialog__tree-node-button span,
+.project-ai-dialog__tree-project strong,
+.project-ai-dialog__tree-project span,
+.project-ai-dialog__tree-subtask {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.project-ai-dialog__tree-node-button strong {
+  flex: 1 1 auto;
+}
+
+.project-ai-dialog__tree-node-button span {
+  flex: none;
 }
 
 .project-ai-dialog__tree-subtasks {
   display: grid;
   gap: 8px;
   padding-left: 14px;
+  background: transparent;
+  border: 0;
+  box-shadow: none;
   contain: layout paint;
 }
 
 .project-ai-dialog__tree-subtask {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
   width: 100%;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--accent-line) 12%, transparent);
@@ -1189,9 +1233,10 @@ onBeforeUnmount(() => {
   color: var(--text-soft);
   text-align: left;
   cursor: pointer;
+  min-height: 40px;
   contain: layout paint;
   content-visibility: auto;
-  contain-intrinsic-size: 42px;
+  contain-intrinsic-size: 40px;
 }
 
 .project-ai-dialog__tree-subtask--add {
