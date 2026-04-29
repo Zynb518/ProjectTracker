@@ -471,7 +471,6 @@ onBeforeUnmount(() => {
                           `project-member-gantt__bar--${getWorkStatusTone(subtask.item.status)}`,
                         ]"
                         :style="getBarStyle(subtask.item, subtask.laneIndex)"
-                        :title="`${subtask.item.name}｜${subtask.item.node_name}｜${subtask.item.planned_start_date} - ${subtask.item.planned_end_date}`"
                         type="button"
                         @blur="clearSubtaskDetail(subtask.item.subtask_id)"
                         @focus="showSubtaskDetail(subtask.item.subtask_id, memberRow.user_id, $event)"

@@ -458,7 +458,6 @@ onBeforeUnmount(() => {
                             `node-gantt-dialog__bar--${getWorkStatusTone(subtask.status)}`,
                           ]"
                           :style="getBarStyle(subtask)"
-                          :title="`${subtask.name}｜${subtask.responsible_real_name}｜${subtask.progress_percent}%`"
                           type="button"
                           @blur="clearSubtaskDetail(subtask.id)"
                           @focus="showSubtaskDetail(subtask.id, $event)"

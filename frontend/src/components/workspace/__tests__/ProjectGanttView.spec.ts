@@ -243,7 +243,7 @@ describe('ProjectGanttView', () => {
 
     expect(source).toContain('--project-gantt-row-height: 62px;')
     expect(source).toContain('--project-gantt-subtask-row-height: 46px;')
-    expect(source).toContain('.project-gantt__sidebar-row--subtask,')
+    expect(source).toContain('.project-gantt__sidebar-row--subtask {')
     expect(source).toContain('height: var(--project-gantt-subtask-row-height);')
     expect(source).toContain('.project-gantt__row--subtask,')
     expect(source).not.toContain('contain-intrinsic-size: 46px;')

@@ -641,16 +641,6 @@ function isActiveResizeTarget(kind: 'node' | 'subtask', id: number) {
     : 'subtaskId' in activeResize.value && activeResize.value.subtaskId === id
 }
 
-function getNodeBarTitle(node: GanttNodeSummary) {
-  const range = getVisibleRange(node, 'node')
-  return `${node.name}｜${getWorkStatusLabel(node.status)}｜${range.planned_start_date} - ${range.planned_end_date}`
-}
-
-function getSubtaskBarTitle(subtask: GanttSubtaskSummary) {
-  const range = getVisibleRange(subtask, 'subtask')
-  return `${subtask.name}｜${subtask.responsible_real_name}｜${range.planned_start_date} - ${range.planned_end_date}`
-}
-
 function markIgnoredScroll(
   ignoredScrollMap: WeakMap<HTMLElement, number>,
   target: HTMLElement,
@@ -887,11 +877,14 @@ onBeforeUnmount(() => {
                 </template>
 
                 <template v-else-if="row.type === 'subtask'">
-                  <div class="project-gantt__sidebar-branch" aria-hidden="true">
-                    <span class="project-gantt__sidebar-branch-line" />
-                    <span class="project-gantt__sidebar-branch-dot" />
-                  </div>
-                  <span class="project-gantt__sidebar-placeholder" aria-hidden="true" />
+                  <span class="project-gantt__sidebar-subtask-label">
+                    <span class="project-gantt__sidebar-branch" aria-hidden="true">
+                      <span class="project-gantt__sidebar-branch-line" />
+                      <span class="project-gantt__sidebar-branch-dot" />
+                    </span>
+                    <span class="project-gantt__sidebar-subtask-name">{{ row.subtask.name }}</span>
+                  </span>
+                  <span class="project-gantt__sidebar-subtask-progress">{{ row.subtask.progress_percent }}%</span>
                 </template>
 
                 <template v-else-if="row.type === 'loading'">
@@ -975,7 +968,6 @@ onBeforeUnmount(() => {
                         },
                       ]"
                       :style="getBarStyle(row.node, 'node')"
-                      :title="getNodeBarTitle(row.node)"
                       type="button"
                       @blur="clearNodeDetail(row.node.id)"
                       @click="emit('toggle-node', row.node.id)"
@@ -1033,7 +1025,6 @@ onBeforeUnmount(() => {
                         },
                       ]"
                       :style="getBarStyle(row.subtask, 'subtask')"
-                      :title="getSubtaskBarTitle(row.subtask)"
                       type="button"
                       @blur="clearSubtaskDetail(row.subtask.id)"
                       @focus="showSubtaskDetail(row.subtask.id, $event)"
@@ -1547,13 +1538,19 @@ onBeforeUnmount(() => {
   transform: rotate(45deg) translateY(-1px);
 }
 
-.project-gantt__sidebar-row--subtask,
 .project-gantt__sidebar-row--loading,
 .project-gantt__sidebar-row--error,
 .project-gantt__sidebar-row--empty {
   height: var(--project-gantt-subtask-row-height);
   grid-template-columns: minmax(0, 1fr);
   padding-left: 42px;
+}
+
+.project-gantt__sidebar-row--subtask {
+  height: var(--project-gantt-subtask-row-height);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-left: 42px;
+  overflow: hidden;
 }
 
 .project-gantt__sidebar-branch {
@@ -1574,6 +1571,38 @@ onBeforeUnmount(() => {
   border-radius: 999px;
   background: color-mix(in srgb, var(--accent-end) 46%, var(--text-soft));
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-end) 10%, transparent);
+}
+
+.project-gantt__sidebar-subtask-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.project-gantt__sidebar-subtask-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.project-gantt__sidebar-subtask-progress {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 38px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent-end) 10%, transparent);
+  color: var(--text-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
 }
 
 .project-gantt__sidebar-inline-state {
