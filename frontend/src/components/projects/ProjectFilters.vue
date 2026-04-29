@@ -130,11 +130,12 @@ function emitGanttOrigin(event: MouseEvent) {
       </div>
     </div>
 
-    <div class="project-filters__actions">
+    <div class="project-filters__actions" data-tutorial-target="project-create-actions">
       <button
         type="button"
         aria-label="AI 创建项目"
         class="project-filters__ai-create"
+        data-tutorial-target="project-ai-create"
         data-testid="open-ai-project-create"
         @click="emitAiCreateOrigin"
       >
@@ -167,6 +168,7 @@ function emitGanttOrigin(event: MouseEvent) {
         data-testid="create-project"
         aria-label="新建项目"
         class="project-filters__create"
+        data-tutorial-target="project-manual-create"
         data-tooltip="新建项目"
         @click="emitCreateOrigin"
       >

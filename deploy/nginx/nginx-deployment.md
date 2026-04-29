@@ -72,6 +72,26 @@ sudo cp deploy/nginx/project-tracker.conf /etc/nginx/sites-available/project-tra
 - `location /api/ -> http://127.0.0.1:8080`
 - `location / -> try_files $uri $uri/ /index.html`
 
+如果这台机器还要承接“本地 AI 创建项目”接口，建议在实际站点配置里的 `/api/` 代理块额外补上超时配置。  
+原因是本地模型第一次加载很可能明显慢于普通 CRUD 接口，默认代理超时容易在前端表现成 `504`。
+
+推荐配置：
+
+```nginx
+location /api/ {
+    proxy_pass http://127.0.0.1:8080;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+
+    proxy_connect_timeout 60s;
+    proxy_send_timeout 300s;
+    proxy_read_timeout 300s;
+    send_timeout 300s;
+}
+```
+
 ## 5. 启用项目站点
 
 如果当前还没有软链接，则创建：
@@ -155,6 +175,11 @@ try_files $uri $uri/ /index.html;
 
 返回 `401` 是正常现象，说明请求已经到达后端鉴权链路，而不是 `nginx` 配置错误。
 
+如果你已经启用了本地 AI，建议额外验证一次：
+
+- 前端点击“AI 创建项目”时，请求不会在 1 分钟左右直接返回 `504`
+- 首次 AI 生成较慢时，`nginx` 不会过早断开上游连接
+
 ## 9. 配置更新后的常规操作
 
 如果只是修改了 `nginx` 站点配置：
@@ -188,6 +213,15 @@ sudo systemctl reload nginx
 - 后端没有稳定运行在 `127.0.0.1:8080`
   现象：页面能打开，但接口报 `502` 或请求失败。
   处理：先检查后端服务状态，再检查 `nginx` 错误日志。
+
+- 前端提示 `Request failed with status code 504`
+  现象：普通接口正常，但 AI 创建项目这类慢请求在等待一段时间后失败。
+  处理：优先检查 `/etc/nginx/sites-available/project-tracker.local` 或 `/etc/nginx/sites-enabled/project-tracker.local` 中 `/api/` 的代理超时是否已经按 AI 场景放宽，并查看：
+  ```bash
+  sudo tail -n 100 /var/log/nginx/error.log
+  sudo journalctl -u project-tracker.service -n 100
+  ```
+  如果 `nginx` 错误日志里出现 `upstream timed out`，基本就能确认是代理超时。
 
 - 只检查页面，不检查 `nginx` 结果
   现象：浏览器里只看到“打不开”或“接口失败”，但不知道是前端、`nginx` 还是后端的问题。

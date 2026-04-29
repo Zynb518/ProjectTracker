@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ProjectFilters from '@/components/projects/ProjectFilters.vue'
@@ -17,12 +17,14 @@ import {
   updateProject,
 } from '@/api/projects'
 import { getErrorMessage } from '@/api/http'
+import { useBeginnerTutorialStore } from '@/stores/beginnerTutorial'
 import { useNotificationStore } from '@/stores/notifications'
 import type { GanttScale } from '@/types/gantt'
 import type { ProjectFormPayload, ProjectListItem } from '@/types/project'
 import { getTotalPages, getVisiblePages } from '@/utils/pagination'
 
 const router = useRouter()
+const tutorialStore = useBeginnerTutorialStore()
 
 type DialogMotionOrigin = {
   x: number
@@ -180,7 +182,7 @@ function createDialogMotionOrigin(origin: DialogTriggerOrigin | null): DialogMot
   }
 }
 
-function openCreateDialog(origin: DialogTriggerOrigin) {
+function openCreateDialog(origin: DialogTriggerOrigin | null = null) {
   dialogMode.value = 'create'
   editingProjectId.value = null
   formValue.value = defaultFormValue()
@@ -188,7 +190,7 @@ function openCreateDialog(origin: DialogTriggerOrigin) {
   dialogOpen.value = true
 }
 
-function openAiCreateDialog(origin: DialogTriggerOrigin) {
+function openAiCreateDialog(origin: DialogTriggerOrigin | null = null) {
   aiDraftDialogMotionOrigin.value = createDialogMotionOrigin(origin)
   aiDraftDialogOpen.value = true
 }
@@ -219,7 +221,19 @@ function openEditDialog(project: ProjectListItem) {
 async function submitProject(payload: ProjectFormPayload) {
   try {
     if (dialogMode.value === 'create') {
-      await createProject(payload)
+      const createdProject = await createProject(payload)
+      dialogOpen.value = false
+
+      if (
+        tutorialStore.active
+        && tutorialStore.mode === 'manual'
+        && tutorialStore.step === 'manual-form'
+        && createdProject.id !== undefined
+      ) {
+        tutorialStore.markCreated(createdProject.id)
+        await router.push(`/projects/${createdProject.id}`)
+        return
+      }
     } else if (editingProjectId.value !== null) {
       await updateProject(editingProjectId.value, payload)
     }
@@ -258,6 +272,48 @@ async function runProjectAction(action: 'start' | 'complete' | 'reopen' | 'remov
     notificationStore.notifyError(getErrorMessage(error, '项目操作失败'))
   }
 }
+
+function handleProjectDialogVisibility(value: boolean) {
+  dialogOpen.value = value
+
+  if (!value) {
+    tutorialStore.handleDialogClosed('manual')
+  }
+}
+
+function handleAiDialogVisibility(value: boolean) {
+  aiDraftDialogOpen.value = value
+
+  if (!value) {
+    tutorialStore.handleDialogClosed('ai')
+  }
+}
+
+async function handleTutorialProjectCreated(projectId: number) {
+  if (!tutorialStore.active || tutorialStore.mode !== 'ai') {
+    return
+  }
+
+  tutorialStore.markCreated(projectId)
+  await router.push(`/projects/${projectId}`)
+}
+
+watch(
+  () => tutorialStore.dialogRequest,
+  (dialogRequest) => {
+    if (dialogRequest === 'manual') {
+      tutorialStore.consumeDialogRequest('manual')
+      openCreateDialog()
+      return
+    }
+
+    if (dialogRequest === 'ai') {
+      tutorialStore.consumeDialogRequest('ai')
+      openAiCreateDialog()
+    }
+  },
+  { immediate: true },
+)
 
 function openProject(project: ProjectListItem) {
   router.push(`/projects/${project.id}`)
@@ -376,16 +432,21 @@ onMounted(loadProjects)
     </section>
 
     <ProjectFormDialog
-      v-model="dialogOpen"
+      :model-value="dialogOpen"
       :initial-value="formValue"
       :motion-origin="dialogMotionOrigin"
       :mode="dialogMode"
+      @update:model-value="handleProjectDialogVisibility"
       @submit="submitProject"
     />
 
     <ProjectAiDraftDialog
-      v-model="aiDraftDialogOpen"
+      :model-value="aiDraftDialogOpen"
       :motion-origin="aiDraftDialogMotionOrigin"
+      :redirect-on-created="!(tutorialStore.active && tutorialStore.mode === 'ai')"
+      @created="handleTutorialProjectCreated"
+      @draft-generated="tutorialStore.markAiDraftGenerated()"
+      @update:model-value="handleAiDialogVisibility"
     />
 
     <ProjectListGanttDialog

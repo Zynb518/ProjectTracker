@@ -72,7 +72,7 @@ function submit() {
     <div v-if="modelValue" :style="backdropStyle" class="project-dialog__backdrop">
       <div aria-hidden="true" class="project-dialog__glow" />
 
-      <section class="project-dialog">
+      <section class="project-dialog" data-tutorial-target="project-form-dialog">
         <header class="project-dialog__header">
           <div>
             <p class="project-dialog__eyebrow">项目操作</p>

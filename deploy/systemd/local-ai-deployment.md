@@ -87,16 +87,72 @@ sudo chown -R ubzy:ubzy /opt/project-tracker/tools/ai_project_manager
 
 如果你本来就是整仓库部署到 `/opt/project-tracker`，这一步可以跳过，只要确认 `tools/ai_project_manager` 已经在部署目录里即可。
 
+### 3.1 如果你是手动上传文件
+
+如果你是通过 `WinSCP`、`SFTP` 或共享目录手动传文件，不一定要把整个 `tools/ai_project_manager` 都传过去。
+
+实测更稳妥的“最小上传集”是：
+
+- `tools/ai_project_manager/pyproject.toml`
+- `tools/ai_project_manager/src`
+- `tools/ai_project_manager/scripts`
+- `tools/ai_project_manager/models/mt5-small-offline`
+
+目标目录要保持为：
+
+```text
+/opt/project-tracker/tools/ai_project_manager
+```
+
+目录名必须是 `ai_project_manager`，不要传成 `ai_project_manager (副本)` 这类名字，否则 `config.prod.json` 里的绝对路径会直接失效。
+
+手动上传时，下面这些内容通常不需要传：
+
+- `tools/ai_project_manager/.conda`
+- `tools/ai_project_manager/.pytest_cache`
+- `tools/ai_project_manager/tests`
+- `tools/ai_project_manager/data`
+- `tools/ai_project_manager/models/mt5-small-offline/checkpoints`
+
+尤其是 `.conda`。  
+这类本地 Python 环境里会包含 `torch`、CUDA、cuDNN、`triton` 等大库，体积会膨胀到几个 GB，但在目标机器上本来就应该重新创建环境，不适合手动拷贝。
+
 ## 4. 准备 Python 环境
 
 当前仓库里的 AI 工具说明文档使用 `conda`，这里也直接沿用这个方案，减少额外变量。
 
+### 4.1 如果虚拟机还没装 conda
+
+如果目标机器还没有 `conda`，建议直接安装 `Miniconda`。
+
+如果机器里没有 `zsh`，完全没关系，直接用 `bash` 即可。
+
+示例：
+
+```bash
+mkdir -p ~/miniconda3
+wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh
+bash /tmp/miniconda.sh -b -u -p ~/miniconda3
+~/miniconda3/bin/conda init bash
+source ~/.bashrc
+```
+
+首次使用 `repo.anaconda.com` 默认 channel 时，可能会被 `Terms of Service` 卡住。  
+如果你看到 `CondaToSNonInteractiveError`，先执行：
+
+```bash
+~/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main
+~/miniconda3/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r
+```
+
+然后再继续创建环境。
+
 在部署机上执行：
 
 ```bash
-conda create -y -p /opt/project-tracker/tools/ai_project_manager/.conda python=3.11
-conda run -p /opt/project-tracker/tools/ai_project_manager/.conda python -m pip install -U pip setuptools wheel
-conda run -p /opt/project-tracker/tools/ai_project_manager/.conda python -m pip install -e '/opt/project-tracker/tools/ai_project_manager[train]'
+~/miniconda3/bin/conda create -y -p /opt/project-tracker/tools/ai_project_manager/.conda python=3.11
+~/miniconda3/bin/conda run -p /opt/project-tracker/tools/ai_project_manager/.conda python -m pip install -U pip setuptools wheel
+~/miniconda3/bin/conda run -p /opt/project-tracker/tools/ai_project_manager/.conda python -m pip install -e '/opt/project-tracker/tools/ai_project_manager[train]'
 ```
 
 说明：
@@ -104,6 +160,16 @@ conda run -p /opt/project-tracker/tools/ai_project_manager/.conda python -m pip 
 - 运行 worker 需要基础依赖，也需要 `transformers`、`torch`、`sentencepiece`、`accelerate`
 - 这些推理相关包当前在 `train` extra 里，因此部署时直接安装 `...[train]` 最省事
 - 如果你只是做虚拟机实验，不追求极致性能，先能跑起来最重要
+
+如果安装依赖时看起来“卡住不动”，先不要急着判断为失败。  
+`torch`、`transformers` 这类包第一次安装会比较慢，而且 `conda run` 默认会缓冲输出。
+
+可以改成下面这种方式，实时查看安装进度：
+
+```bash
+~/miniconda3/bin/conda run --no-capture-output -p /opt/project-tracker/tools/ai_project_manager/.conda \
+  python -m pip install -v -e "/opt/project-tracker/tools/ai_project_manager[train]"
+```
 
 如果你的机器使用 GPU，`torch` 需要换成和当前 CUDA 匹配的版本。  
 这一步不一定非要在这里改，但你至少要保证最终环境里的 `torch` 能真正识别 GPU。
@@ -138,6 +204,13 @@ sudo chown -R ubzy:ubzy /opt/project-tracker/tools/ai_project_manager/models
 - `tokenizer_config.json`
 - `spiece.model`
 - `model.safetensors` 或 `pytorch_model.bin`
+
+如果前端或后端报：
+
+- `local_ai.model_dir 指向的路径不存在`
+
+优先怀疑的不是配置写错，而是模型目录根本没有随部署一起传过去。  
+这类问题在“代码传过去了，但模型目录没传过去”时非常常见。
 
 ## 6. 修改生产配置
 
@@ -228,7 +301,7 @@ EOF
 再直接调用一次脚本：
 
 ```bash
-conda run -p /opt/project-tracker/tools/ai_project_manager/.conda \
+~/miniconda3/bin/conda run -p /opt/project-tracker/tools/ai_project_manager/.conda \
   python /opt/project-tracker/tools/ai_project_manager/scripts/generate_once.py \
   --model-dir /opt/project-tracker/tools/ai_project_manager/models/mt5-small-offline \
   --input-file /tmp/project-ai-request.json
@@ -260,6 +333,52 @@ curl -X POST 'http://127.0.0.1:8080/api/ai/project-draft/generate' \
   -d '{"prompt":"做一个官网改版项目，包含需求梳理、设计、开发、测试上线四个阶段"}'
 ```
 
+### 8.3 如果你怀疑是代理超时
+
+如果前端提示：
+
+- `Request failed with status code 504`
+
+不要先怀疑前端页面。  
+这个错误在当前部署里更常见的含义是：
+
+- `nginx` 已经把请求转发到了后端
+- 但后端第一次拉起 worker 并加载本地模型太慢
+- `nginx` 在等待上游响应时先超时了
+
+这种情况在纯 CPU 虚拟机上尤其常见。
+
+可以先直接在机器本地测一次模型脚本耗时：
+
+```bash
+cat >/tmp/project-ai-request.json <<'EOF'
+{
+  "prompt": "做一个官网改版项目，包含需求梳理、设计、开发、测试上线四个阶段"
+}
+EOF
+
+time /opt/project-tracker/tools/ai_project_manager/.conda/bin/python \
+  /opt/project-tracker/tools/ai_project_manager/scripts/generate_once.py \
+  --model-dir /opt/project-tracker/tools/ai_project_manager/models/mt5-small-offline \
+  --input-file /tmp/project-ai-request.json
+```
+
+这里重点看 `real` 时间，也就是你真实等了多久。
+
+如果 `real` 已经接近或超过 60 秒，而前端请求又是经过 `nginx` 转发，那么出现 `504` 很正常。  
+这时应该同时检查：
+
+```bash
+sudo journalctl -u project-tracker.service -f -n 100
+sudo tail -f /var/log/nginx/error.log
+```
+
+如果 `nginx` 错误日志里出现：
+
+- `upstream timed out`
+
+就说明根因已经确认，是代理超时而不是接口参数问题。
+
 ## 9. 正常现象
 
 下面这些情况通常是正常的，不必先入为主判断为故障：
@@ -271,10 +390,27 @@ curl -X POST 'http://127.0.0.1:8080/api/ai/project-draft/generate' \
 如果是第一次请求耗时 10 秒左右甚至更长，在本地模型加载阶段并不奇怪。  
 真正需要关注的是：后续请求是否仍然每次都同样慢，或者是否频繁重新拉起 worker。
 
+补充一个实操经验：
+
+- `generate_once.py` 每次执行都会重新加载模型
+- 而线上接口走的是常驻 `generate_worker.py`
+
+所以：
+
+- 手工执行 `generate_once.py` 的耗时，通常会比 worker 复用后的后续接口请求更慢
+- 但它依然很适合用来测“第一次加载模型大概要多久”
+- 在纯 CPU 虚拟机上，第一次加载和推理花到几分钟并不罕见
+
 ## 10. 常见故障排查
 
 - `local_ai.python_bin 指向的路径不存在`
   说明配置里的 Python 路径不对，或者 `.conda` 环境根本没创建出来。
+
+- `CondaToSNonInteractiveError`
+  说明你第一次使用 `repo.anaconda.com` 的默认 channel，还没有接受 Anaconda 的 ToS。先执行文档上面的两条 `conda tos accept ...`，再重新创建环境。
+
+- `EnvironmentLocationNotFound`
+  说明你已经开始执行 `conda run -p ...`，但前面的 `conda create -p ...` 实际还没有成功，或者路径写错了。
 
 - `local_ai.script_path 指向的路径不存在`
   说明脚本没有随部署一起复制，或者配置里写成了相对路径但当前工作目录与你预期不一致。
@@ -301,17 +437,28 @@ curl -X POST 'http://127.0.0.1:8080/api/ai/project-draft/generate' \
   sudo journalctl -u project-tracker.service -n 100
   ```
 
+- 前端提示 `Request failed with status code 504`
+  很可能不是前端本身超时，而是 `nginx` 作为反向代理等待后端太久。
+  处理：
+  ```bash
+  sudo journalctl -u project-tracker.service -n 100
+  sudo tail -n 100 /var/log/nginx/error.log
+  ```
+  如果确认是 `upstream timed out`，请按 `nginx` 部署文档中的 AI 超时配置，调大 `/api/` 的代理超时。
+
 ## 11. 一个最小可行部署结论
 
 如果你只是想先在虚拟机里把本地 AI 跑通，最小可行方案就是：
 
 1. 已部署 `Project_Tracker` 主服务
-2. 把 `tools/ai_project_manager` 整个目录复制到 `/opt/project-tracker/tools/`
-3. 用 `conda` 在该目录下创建 Python 3.11 环境
-4. 安装 `'/opt/project-tracker/tools/ai_project_manager[train]'`
-5. 把完整模型目录放到 `/opt/project-tracker/tools/ai_project_manager/models/mt5-small-offline`
-6. 在 `config.prod.json` 里填好三个绝对路径
-7. 重启 `project-tracker.service`
-8. 通过前端的 AI 创建项目入口验证
+2. 把 `pyproject.toml`、`src`、`scripts`、`models/mt5-small-offline` 上传到 `/opt/project-tracker/tools/ai_project_manager/`
+3. 在虚拟机上安装 `Miniconda`
+4. 接受默认 channel 的 ToS
+5. 用 `conda` 在该目录下创建 Python 3.11 环境
+6. 安装 `'/opt/project-tracker/tools/ai_project_manager[train]'`
+7. 在 `config.prod.json` 里填好三个绝对路径
+8. 如果前端入口走 `nginx`，确认 `/api/` 代理超时已经按 AI 场景放宽
+9. 重启 `project-tracker.service`
+10. 通过前端的 AI 创建项目入口验证
 
 按这个路径走，变量最少，最适合先做一次虚拟机实验。

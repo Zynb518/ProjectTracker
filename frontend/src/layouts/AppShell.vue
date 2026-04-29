@@ -1,14 +1,17 @@
 <script setup lang="ts">
 import { useRouter } from 'vue-router'
 
+import BeginnerTutorialOverlay from '@/components/tutorial/BeginnerTutorialOverlay.vue'
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { getErrorMessage } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
+import { useBeginnerTutorialStore } from '@/stores/beginnerTutorial'
 import { useNotificationStore } from '@/stores/notifications'
 import { getSystemRoleLabel } from '@/utils/display'
 
 const router = useRouter()
 const authStore = useAuthStore()
+const tutorialStore = useBeginnerTutorialStore()
 const notificationStore = useNotificationStore()
 
 function userInitial(name?: string | null) {
@@ -21,6 +24,15 @@ async function handleLogout() {
     await router.push('/login')
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '退出登录失败'))
+  }
+}
+
+async function handleBeginnerTutorial() {
+  try {
+    await router.push('/projects')
+    tutorialStore.start()
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '打开新手教程失败'))
   }
 }
 </script>
@@ -86,6 +98,28 @@ async function handleLogout() {
           </span>
           <span>用户管理</span>
         </RouterLink>
+
+        <button
+          class="app-shell__link app-shell__link-button"
+          data-testid="sidebar-beginner-tutorial"
+          data-tutorial-target="beginner-tutorial-entry"
+          type="button"
+          @click="handleBeginnerTutorial"
+        >
+          <span class="app-shell__link-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M12 3.5 5 7v5.5c0 4.1 2.8 6.9 7 8 4.2-1.1 7-3.9 7-8V7l-7-3.5Z M9.25 11.25l1.8 1.8 3.7-3.8"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              />
+            </svg>
+          </span>
+          <span>新手教程</span>
+        </button>
       </nav>
 
       <div class="app-shell__sidebar-foot">
@@ -116,6 +150,8 @@ async function handleLogout() {
         <RouterView />
       </main>
     </div>
+
+    <BeginnerTutorialOverlay />
   </div>
 </template>
 
@@ -217,6 +253,7 @@ async function handleLogout() {
 }
 
 .app-shell__link {
+  appearance: none;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
@@ -227,6 +264,13 @@ async function handleLogout() {
   background: var(--app-shell-sidebar-layer-bg);
   border: 1px solid var(--app-shell-sidebar-layer-border);
   box-shadow: inset 0 1px 0 color-mix(in srgb, var(--text-inverse) 10%, transparent);
+}
+
+.app-shell__link-button {
+  width: 100%;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
 }
 
 .app-shell__link:hover,

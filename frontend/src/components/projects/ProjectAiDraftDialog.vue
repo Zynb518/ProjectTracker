@@ -39,13 +39,18 @@ type SelectedEntity =
   | { kind: 'node'; nodeId: string }
   | { kind: 'subtask'; nodeId: string; subtaskId: string }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   modelValue: boolean
   motionOrigin?: DialogMotionOrigin | null
-}>()
+  redirectOnCreated?: boolean
+}>(), {
+  redirectOnCreated: true,
+})
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
+  'draft-generated': []
+  created: [projectId: number]
 }>()
 
 const router = useRouter()
@@ -286,6 +291,7 @@ async function handleGenerateDraft() {
 
     draft.value = hydrateDraft(generatedDraft)
     selected.value = { kind: 'project' }
+    emit('draft-generated')
   } catch (error) {
     if (requestId !== latestGenerateRequestId) {
       return
@@ -350,6 +356,29 @@ function addSubtask(nodeId: string) {
 
   node.subtasks.push(subtask)
   selectSubtask(node.local_id, subtask.local_id)
+}
+
+function removeNodeById(nodeId: string) {
+  if (draft.value === null) {
+    return
+  }
+
+  draft.value.nodes = draft.value.nodes.filter((node) => node.local_id !== nodeId)
+  selectProject()
+}
+
+function removeSubtaskById(nodeId: string, subtaskId: string) {
+  if (draft.value === null) {
+    return
+  }
+
+  const node = draft.value.nodes.find((item) => item.local_id === nodeId)
+  if (!node) {
+    return
+  }
+
+  node.subtasks = node.subtasks.filter((subtask) => subtask.local_id !== subtaskId)
+  selectNode(nodeId)
 }
 
 function removeSelectedNode() {
@@ -443,15 +472,21 @@ async function submitDraft() {
       }
     }
 
+    emit('created', createdProjectId)
     emit('update:modelValue', false)
-    await router.push(`/projects/${createdProjectId}`)
+    if (props.redirectOnCreated) {
+      await router.push(`/projects/${createdProjectId}`)
+    }
   } catch (error) {
     const message = getErrorMessage(error, 'AI 草稿提交失败')
 
     if (createdProjectId !== null) {
+      emit('created', createdProjectId)
       emit('update:modelValue', false)
       notificationStore.notifyError(`${message}，项目已部分创建，正在进入详情页继续处理。`, 4600)
-      await router.push(`/projects/${createdProjectId}`)
+      if (props.redirectOnCreated) {
+        await router.push(`/projects/${createdProjectId}`)
+      }
       return
     }
 
@@ -486,7 +521,7 @@ onBeforeUnmount(() => {
     <div v-if="modelValue" :style="backdropStyle" class="project-ai-dialog__backdrop">
       <div aria-hidden="true" class="project-ai-dialog__glow" />
 
-      <section class="project-ai-dialog">
+      <section class="project-ai-dialog" data-tutorial-target="project-ai-dialog">
         <header class="project-ai-dialog__header">
           <div>
             <h2>AI 创建项目</h2>
@@ -512,7 +547,10 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="project-ai-dialog__body">
-          <section class="project-ai-dialog__panel project-ai-dialog__panel--prompt">
+          <section
+            class="project-ai-dialog__panel project-ai-dialog__panel--prompt"
+            data-tutorial-target="project-ai-prompt"
+          >
             <div class="project-ai-dialog__panel-head">
               <p class="project-ai-dialog__panel-label">提示词区</p>
               <h3>AI 生成面板</h3>
@@ -541,200 +579,206 @@ onBeforeUnmount(() => {
             </button>
           </section>
 
-          <section class="project-ai-dialog__panel project-ai-dialog__panel--tree">
-            <div class="project-ai-dialog__panel-head project-ai-dialog__panel-head--split">
-              <div>
-                <p class="project-ai-dialog__panel-label">结构树</p>
-                <h3>项目草稿树</h3>
-              </div>
+          <div class="project-ai-dialog__review-stage" data-tutorial-target="project-ai-review-stage">
+            <section class="project-ai-dialog__panel project-ai-dialog__panel--tree">
+              <div class="project-ai-dialog__panel-head project-ai-dialog__panel-head--split">
+                <div>
+                  <p class="project-ai-dialog__panel-label">结构树</p>
+                  <h3>项目草稿树</h3>
+                </div>
 
-              <button
-                type="button"
-                class="project-ai-dialog__ghost"
-                :disabled="draft === null || isSubmitting"
-                @click="addNode"
-              >
-                新增阶段
-              </button>
-            </div>
-
-            <div class="project-ai-dialog__panel-content project-ai-dialog__panel-content--tree">
-              <div v-if="draft" class="project-ai-dialog__tree">
                 <button
                   type="button"
-                  :class="['project-ai-dialog__tree-project', { 'is-selected': selected.kind === 'project' }]"
-                  @click="selectProject"
+                  class="project-ai-dialog__ghost"
+                  :disabled="draft === null || isSubmitting"
+                  @click="addNode"
                 >
-                  <strong>{{ draft.project.name || '未命名项目' }}</strong>
-                  <span>{{ draft.project.planned_start_date || '未设置' }} ~ {{ draft.project.planned_end_date || '未设置' }}</span>
+                  新增阶段
                 </button>
+              </div>
 
-                <div v-smooth-wheel class="project-ai-dialog__tree-list smooth-scroll-surface">
-                  <article
-                    v-for="node in draft.nodes"
-                    :key="node.local_id"
-                    :data-testid="`project-ai-draft-node-${node.local_id}`"
-                    :class="[
-                      'project-ai-dialog__tree-node',
-                      {
-                        'is-selected': selected.kind === 'node' && selected.nodeId === node.local_id,
-                      },
-                    ]"
+              <div class="project-ai-dialog__panel-content project-ai-dialog__panel-content--tree">
+                <div v-if="draft" class="project-ai-dialog__tree">
+                  <button
+                    type="button"
+                    :class="['project-ai-dialog__tree-project', { 'is-selected': selected.kind === 'project' }]"
+                    @click="selectProject"
                   >
-                    <button type="button" class="project-ai-dialog__tree-node-button" @click="selectNode(node.local_id)">
-                      <strong>{{ node.name || '未命名阶段' }}</strong>
-                      <span>{{ node.planned_start_date || '未设置' }} ~ {{ node.planned_end_date || '未设置' }}</span>
-                    </button>
+                    <strong>{{ draft.project.name || '未命名项目' }}</strong>
+                    <span>{{ draft.project.planned_start_date || '未设置' }} ~ {{ draft.project.planned_end_date || '未设置' }}</span>
+                  </button>
 
-                    <div class="project-ai-dialog__tree-subtasks">
-                      <button
-                        v-for="subtask in node.subtasks"
-                        :key="subtask.local_id"
-                        type="button"
-                        :class="[
-                          'project-ai-dialog__tree-subtask',
-                          {
-                            'is-selected': selected.kind === 'subtask'
-                              && selected.nodeId === node.local_id
-                              && selected.subtaskId === subtask.local_id,
-                          },
-                        ]"
-                        @click="selectSubtask(node.local_id, subtask.local_id)"
-                      >
-                        {{ subtask.name || '未命名子任务' }}
-                      </button>
+                  <div v-smooth-wheel class="project-ai-dialog__tree-list smooth-scroll-surface">
+                    <article
+                      v-for="node in draft.nodes"
+                      :key="node.local_id"
+                      :data-testid="`project-ai-draft-node-${node.local_id}`"
+                      :class="[
+                        'project-ai-dialog__tree-node',
+                        {
+                          'is-selected': selected.kind === 'node' && selected.nodeId === node.local_id,
+                        },
+                      ]"
+                    >
+                      <div class="project-ai-dialog__tree-node-bar">
+                        <button type="button" class="project-ai-dialog__tree-node-button" @click="selectNode(node.local_id)">
+                          <strong>{{ node.name || '未命名阶段' }}</strong>
+                          <span>{{ node.planned_start_date || '未设置' }} ~ {{ node.planned_end_date || '未设置' }}</span>
+                        </button>
+                        <button
+                          type="button"
+                          class="project-ai-dialog__tree-node-action"
+                          :disabled="isSubmitting"
+                          @click.stop="addSubtask(node.local_id)"
+                          title="新增子任务"
+                        >+</button>
+                        <button
+                          type="button"
+                          class="project-ai-dialog__tree-node-action project-ai-dialog__tree-node-action--danger"
+                          :disabled="isSubmitting"
+                          @click.stop="removeNodeById(node.local_id)"
+                          title="删除阶段"
+                        >×</button>
+                      </div>
 
-                      <button
-                        type="button"
-                        class="project-ai-dialog__tree-subtask project-ai-dialog__tree-subtask--add"
-                        :disabled="isSubmitting"
-                        @click="addSubtask(node.local_id)"
-                      >
-                        + 新增子任务
-                      </button>
-                    </div>
-                  </article>
+                      <div class="project-ai-dialog__tree-subtasks">
+                        <div
+                          v-for="subtask in node.subtasks"
+                          :key="subtask.local_id"
+                          :class="[
+                            'project-ai-dialog__tree-subtask',
+                            {
+                              'is-selected': selected.kind === 'subtask'
+                                && selected.nodeId === node.local_id
+                                && selected.subtaskId === subtask.local_id,
+                            },
+                          ]"
+                        >
+                          <button
+                            type="button"
+                            class="project-ai-dialog__tree-subtask-btn"
+                            @click="selectSubtask(node.local_id, subtask.local_id)"
+                          >
+                            {{ subtask.name || '未命名子任务' }}
+                          </button>
+                          <button
+                            type="button"
+                            class="project-ai-dialog__tree-subtask-del"
+                            :disabled="isSubmitting"
+                            @click.stop="removeSubtaskById(node.local_id, subtask.local_id)"
+                            title="删除子任务"
+                          >×</button>
+                        </div>
+                      </div>
+                    </article>
+                  </div>
+                </div>
+
+                <div v-else class="project-ai-dialog__empty">
+                  <strong>还没有 AI 草稿</strong>
+                  <p>先在左侧输入提示词并生成，再到中间调整项目结构。</p>
                 </div>
               </div>
+            </section>
 
-              <div v-else class="project-ai-dialog__empty">
-                <strong>还没有 AI 草稿</strong>
-                <p>先在左侧输入提示词并生成，再到中间调整项目结构。</p>
+            <section class="project-ai-dialog__panel project-ai-dialog__panel--editor">
+              <div class="project-ai-dialog__panel-head">
+                <p class="project-ai-dialog__panel-label">属性编辑</p>
+                <h3 v-if="selected.kind === 'project'">当前选中：项目</h3>
+                <h3 v-else-if="selected.kind === 'node'">当前选中：阶段</h3>
+                <h3 v-else>当前选中：子任务</h3>
               </div>
-            </div>
-          </section>
 
-          <section class="project-ai-dialog__panel project-ai-dialog__panel--editor">
-            <div class="project-ai-dialog__panel-head">
-              <p class="project-ai-dialog__panel-label">属性编辑</p>
-              <h3 v-if="selected.kind === 'project'">当前选中：项目</h3>
-              <h3 v-else-if="selected.kind === 'node'">当前选中：阶段</h3>
-              <h3 v-else>当前选中：子任务</h3>
-            </div>
-
-            <div class="project-ai-dialog__panel-content">
-              <template v-if="draft && selected.kind === 'project'">
-                <label class="project-ai-dialog__field">
-                  <span>项目名称</span>
-                  <input v-model="draft.project.name" type="text">
-                </label>
-
-                <label class="project-ai-dialog__field">
-                  <span>项目描述</span>
-                  <textarea v-model="draft.project.description" rows="5"></textarea>
-                </label>
-
-                <div class="project-ai-dialog__field-grid">
+              <div class="project-ai-dialog__panel-content">
+                <template v-if="draft && selected.kind === 'project'">
                   <label class="project-ai-dialog__field">
-                    <span>计划开始</span>
-                    <input v-model="draft.project.planned_start_date" type="date">
+                    <span>项目名称</span>
+                    <input v-model="draft.project.name" type="text">
                   </label>
 
                   <label class="project-ai-dialog__field">
-                    <span>计划结束</span>
-                    <input v-model="draft.project.planned_end_date" type="date">
+                    <span>项目描述</span>
+                    <textarea v-model="draft.project.description" rows="5"></textarea>
                   </label>
+
+                  <div class="project-ai-dialog__field-grid">
+                    <label class="project-ai-dialog__field">
+                      <span>计划开始</span>
+                      <input v-model="draft.project.planned_start_date" type="date">
+                    </label>
+
+                    <label class="project-ai-dialog__field">
+                      <span>计划结束</span>
+                      <input v-model="draft.project.planned_end_date" type="date">
+                    </label>
+                  </div>
+                </template>
+
+                <template v-else-if="selectedNode && selected.kind === 'node'">
+                  <label class="project-ai-dialog__field">
+                    <span>阶段名称</span>
+                    <input v-model="selectedNode.name" type="text">
+                  </label>
+
+                  <label class="project-ai-dialog__field">
+                    <span>阶段描述</span>
+                    <textarea v-model="selectedNode.description" rows="5"></textarea>
+                  </label>
+
+                  <div class="project-ai-dialog__field-grid">
+                    <label class="project-ai-dialog__field">
+                      <span>计划开始</span>
+                      <input v-model="selectedNode.planned_start_date" type="date">
+                    </label>
+
+                    <label class="project-ai-dialog__field">
+                      <span>计划结束</span>
+                      <input v-model="selectedNode.planned_end_date" type="date">
+                    </label>
+                  </div>
+
+                </template>
+
+                <template v-else-if="selectedSubtask && selected.kind === 'subtask'">
+                  <label class="project-ai-dialog__field">
+                    <span>子任务名称</span>
+                    <input v-model="selectedSubtask.name" type="text">
+                  </label>
+
+                  <label class="project-ai-dialog__field">
+                    <span>子任务描述</span>
+                    <textarea v-model="selectedSubtask.description" rows="5"></textarea>
+                  </label>
+
+                  <label class="project-ai-dialog__field">
+                    <span>优先级</span>
+                    <select v-model.number="selectedSubtask.priority">
+                      <option :value="1">低</option>
+                      <option :value="2">中</option>
+                      <option :value="3">高</option>
+                    </select>
+                  </label>
+
+                  <div class="project-ai-dialog__field-grid">
+                    <label class="project-ai-dialog__field">
+                      <span>计划开始</span>
+                      <input v-model="selectedSubtask.planned_start_date" type="date">
+                    </label>
+
+                    <label class="project-ai-dialog__field">
+                      <span>计划结束</span>
+                      <input v-model="selectedSubtask.planned_end_date" type="date">
+                    </label>
+                  </div>
+                </template>
+
+                <div v-else class="project-ai-dialog__empty">
+                  <strong>没有可编辑项</strong>
+                  <p>生成草稿后，从中间结构树选择项目、阶段或子任务进行编辑。</p>
                 </div>
-              </template>
-
-              <template v-else-if="selectedNode && selected.kind === 'node'">
-                <label class="project-ai-dialog__field">
-                  <span>阶段名称</span>
-                  <input v-model="selectedNode.name" type="text">
-                </label>
-
-                <label class="project-ai-dialog__field">
-                  <span>阶段描述</span>
-                  <textarea v-model="selectedNode.description" rows="5"></textarea>
-                </label>
-
-                <div class="project-ai-dialog__field-grid">
-                  <label class="project-ai-dialog__field">
-                    <span>计划开始</span>
-                    <input v-model="selectedNode.planned_start_date" type="date">
-                  </label>
-
-                  <label class="project-ai-dialog__field">
-                    <span>计划结束</span>
-                    <input v-model="selectedNode.planned_end_date" type="date">
-                  </label>
-                </div>
-
-                <div class="project-ai-dialog__inline-actions">
-                  <button type="button" class="project-ai-dialog__ghost" @click="addSubtask(selectedNode.local_id)">
-                    新增子任务
-                  </button>
-                  <button type="button" class="project-ai-dialog__danger" @click="removeSelectedNode">
-                    删除当前阶段
-                  </button>
-                </div>
-              </template>
-
-              <template v-else-if="selectedSubtask && selected.kind === 'subtask'">
-                <label class="project-ai-dialog__field">
-                  <span>子任务名称</span>
-                  <input v-model="selectedSubtask.name" type="text">
-                </label>
-
-                <label class="project-ai-dialog__field">
-                  <span>子任务描述</span>
-                  <textarea v-model="selectedSubtask.description" rows="5"></textarea>
-                </label>
-
-                <label class="project-ai-dialog__field">
-                  <span>优先级</span>
-                  <select v-model.number="selectedSubtask.priority">
-                    <option :value="1">低</option>
-                    <option :value="2">中</option>
-                    <option :value="3">高</option>
-                  </select>
-                </label>
-
-                <div class="project-ai-dialog__field-grid">
-                  <label class="project-ai-dialog__field">
-                    <span>计划开始</span>
-                    <input v-model="selectedSubtask.planned_start_date" type="date">
-                  </label>
-
-                  <label class="project-ai-dialog__field">
-                    <span>计划结束</span>
-                    <input v-model="selectedSubtask.planned_end_date" type="date">
-                  </label>
-                </div>
-
-                <div class="project-ai-dialog__inline-actions">
-                  <button type="button" class="project-ai-dialog__danger" @click="removeSelectedSubtask">
-                    删除当前子任务
-                  </button>
-                </div>
-              </template>
-
-              <div v-else class="project-ai-dialog__empty">
-                <strong>没有可编辑项</strong>
-                <p>生成草稿后，从中间结构树选择项目、阶段或子任务进行编辑。</p>
               </div>
-            </div>
-          </section>
+            </section>
+          </div>
         </div>
 
         <footer class="project-ai-dialog__footer">
@@ -742,6 +786,7 @@ onBeforeUnmount(() => {
             <button
               type="button"
               class="project-ai-dialog__primary"
+              data-tutorial-target="project-ai-submit"
               :disabled="draft === null || isGenerating || isSubmitting"
               @click="submitDraft"
             >
@@ -974,11 +1019,18 @@ onBeforeUnmount(() => {
 .project-ai-dialog__body {
   min-height: 0;
   display: grid;
-  grid-template-columns: 360px minmax(0, 1fr) 392px;
+  grid-template-columns: 360px minmax(0, 1fr);
   gap: 16px;
   overflow: hidden;
   align-items: stretch;
   padding-bottom: 72px;
+}
+
+.project-ai-dialog__review-stage {
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 392px;
+  gap: 16px;
 }
 
 .project-ai-dialog__panel {
@@ -1167,6 +1219,12 @@ onBeforeUnmount(() => {
   contain-intrinsic-size: 232px;
 }
 
+.project-ai-dialog__tree-node-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .project-ai-dialog__tree-node-button {
   box-sizing: border-box;
   display: flex;
@@ -1174,6 +1232,8 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 14px;
   width: 100%;
+  flex: 1;
+  min-width: 0;
   padding: 12px 14px;
   border: 1px solid color-mix(in srgb, var(--accent-line) 16%, transparent);
   border-radius: 18px;
@@ -1189,6 +1249,51 @@ onBeforeUnmount(() => {
   box-shadow:
     0 0 0 1px color-mix(in srgb, var(--accent-end) 36%, #ffffff),
     0 14px 24px rgba(4, 13, 28, 0.18);
+}
+
+.project-ai-dialog__tree-node-action {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 16%, transparent);
+  border-radius: 50%;
+  background: var(--dialog-control-bg);
+  color: var(--text-main);
+  font-size: 1.2rem;
+  line-height: 1;
+  cursor: pointer;
+  transition:
+    transform 180ms ease-out,
+    border-color 180ms ease-out,
+    background 180ms ease-out,
+    color 180ms ease-out,
+    opacity 180ms ease-out;
+  user-select: none;
+}
+
+.project-ai-dialog__tree-node-action:hover {
+  transform: translateY(-1px);
+  border-color: var(--accent-line);
+  background: color-mix(in srgb, var(--dialog-control-bg) 90%, var(--accent-end));
+}
+
+.project-ai-dialog__tree-node-action:disabled {
+  opacity: 0.56;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.project-ai-dialog__tree-node-action--danger {
+  color: var(--work-status-delayed-color);
+}
+
+.project-ai-dialog__tree-node-action--danger:hover {
+  background: color-mix(in srgb, var(--work-status-delayed-bg) 80%, var(--dialog-control-bg));
+  border-color: var(--work-status-delayed-border);
 }
 
 .project-ai-dialog__tree-node-button strong,
@@ -1225,6 +1330,7 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
   display: flex;
   align-items: center;
+  gap: 8px;
   width: 100%;
   padding: 10px 12px;
   border: 1px solid color-mix(in srgb, var(--accent-line) 12%, transparent);
@@ -1232,16 +1338,60 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--dialog-control-bg) 94%, transparent);
   color: var(--text-soft);
   text-align: left;
-  cursor: pointer;
+  cursor: default;
   min-height: 40px;
   contain: layout paint;
   content-visibility: auto;
   contain-intrinsic-size: 40px;
 }
 
-.project-ai-dialog__tree-subtask--add {
-  border-style: dashed;
-  color: color-mix(in srgb, var(--accent-end) 72%, var(--text-soft));
+.project-ai-dialog__tree-subtask-btn {
+  flex: 1;
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.project-ai-dialog__tree-subtask-del {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 1rem;
+  line-height: 1;
+  cursor: pointer;
+  opacity: 0.5;
+  transition:
+    opacity 180ms ease-out,
+    background 180ms ease-out,
+    color 180ms ease-out;
+}
+
+.project-ai-dialog__tree-subtask-del:hover {
+  opacity: 1;
+  background: color-mix(in srgb, var(--work-status-delayed-bg) 60%, transparent);
+  color: var(--work-status-delayed-color);
+}
+
+.project-ai-dialog__tree-subtask-del:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
 }
 
 .project-ai-dialog__empty {
@@ -1281,6 +1431,10 @@ onBeforeUnmount(() => {
     grid-template-columns: 1fr;
     overflow: auto;
     padding-right: 4px;
+  }
+
+  .project-ai-dialog__review-stage {
+    grid-template-columns: 1fr;
   }
 
   .project-ai-dialog {

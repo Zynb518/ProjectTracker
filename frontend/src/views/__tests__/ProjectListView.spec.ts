@@ -44,6 +44,7 @@ import { createProject, completeProject, listProjects } from '@/api/projects'
 import { createProjectNode } from '@/api/nodes'
 import { generateProjectDraft } from '@/api/projectAi'
 import { useNotificationStore } from '@/stores/notifications'
+import { useBeginnerTutorialStore } from '@/stores/beginnerTutorial'
 import { createSubtask } from '@/api/subtasks'
 import ProjectListView from '@/views/ProjectListView.vue'
 
@@ -1020,6 +1021,26 @@ describe('ProjectListView', () => {
     expect(screen.getByRole('heading', { name: '新建项目' })).toBeTruthy()
   })
 
+  it('automatically opens the manual project dialog when the tutorial enters the manual branch', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const tutorialStore = useBeginnerTutorialStore(pinia)
+    tutorialStore.start()
+    tutorialStore.chooseManualBranch()
+
+    const screen = render(ProjectListView, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+
+    await screen.findByText('内部进度平台')
+
+    expect(screen.getByRole('heading', { name: '新建项目' })).toBeTruthy()
+    expect(tutorialStore.dialogRequest).toBeNull()
+    expect(tutorialStore.step).toBe('manual-form')
+  })
+
   it('renders a dedicated AI project creation entry beside the existing actions', async () => {
     const screen = render(ProjectListView)
 
@@ -1029,6 +1050,99 @@ describe('ProjectListView', () => {
     const aiButton = within(shell).getByRole('button', { name: 'AI 创建项目' })
 
     expect(aiButton).toBeTruthy()
+  })
+
+  it('automatically opens the AI dialog when the tutorial enters the AI branch, advances after draft generation, and can continue to submit step', async () => {
+    vi.mocked(generateProjectDraft).mockResolvedValue({
+      project: {
+        name: 'AI 首个项目',
+        description: 'AI 生成的首个项目草稿',
+        planned_start_date: '2026-05-01',
+        planned_end_date: '2026-05-20',
+      },
+      nodes: [
+        {
+          name: '需求确认',
+          description: '收集并确认需求',
+          planned_start_date: '2026-05-01',
+          planned_end_date: '2026-05-05',
+          subtasks: [],
+        },
+      ],
+    })
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const tutorialStore = useBeginnerTutorialStore(pinia)
+    tutorialStore.start()
+    tutorialStore.chooseAiBranch()
+
+    const screen = render(ProjectListView, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+    const user = userEvent.setup()
+
+    await screen.findByText('内部进度平台')
+    expect(screen.getByRole('heading', { name: 'AI 创建项目' })).toBeTruthy()
+    expect(tutorialStore.step).toBe('ai-prompt')
+
+    await user.type(screen.getByRole('textbox', { name: 'AI 项目提示词' }), '帮我生成一个首个项目')
+    await user.click(screen.getByRole('button', { name: 'AI 生成草稿' }))
+
+    expect(await screen.findByText('AI 首个项目')).toBeTruthy()
+    expect(tutorialStore.step).toBe('ai-review')
+
+    tutorialStore.advanceAiReview()
+
+    expect(tutorialStore.step).toBe('ai-submit')
+    expect(screen.getByRole('button', { name: '最终提交' })).toBeTruthy()
+  })
+
+  it('redirects tutorial-based manual creation to the new project detail page after submit', async () => {
+    vi.mocked(createProject).mockResolvedValue({
+      id: 3201,
+      name: '首个手动项目',
+      description: '手动创建',
+      planned_start_date: '2026-05-01',
+      planned_end_date: '2026-05-31',
+      updated_at: '2026-04-24T10:00:00+08:00',
+    })
+
+    const pinia = createPinia()
+    setActivePinia(pinia)
+    const tutorialStore = useBeginnerTutorialStore(pinia)
+    tutorialStore.start()
+    tutorialStore.chooseManualBranch()
+
+    const screen = render(ProjectListView, {
+      global: {
+        plugins: [pinia],
+      },
+    })
+    const user = userEvent.setup()
+
+    await screen.findByRole('heading', { name: '新建项目' })
+
+    await user.type(screen.getByLabelText('项目名称'), '首个手动项目')
+    await user.type(screen.getByLabelText('项目描述'), '手动创建')
+    await user.type(screen.getByLabelText('计划开始'), '2026-05-01')
+    await user.type(screen.getByLabelText('计划结束'), '2026-05-31')
+    await user.click(screen.getByRole('button', { name: '创建项目' }))
+
+    await waitFor(() => {
+      expect(createProject).toHaveBeenCalledWith({
+        name: '首个手动项目',
+        description: '手动创建',
+        planned_start_date: '2026-05-01',
+        planned_end_date: '2026-05-31',
+      })
+    })
+
+    expect(pushMock).toHaveBeenCalledWith('/projects/3201')
+    expect(tutorialStore.step).toBe('created-success')
+    expect(tutorialStore.createdProjectId).toBe(3201)
   })
 
   it('opens the AI workbench, generates a draft, then submits it serially and navigates to the new project detail', async () => {

@@ -1,11 +1,25 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { mount } from '@vue/test-utils'
+import { flushPromises, mount } from '@vue/test-utils'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { beforeEach } from 'vitest'
 
+const pushMock = vi.fn().mockResolvedValue(undefined)
+
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual<typeof import('vue-router')>('vue-router')
+
+  return {
+    ...actual,
+    useRouter: () => ({
+      push: pushMock,
+    }),
+  }
+})
+
 import AppShell from '@/layouts/AppShell.vue'
 import { useAuthStore } from '@/stores/auth'
+import { useBeginnerTutorialStore } from '@/stores/beginnerTutorial'
 
 describe('AppShell', () => {
   it('uses project card surfaces for the sidebar shell without reviving the old frosted treatment', () => {
@@ -92,6 +106,7 @@ describe('AppShell', () => {
   beforeEach(() => {
     document.documentElement.className = 'light'
     localStorage.clear()
+    pushMock.mockClear()
   })
 
   it('renders primary navigation links and the current user', () => {
@@ -172,6 +187,95 @@ describe('AppShell', () => {
     })
 
     expect(wrapper.text()).toContain('用户管理')
+  })
+
+  it('renders a sidebar beginner tutorial entry and starts the tutorial on the projects route when clicked', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const authStore = useAuthStore()
+    authStore.currentUser = {
+      id: 1,
+      username: 'zhangsan',
+      real_name: '张三',
+      system_role: 2,
+      email: 'zhangsan@example.com',
+      phone: '13800000000',
+      status: 1,
+      created_at: '2026-03-27T09:00:00+08:00',
+      updated_at: '2026-03-27T09:00:00+08:00',
+    }
+
+    const tutorialStore = useBeginnerTutorialStore(pinia)
+
+    const wrapper = mount(AppShell, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+          RouterView: {
+            template: '<main data-testid="workspace-slot" />',
+          },
+        },
+      },
+    })
+
+    await wrapper.get('[data-testid="sidebar-beginner-tutorial"]').trigger('click')
+    await flushPromises()
+
+    expect(pushMock).toHaveBeenCalledWith('/projects')
+    expect(tutorialStore.active).toBe(true)
+    expect(tutorialStore.step).toBe('intro')
+  })
+
+  it('renders the beginner tutorial intro card and advances to create-mode selection', async () => {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const authStore = useAuthStore()
+    authStore.currentUser = {
+      id: 1,
+      username: 'zhangsan',
+      real_name: '张三',
+      system_role: 2,
+      email: 'zhangsan@example.com',
+      phone: '13800000000',
+      status: 1,
+      created_at: '2026-03-27T09:00:00+08:00',
+      updated_at: '2026-03-27T09:00:00+08:00',
+    }
+
+    const tutorialStore = useBeginnerTutorialStore(pinia)
+    tutorialStore.start()
+
+    const wrapper = mount(AppShell, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          RouterLink: {
+            props: ['to'],
+            template: '<a :href="to"><slot /></a>',
+          },
+          RouterView: {
+            template: '<main data-testid="workspace-slot" />',
+          },
+        },
+      },
+    })
+
+    expect(document.body.textContent).toContain('创建第一个项目')
+    expect(document.body.textContent).toContain('开始教程')
+
+    tutorialStore.showModeChoice()
+    await flushPromises()
+
+    expect(tutorialStore.step).toBe('choose-mode')
+    expect(document.body.textContent).toContain('选择创建方式')
+    expect(document.body.textContent).toContain('AI 创建')
+    expect(document.body.textContent).toContain('手动创建')
   })
 
   it('toggles between light and dark themes and persists the selection', async () => {
