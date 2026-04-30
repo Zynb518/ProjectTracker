@@ -978,7 +978,7 @@ async function handleGanttEditSubtask(subtaskId: number) {
   if (!subtask) {
     try {
       const result = await listNodeSubtasks(projectId, nodeId, {})
-      subtask = result.list.find((s) => s.id === subtaskId) ?? null
+      subtask = result.list.find((s) => s.id === subtaskId)
     } catch (error) {
       notificationStore.notifyError(getErrorMessage(error, '子任务详情加载失败'))
       return

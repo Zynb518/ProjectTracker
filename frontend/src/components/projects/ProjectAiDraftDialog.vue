@@ -381,38 +381,6 @@ function removeSubtaskById(nodeId: string, subtaskId: string) {
   selectNode(nodeId)
 }
 
-function removeSelectedNode() {
-  const currentDraft = draft.value
-  const currentSelected = selected.value
-
-  if (currentDraft === null || currentSelected.kind !== 'node') {
-    return
-  }
-
-  currentDraft.nodes = currentDraft.nodes.filter((node) => node.local_id !== currentSelected.nodeId)
-  selectProject()
-}
-
-function removeSelectedSubtask() {
-  const currentDraft = draft.value
-  const currentSelected = selected.value
-
-  if (currentDraft === null || currentSelected.kind !== 'subtask') {
-    return
-  }
-
-  const node = currentDraft.nodes.find((item) => item.local_id === currentSelected.nodeId)
-  if (!node) {
-    return
-  }
-
-  const remainingSubtasks: EditableSubtask[] = node.subtasks.filter(
-    (subtask): subtask is EditableSubtask => subtask.local_id !== currentSelected.subtaskId,
-  )
-  node.subtasks = remainingSubtasks
-  selectNode(node.local_id)
-}
-
 function toNodePayload(node: EditableNode): ProjectNodePayload {
   return {
     name: node.name.trim(),
