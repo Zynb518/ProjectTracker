@@ -4,7 +4,7 @@ import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
 
 import AddMemberDialog from '@/components/members/AddMemberDialog.vue'
-import MemberPanel from '@/components/members/MemberPanel.vue'
+import MemberDrawer from '@/components/members/MemberDrawer.vue'
 import ProjectOwnerTransferDialog from '@/components/projects/ProjectOwnerTransferDialog.vue'
 import SubtaskFormDialog from '@/components/subtasks/SubtaskFormDialog.vue'
 import SubtaskHistoryDrawer from '@/components/subtasks/SubtaskHistoryDrawer.vue'
@@ -32,6 +32,7 @@ import { getProjectGanttMembers, getProjectGanttNodes, transferProjectOwner } fr
 import {
   createSubtask,
   deleteSubtask,
+  listNodeSubtasks,
   listSubtaskProgressRecords,
   reopenSubtask,
   submitSubtaskProgress,
@@ -82,7 +83,7 @@ const nodeFormInitial = ref<ProjectNodePayload>({
   planned_start_date: '',
   planned_end_date: '',
 })
-const currentViewMode = ref<ProjectDetailViewMode>('workspace')
+const currentViewMode = ref<ProjectDetailViewMode>('gantt')
 const ganttPerspective = ref<GanttPerspective>('stage')
 const ganttScale = ref<GanttScale>('week')
 const projectGantt = ref<ProjectStageGantt | null>(null)
@@ -108,6 +109,10 @@ const subtaskFormInitial = ref<SubtaskPayload>({
   planned_end_date: '',
   priority: 2,
 })
+
+const showMemberDrawer = ref(false)
+const ganttSubtaskNodeId = ref<number | null>(null)
+const ganttNodeOperation = ref(false)
 
 const selectedSubtask = computed(
   () => subtasks.value.find((subtask) => subtask.id === selectedSubtaskId.value) ?? null,
@@ -159,6 +164,7 @@ const subtaskAssignees = computed<ProjectMember[]>(() => {
 onMounted(async () => {
   try {
     await workspaceStore.loadWorkspace(projectId)
+    await loadProjectGantt()
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '项目工作台加载失败'))
   }
@@ -189,7 +195,7 @@ async function loadProjectGantt(force = false) {
   ganttLoadError.value = null
 
   try {
-    projectGantt.value = await getProjectGanttNodes(projectId)
+    projectGantt.value = (await getProjectGanttNodes(projectId)) ?? null
   } catch (error) {
     ganttLoadError.value = getErrorMessage(error, '阶段甘特图加载失败')
   } finally {
@@ -574,7 +580,8 @@ async function handleAddMember(userId: number) {
   try {
     await addProjectMember(projectId, userId)
     showAddMemberDialog.value = false
-    await refreshWorkspace()
+    await loadProjectGantt(true)
+    await workspaceStore.loadWorkspace(projectId)
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '添加成员失败'))
   }
@@ -583,7 +590,8 @@ async function handleAddMember(userId: number) {
 async function handleRemoveMember(userId: number) {
   try {
     await removeProjectMember(projectId, userId)
-    await refreshWorkspace()
+    await loadProjectGantt(true)
+    await workspaceStore.loadWorkspace(projectId)
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '移除成员失败'))
   }
@@ -595,7 +603,8 @@ async function handleTransferOwner(userId: number) {
   try {
     await transferProjectOwner(projectId, userId)
     showOwnerTransferDialog.value = false
-    await refreshWorkspace()
+    await loadProjectGantt(true)
+    await workspaceStore.loadWorkspace(projectId)
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '负责人转交失败'))
   } finally {
@@ -698,7 +707,8 @@ async function submitNode(payload: ProjectNodePayload) {
     if (nodeDialogMode.value === 'create') {
       const createdNode = await createProjectNode(projectId, payload)
       showNodeDialog.value = false
-      await refreshWorkspace()
+      ganttNodeOperation.value = false
+      await loadProjectGantt(true)
       await handleSelectNode(createdNode.id)
       return
     }
@@ -710,7 +720,8 @@ async function submitNode(payload: ProjectNodePayload) {
     const nodeId = editingNodeId.value
     await updateProjectNode(projectId, nodeId, payload)
     showNodeDialog.value = false
-    await refreshWorkspace()
+    ganttNodeOperation.value = false
+    await loadProjectGantt(true)
     await handleSelectNode(nodeId)
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '节点保存失败'))
@@ -718,13 +729,15 @@ async function submitNode(payload: ProjectNodePayload) {
 }
 
 async function submitSubtask(payload: SubtaskPayload) {
-  if (drawerNode.value === null) {
+  const targetNodeId = ganttSubtaskNodeId.value ?? drawerNode.value?.id
+
+  if (targetNodeId === undefined) {
     return
   }
 
   try {
     if (subtaskDialogMode.value === 'create') {
-      await createSubtask(projectId, drawerNode.value.id, payload)
+      await createSubtask(projectId, targetNodeId, payload)
     } else {
       if (editingSubtaskId.value === null) {
         return
@@ -736,7 +749,12 @@ async function submitSubtask(payload: SubtaskPayload) {
     showSubtaskDialog.value = false
     editingSubtaskId.value = null
 
-    if (drawerNodeId.value !== null) {
+    if (ganttSubtaskNodeId.value !== null) {
+      const nodeId = ganttSubtaskNodeId.value
+      ganttSubtaskNodeId.value = null
+      await loadNodeGantt(nodeId, true)
+      await loadProjectGantt(true)
+    } else if (drawerNodeId.value !== null) {
       await refreshWorkspace()
       await handleSelectNode(drawerNodeId.value)
     }
@@ -830,8 +848,22 @@ function applyNodeReorder(payload: NodeReorderPayload) {
 
 async function handleReorderNodes(payload: NodeReorderPayload) {
   const previousNodes = nodes.value
+  const previousProjectGantt = projectGantt.value
 
   applyNodeReorder(payload)
+
+  if (projectGantt.value !== null) {
+    const sequenceMap = new Map(payload.nodes.map((n) => [n.node_id, n.sequence_no]))
+    projectGantt.value = {
+      ...projectGantt.value,
+      nodes: [...projectGantt.value.nodes]
+        .map((node) => {
+          const seq = sequenceMap.get(node.id)
+          return seq !== undefined ? { ...node, sequence_no: seq } : node
+        })
+        .sort((a, b) => a.sequence_no - b.sequence_no),
+    }
+  }
 
   try {
     const response = await reorderProjectNodes(projectId, payload)
@@ -844,7 +876,148 @@ async function handleReorderNodes(payload: NodeReorderPayload) {
     }
   } catch (error) {
     nodes.value = previousNodes
+    projectGantt.value = previousProjectGantt
     notificationStore.notifyError(getErrorMessage(error, '节点顺序调整失败'))
+  }
+}
+
+// ── Gantt-context helpers ─────────────────────────────────────────────
+function handleGanttCreateNode() {
+  ganttNodeOperation.value = true
+  openCreateNodeDialog()
+}
+
+function handleGanttEditNode(nodeId: number) {
+  ganttNodeOperation.value = true
+  openEditNodeDialog(nodeId)
+}
+
+async function handleGanttRemoveNode(nodeId: number) {
+  if (!window.confirm('确认删除该阶段节点吗？其下子任务也会一并删除。')) {
+    return
+  }
+
+  try {
+    await deleteProjectNode(projectId, nodeId)
+    expandedGanttNodeIds.value = expandedGanttNodeIds.value.filter((id) => id !== nodeId)
+    const { [nodeId]: _, ...rest } = nodeGanttCache.value
+    nodeGanttCache.value = rest
+    await loadProjectGantt(true)
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '节点删除失败'))
+  }
+}
+
+async function handleGanttStartNode(nodeId: number) {
+  try {
+    await startProjectNode(projectId, nodeId)
+    await loadProjectGantt(true)
+    if (expandedGanttNodeIds.value.includes(nodeId)) {
+      await loadNodeGantt(nodeId, true)
+    }
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '节点开始失败'))
+  }
+}
+
+async function handleGanttCompleteNode(nodeId: number) {
+  try {
+    await completeProjectNode(projectId, nodeId)
+    await loadProjectGantt(true)
+    if (expandedGanttNodeIds.value.includes(nodeId)) {
+      await loadNodeGantt(nodeId, true)
+    }
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '节点完成失败'))
+  }
+}
+
+async function handleGanttReopenNode(nodeId: number) {
+  try {
+    await reopenProjectNode(projectId, nodeId)
+    await loadProjectGantt(true)
+    if (expandedGanttNodeIds.value.includes(nodeId)) {
+      await loadNodeGantt(nodeId, true)
+    }
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '撤销节点完成失败'))
+  }
+}
+
+function handleGanttCreateSubtask(nodeId: number) {
+  const node = projectGantt.value?.nodes.find((n) => n.id === nodeId)
+  ganttSubtaskNodeId.value = nodeId
+  subtaskDialogMode.value = 'create'
+  editingSubtaskId.value = null
+  subtaskFormInitial.value = {
+    name: '',
+    description: '',
+    planned_start_date: node?.planned_start_date ?? '',
+    planned_end_date: node?.planned_end_date ?? '',
+    priority: 2,
+    responsible_user_id: project.value?.owner_user_id,
+  }
+  showSubtaskDialog.value = true
+}
+
+async function handleGanttEditSubtask(subtaskId: number) {
+  let nodeId: number | null = null
+  for (const [nid, gantt] of Object.entries(nodeGanttCache.value)) {
+    if (gantt.subtasks.some((s) => s.id === subtaskId)) {
+      nodeId = Number(nid)
+      break
+    }
+  }
+
+  if (nodeId === null) {
+    notificationStore.notifyError('子任务详情加载失败')
+    return
+  }
+
+  let subtask = subtasks.value.find((s) => s.id === subtaskId)
+  if (!subtask) {
+    try {
+      const result = await listNodeSubtasks(projectId, nodeId, {})
+      subtask = result.list.find((s) => s.id === subtaskId) ?? null
+    } catch (error) {
+      notificationStore.notifyError(getErrorMessage(error, '子任务详情加载失败'))
+      return
+    }
+  }
+
+  if (!subtask) {
+    notificationStore.notifyError('子任务详情加载失败')
+    return
+  }
+
+  ganttSubtaskNodeId.value = nodeId
+  subtaskDialogMode.value = 'edit'
+  editingSubtaskId.value = subtaskId
+  applySubtaskToForm(subtask)
+  showSubtaskDialog.value = true
+}
+
+async function handleGanttRemoveSubtask(subtaskId: number) {
+  if (!window.confirm('确认删除该子任务吗？')) {
+    return
+  }
+
+  let nodeId: number | null = null
+  for (const [nid, gantt] of Object.entries(nodeGanttCache.value)) {
+    if (gantt.subtasks.some((s) => s.id === subtaskId)) {
+      nodeId = Number(nid)
+      break
+    }
+  }
+
+  try {
+    await deleteSubtask(subtaskId)
+    if (nodeId !== null) {
+      await loadNodeGantt(nodeId, true)
+    }
+    await loadProjectGantt(true)
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '子任务删除失败'))
   }
 }
 
@@ -917,8 +1090,7 @@ async function openHistoryDrawer(subtaskId: number) {
         </button>
       </section>
 
-      <div v-if="isWorkspaceView" class="project-detail__grid">
-        <section class="project-detail__workspace-card" data-testid="project-workspace-card">
+      <div v-if="isWorkspaceView" class="project-detail__workspace-card" data-testid="project-workspace-card">
           <div class="project-detail__workspace-rail">
             <NodeRail
               :can-manage="canManageNodes"
@@ -969,24 +1141,12 @@ async function openHistoryDrawer(subtaskId: number) {
               </section>
             </Transition>
           </div>
-        </section>
-
-        <div class="project-detail__members">
-          <MemberPanel
-            :can-manage="canManageMembers"
-            :can-transfer-owner="canTransferOwner"
-            :fixed-height="true"
-            :members="members"
-            @add="showAddMemberDialog = true"
-            @remove="handleRemoveMember"
-            @transfer-owner="showOwnerTransferDialog = true"
-          />
         </div>
-      </div>
 
       <ProjectGanttView
         v-else-if="ganttPerspective === 'stage'"
         :can-edit-schedule="canManageNodes"
+        :can-manage="canManageNodes"
         :expanded-node-ids="expandedGanttNodeIds"
         :error="ganttLoadError"
         :gantt="projectGantt"
@@ -1000,11 +1160,22 @@ async function openHistoryDrawer(subtaskId: number) {
         :saving-node-ids="savingGanttNodeIds"
         :saving-subtask-ids="savingGanttSubtaskIds"
         @collapse-all="collapseAllGanttNodes"
+        @complete-node="handleGanttCompleteNode"
+        @create-node="handleGanttCreateNode"
+        @create-subtask="handleGanttCreateSubtask"
+        @edit-node="handleGanttEditNode"
+        @edit-subtask="handleGanttEditSubtask"
         @expand-all="expandAllGanttNodes"
+        @open-members="showMemberDrawer = true"
+        @remove-node="handleGanttRemoveNode"
+        @remove-subtask="handleGanttRemoveSubtask"
+        @reopen-node="handleGanttReopenNode"
+        @reorder-nodes="handleReorderNodes"
         @resize-node="handleResizeGanttNode"
         @resize-subtask="handleResizeGanttSubtask"
         @retry="loadProjectGantt(true)"
         @retry-node="retryGanttNode"
+        @start-node="handleGanttStartNode"
         @toggle-node="toggleGanttNode"
         @update:perspective="switchGanttPerspective"
         @update:scale="ganttScale = $event"
@@ -1020,6 +1191,17 @@ async function openHistoryDrawer(subtaskId: number) {
         @retry="loadProjectMemberGantt(true)"
         @update:perspective="switchGanttPerspective"
         @update:scale="ganttScale = $event"
+      />
+
+      <MemberDrawer
+        v-if="project"
+        v-model="showMemberDrawer"
+        :can-manage="canManageMembers"
+        :can-transfer-owner="canTransferOwner"
+        :members="members"
+        @add="showAddMemberDialog = true"
+        @remove="handleRemoveMember"
+        @transfer-owner="showOwnerTransferDialog = true"
       />
     </template>
 
@@ -1121,20 +1303,9 @@ async function openHistoryDrawer(subtaskId: number) {
     inset 0 1px 0 color-mix(in srgb, #ffffff 32%, transparent);
 }
 
-.project-detail__grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(260px, 300px);
-  gap: 18px;
-  align-items: stretch;
-}
-
-.project-detail__workspace-card,
-.project-detail__members {
+.project-detail__workspace-card {
   height: 720px;
   min-height: 720px;
-}
-
-.project-detail__workspace-card {
   overflow: hidden;
   display: grid;
   grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
@@ -1158,10 +1329,6 @@ async function openHistoryDrawer(subtaskId: number) {
 
 .project-detail__workspace-main {
   padding: 22px 22px 22px 18px;
-}
-
-.project-detail__members {
-  min-width: 0;
 }
 
 .project-detail__state {
@@ -1265,17 +1432,9 @@ async function openHistoryDrawer(subtaskId: number) {
 }
 
 @media (max-width: 1180px) {
-  .project-detail__grid {
-    grid-template-columns: 1fr;
-  }
-
-  .project-detail__workspace-card,
-  .project-detail__members {
+  .project-detail__workspace-card {
     height: auto;
     min-height: 0;
-  }
-
-  .project-detail__workspace-card {
     grid-template-columns: 1fr;
   }
 

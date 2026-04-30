@@ -17,6 +17,7 @@ import { normalizeWheelDelta } from '@/utils/smoothWheel'
 
 const props = withDefaults(defineProps<{
   canEditSchedule?: boolean
+  canManage?: boolean
   expandedNodeIds?: number[]
   error?: string | null
   gantt: ProjectStageGantt | null
@@ -31,6 +32,7 @@ const props = withDefaults(defineProps<{
   savingSubtaskIds?: number[]
 }>(), {
   canEditSchedule: false,
+  canManage: false,
   expandedNodeIds: () => [],
   error: null,
   isExpandingAll: false,
@@ -45,11 +47,22 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   'collapse-all': []
+  'complete-node': [nodeId: number]
+  'create-node': []
+  'create-subtask': [nodeId: number]
+  'edit-node': [nodeId: number]
+  'edit-subtask': [subtaskId: number]
   'expand-all': []
+  'open-members': []
+  'remove-node': [nodeId: number]
+  'remove-subtask': [subtaskId: number]
+  'reopen-node': [nodeId: number]
+  'reorder-nodes': [payload: { nodes: Array<{ node_id: number; sequence_no: number }> }]
   'resize-node': [payload: GanttNodeResizePayload]
   'resize-subtask': [payload: GanttSubtaskResizePayload]
   retry: []
   'retry-node': [nodeId: number]
+  'start-node': [nodeId: number]
   'toggle-node': [nodeId: number]
   'update:perspective': [perspective: GanttPerspective]
   'update:scale': [scale: GanttScale]
@@ -110,6 +123,11 @@ type VisibleGanttRow =
       node: GanttNodeSummary
       type: 'empty'
     }
+  | {
+      key: string
+      node: GanttNodeSummary
+      type: 'subtask-create'
+    }
 
 const hoveredNodeId = ref<number | null>(null)
 const hoveredNodeAnchor = ref({ x: 0, y: 0 })
@@ -118,10 +136,21 @@ const hoveredSubtaskId = ref<number | null>(null)
 const hoveredSubtaskAnchor = ref({ x: 0, y: 0 })
 const hoveredSubtaskPlacement = ref<HoverCardPlacement>('top-right')
 const activeResize = ref<ActiveResizeState | null>(null)
+
+// Drag reorder state
+const draggedNodeId = ref<number | null>(null)
+const dropTargetNodeId = ref<number | null>(null)
+const previewMovableNodeIds = ref<number[] | null>(null)
+
+// Hover action state
+const hoveredActionNodeId = ref<number | null>(null)
+const hoveredActionSubtaskId = ref<number | null>(null)
 let showNodeDetailTimer: ReturnType<typeof window.setTimeout> | null = null
 let showSubtaskDetailTimer: ReturnType<typeof window.setTimeout> | null = null
 let hideNodeDetailTimer: ReturnType<typeof window.setTimeout> | null = null
 let hideSubtaskDetailTimer: ReturnType<typeof window.setTimeout> | null = null
+let hideNodeActionTimer: ReturnType<typeof window.setTimeout> | null = null
+let hideSubtaskActionTimer: ReturnType<typeof window.setTimeout> | null = null
 
 const DETAIL_SHOW_DELAY_MS = 1000
 const DETAIL_HIDE_DELAY_MS = 180
@@ -161,12 +190,32 @@ const loadingNodeIdSet = computed(() => new Set(props.loadingNodeIds))
 const savingNodeIdSet = computed(() => new Set(props.savingNodeIds))
 const savingSubtaskIdSet = computed(() => new Set(props.savingSubtaskIds))
 
+const movableNodeIds = computed(() =>
+  (props.gantt?.nodes ?? [])
+    .filter((node) => node.status !== 3)
+    .map((node) => node.id),
+)
+
+const activeMovableNodeIds = computed(() => previewMovableNodeIds.value ?? movableNodeIds.value)
+
+const displayNodeSequence = computed(() => {
+  if (props.gantt === null) return []
+  const nodeMap = new Map(props.gantt.nodes.map((node) => [node.id, node]))
+  let movableIndex = 0
+  return props.gantt.nodes.map((node) => {
+    if (node.status === 3) return node
+    const currentNode = nodeMap.get(activeMovableNodeIds.value[movableIndex])
+    movableIndex += 1
+    return currentNode ?? node
+  })
+})
+
 const visibleRows = computed<VisibleGanttRow[]>(() => {
   if (props.gantt === null) {
     return []
   }
 
-  return props.gantt.nodes.flatMap((node) => {
+  return displayNodeSequence.value.flatMap((node) => {
     const rows: VisibleGanttRow[] = [
       {
         key: `node-${node.id}`,
@@ -200,7 +249,7 @@ const visibleRows = computed<VisibleGanttRow[]>(() => {
     }
 
     const subtasks = props.nodeSubtasksById[node.id] ?? []
-    if (subtasks.length === 0) {
+    if (subtasks.length === 0 && !props.canManage) {
       rows.push({
         key: `node-empty-${node.id}`,
         node,
@@ -209,14 +258,22 @@ const visibleRows = computed<VisibleGanttRow[]>(() => {
       return rows
     }
 
-    return rows.concat(
-      subtasks.map((subtask) => ({
-        key: `subtask-${subtask.id}`,
+    rows.push(...subtasks.map((subtask) => ({
+      key: `subtask-${subtask.id}`,
+      node,
+      subtask,
+      type: 'subtask' as const,
+    })))
+
+    if (props.canManage) {
+      rows.push({
+        key: `subtask-create-${node.id}`,
         node,
-        subtask,
-        type: 'subtask' as const,
-      })),
-    )
+        type: 'subtask-create',
+      })
+    }
+
+    return rows
   })
 })
 
@@ -641,6 +698,126 @@ function isActiveResizeTarget(kind: 'node' | 'subtask', id: number) {
     : 'subtaskId' in activeResize.value && activeResize.value.subtaskId === id
 }
 
+function isDraggableNode(status: number) {
+  return props.canManage && status !== 3
+}
+
+function reorderPreview(overNodeId: number) {
+  if (draggedNodeId.value === null || draggedNodeId.value === overNodeId) {
+    return
+  }
+
+  const currentIds = [...activeMovableNodeIds.value]
+  const sourceIndex = currentIds.indexOf(draggedNodeId.value)
+  const targetIndex = currentIds.indexOf(overNodeId)
+
+  if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) {
+    return
+  }
+
+  currentIds.splice(sourceIndex, 1)
+  currentIds.splice(targetIndex, 0, draggedNodeId.value)
+  previewMovableNodeIds.value = currentIds
+}
+
+function startDrag(node: GanttNodeSummary, event: DragEvent) {
+  if (!isDraggableNode(node.status)) {
+    return
+  }
+
+  draggedNodeId.value = node.id
+  dropTargetNodeId.value = node.id
+  previewMovableNodeIds.value = [...movableNodeIds.value]
+
+  if (event.dataTransfer) {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', String(node.id))
+  }
+}
+
+function enterDropTarget(node: GanttNodeSummary) {
+  if (draggedNodeId.value === null || node.status === 3) {
+    return
+  }
+
+  dropTargetNodeId.value = node.id
+  reorderPreview(node.id)
+}
+
+function resetDragState() {
+  draggedNodeId.value = null
+  dropTargetNodeId.value = null
+  previewMovableNodeIds.value = null
+}
+
+function commitReorder() {
+  if (draggedNodeId.value === null || previewMovableNodeIds.value === null) {
+    resetDragState()
+    return
+  }
+
+  emit('reorder-nodes', {
+    nodes: displayNodeSequence.value.map((node, index) => ({
+      node_id: node.id,
+      sequence_no: index + 1,
+    })),
+  })
+
+  resetDragState()
+}
+
+function cancelDrag() {
+  resetDragState()
+}
+
+function cancelClearNodeActionTimer() {
+  if (hideNodeActionTimer !== null) {
+    window.clearTimeout(hideNodeActionTimer)
+    hideNodeActionTimer = null
+  }
+}
+
+function scheduleClearNodeAction() {
+  cancelClearNodeActionTimer()
+  hideNodeActionTimer = window.setTimeout(() => {
+    hoveredActionNodeId.value = null
+    hideNodeActionTimer = null
+  }, 1000)
+}
+
+function cancelClearSubtaskActionTimer() {
+  if (hideSubtaskActionTimer !== null) {
+    window.clearTimeout(hideSubtaskActionTimer)
+    hideSubtaskActionTimer = null
+  }
+}
+
+function scheduleClearSubtaskAction() {
+  cancelClearSubtaskActionTimer()
+  hideSubtaskActionTimer = window.setTimeout(() => {
+    hoveredActionSubtaskId.value = null
+    hideSubtaskActionTimer = null
+  }, 1000)
+}
+
+function emitNodeAction(nodeId: number, action: string) {
+  const eventMap: Record<string, () => void> = {
+    start: () => emit('start-node', nodeId),
+    complete: () => emit('complete-node', nodeId),
+    edit: () => emit('edit-node', nodeId),
+    remove: () => emit('remove-node', nodeId),
+    reopen: () => emit('reopen-node', nodeId),
+  }
+  eventMap[action]?.()
+}
+
+function getNodeActions(status: number) {
+  if (status === 1) return [{ key: 'start', label: '开始' }, { key: 'edit', label: '编辑' }, { key: 'remove', label: '删除' }]
+  if (status === 2 || status === 4) return [{ key: 'complete', label: '完成' }, { key: 'edit', label: '编辑' }, { key: 'remove', label: '删除' }]
+  if (status === 3) return [{ key: 'reopen', label: '重开' }, { key: 'edit', label: '编辑' }, { key: 'remove', label: '删除' }]
+  return [{ key: 'edit', label: '编辑' }, { key: 'remove', label: '删除' }]
+}
+
 function markIgnoredScroll(
   ignoredScrollMap: WeakMap<HTMLElement, number>,
   target: HTMLElement,
@@ -754,6 +931,8 @@ onBeforeUnmount(() => {
   cancelHideNodeDetail()
   cancelShowSubtaskDetail()
   cancelHideSubtaskDetail()
+  cancelClearNodeActionTimer()
+  cancelClearSubtaskActionTimer()
   stopResize()
 })
 </script>
@@ -806,6 +985,14 @@ onBeforeUnmount(() => {
             >
               全部收起
             </button>
+            <button
+              v-if="canManage"
+              class="project-gantt__members-button"
+              type="button"
+              @click="emit('open-members')"
+            >
+              成员管理
+            </button>
           </div>
         </div>
       </div>
@@ -832,7 +1019,16 @@ onBeforeUnmount(() => {
           <div aria-hidden="true" class="project-gantt__sidebar-top-spacer" />
           <div class="project-gantt__sidebar-head">
             <span>阶段</span>
-            <span>状态</span>
+            <div class="project-gantt__sidebar-head-right">
+              <span>状态</span>
+              <button
+                v-if="canManage"
+                class="project-gantt__sidebar-add-button"
+                type="button"
+                aria-label="新建阶段"
+                @click="emit('create-node')"
+              >+</button>
+            </div>
           </div>
 
           <div
@@ -850,11 +1046,26 @@ onBeforeUnmount(() => {
                   `project-gantt__sidebar-row--${row.type}`,
                   {
                     'is-expanded': row.type === 'node' && expandedNodeIdSet.has(row.node.id),
+                    'is-dragging': row.type === 'node' && draggedNodeId === row.node.id,
+                    'is-drop-target': row.type === 'node' && dropTargetNodeId === row.node.id && draggedNodeId !== row.node.id,
                   },
                 ]"
+                @dragenter.prevent="row.type === 'node' && enterDropTarget(row.node)"
+                @dragover.prevent="row.type === 'node'"
+                @drop.prevent="row.type === 'node' && commitReorder()"
+                @dragend="row.type === 'node' && cancelDrag()"
               >
                 <template v-if="row.type === 'node'">
-                  <div class="project-gantt__sidebar-title">
+                  <div
+                    class="project-gantt__sidebar-title"
+                    :draggable="isDraggableNode(row.node.status)"
+                    @dragstart="startDrag(row.node, $event)"
+                  >
+                    <span
+                      v-if="isDraggableNode(row.node.status)"
+                      class="project-gantt__sidebar-drag-handle"
+                      aria-hidden="true"
+                    >≡</span>
                     <span
                       :class="[
                         'project-gantt__sidebar-caret',
@@ -866,14 +1077,32 @@ onBeforeUnmount(() => {
                     />
                     <strong>{{ row.node.name }}</strong>
                   </div>
-                  <span
-                    :class="[
-                      'project-gantt__status-pill',
-                      `project-gantt__status-pill--${getWorkStatusTone(row.node.status)}`,
-                    ]"
+                  <div
+                    class="project-gantt__sidebar-actions-slot"
+                    @mouseenter="cancelClearNodeActionTimer(); hoveredActionNodeId = row.node.id"
+                    @mouseleave="scheduleClearNodeAction()"
                   >
-                    {{ getWorkStatusLabel(row.node.status) }}
-                  </span>
+                    <span
+                      v-if="hoveredActionNodeId !== row.node.id"
+                      :class="[
+                        'project-gantt__status-pill',
+                        `project-gantt__status-pill--${getWorkStatusTone(row.node.status)}`,
+                      ]"
+                    >
+                      {{ getWorkStatusLabel(row.node.status) }}
+                    </span>
+                    <span v-else class="project-gantt__sidebar-node-actions">
+                      <button
+                        v-for="action in getNodeActions(row.node.status)"
+                        :key="action.key"
+                        class="project-gantt__sidebar-action-btn"
+                        :class="`project-gantt__sidebar-action-btn--${action.key}`"
+                        type="button"
+                        :title="action.label"
+                        @click.stop="emitNodeAction(row.node.id, action.key)"
+                      >{{ action.label }}</button>
+                    </span>
+                  </div>
                 </template>
 
                 <template v-else-if="row.type === 'subtask'">
@@ -884,7 +1113,45 @@ onBeforeUnmount(() => {
                     </span>
                     <span class="project-gantt__sidebar-subtask-name">{{ row.subtask.name }}</span>
                   </span>
-                  <span class="project-gantt__sidebar-subtask-progress">{{ row.subtask.progress_percent }}%</span>
+                  <div
+                    class="project-gantt__sidebar-actions-slot"
+                    @mouseenter="cancelClearSubtaskActionTimer(); hoveredActionSubtaskId = row.subtask.id"
+                    @mouseleave="scheduleClearSubtaskAction()"
+                  >
+                    <span
+                      v-if="hoveredActionSubtaskId !== row.subtask.id"
+                      class="project-gantt__sidebar-subtask-progress"
+                    >{{ row.subtask.progress_percent }}%</span>
+                    <span v-else class="project-gantt__sidebar-subtask-actions">
+                      <button
+                        class="project-gantt__sidebar-action-btn project-gantt__sidebar-action-btn--edit"
+                        type="button"
+                        title="编辑"
+                        @click.stop="emit('edit-subtask', row.subtask.id)"
+                      >编辑</button>
+                      <button
+                        class="project-gantt__sidebar-action-btn project-gantt__sidebar-action-btn--remove"
+                        type="button"
+                        title="删除"
+                        @click.stop="emit('remove-subtask', row.subtask.id)"
+                      >删除</button>
+                    </span>
+                  </div>
+                </template>
+
+                <template v-else-if="row.type === 'subtask-create'">
+                  <span class="project-gantt__sidebar-subtask-label">
+                    <span class="project-gantt__sidebar-branch" aria-hidden="true">
+                      <span class="project-gantt__sidebar-branch-line" />
+                      <span class="project-gantt__sidebar-branch-dot is-add" />
+                    </span>
+                    <button
+                      class="project-gantt__sidebar-add-subtask-btn"
+                      type="button"
+                      @click="emit('create-subtask', row.node.id)"
+                    >+ 添加子任务</button>
+                  </span>
+                  <span />
                 </template>
 
                 <template v-else-if="row.type === 'loading'">
@@ -1083,6 +1350,8 @@ onBeforeUnmount(() => {
                     >
                       该阶段下暂无子任务排期
                     </div>
+
+                    <div v-else-if="row.type === 'subtask-create'" />
 
                     <button
                       v-else
@@ -1605,6 +1874,169 @@ onBeforeUnmount(() => {
   flex-shrink: 0;
 }
 
+.project-gantt__sidebar-head-right {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.project-gantt__sidebar-add-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 8px;
+  background: linear-gradient(135deg, var(--accent-start), var(--accent-end));
+  color: #f8fbff;
+  font-size: 1.1rem;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+}
+
+.project-gantt__sidebar-add-button:hover {
+  transform: scale(1.12);
+  box-shadow: 0 4px 10px color-mix(in srgb, var(--accent-end) 24%, transparent);
+}
+
+.project-gantt__sidebar-row--subtask-create {
+  height: var(--project-gantt-subtask-row-height);
+  grid-template-columns: minmax(0, 1fr) auto;
+  padding-left: 42px;
+  overflow: hidden;
+}
+
+.project-gantt__sidebar-add-subtask-btn {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-soft);
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color 120ms ease-out;
+}
+
+.project-gantt__sidebar-add-subtask-btn:hover {
+  color: var(--accent-end);
+}
+
+.project-gantt__sidebar-branch-dot.is-add {
+  background: var(--accent-end);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent-end) 14%, transparent);
+}
+
+.project-gantt__sidebar-actions-slot {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 0;
+  overflow: visible;
+}
+
+.project-gantt__sidebar-node-actions,
+.project-gantt__sidebar-subtask-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.project-gantt__sidebar-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 26px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: var(--dialog-control-bg);
+  color: var(--text-soft);
+  font-size: 0.7rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+
+.project-gantt__sidebar-action-btn:hover {
+  background: color-mix(in srgb, var(--accent-end) 14%, transparent);
+  color: var(--accent-end);
+  border-color: color-mix(in srgb, var(--accent-line) 20%, transparent);
+}
+
+.project-gantt__sidebar-action-btn--start:hover {
+  background: color-mix(in srgb, var(--work-status-active-color) 14%, transparent);
+  color: var(--work-status-active-color);
+  border-color: color-mix(in srgb, var(--work-status-active-border) 20%, transparent);
+}
+
+.project-gantt__sidebar-action-btn--complete:hover {
+  background: color-mix(in srgb, var(--work-status-done-color) 14%, transparent);
+  color: var(--work-status-done-color);
+  border-color: color-mix(in srgb, var(--work-status-done-border) 20%, transparent);
+}
+
+.project-gantt__sidebar-action-btn--remove:hover {
+  background: color-mix(in srgb, #ff6b7a 14%, transparent);
+  color: #ff6b7a;
+  border-color: color-mix(in srgb, #ff6b7a 20%, transparent);
+}
+
+.project-gantt__sidebar-drag-handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  cursor: grab;
+  user-select: none;
+  flex-shrink: 0;
+  transition: color 120ms ease-out;
+}
+
+.project-gantt__sidebar-drag-handle:hover {
+  color: var(--text-soft);
+}
+
+.project-gantt__sidebar-title.is-dragging {
+  opacity: 0.5;
+}
+
+.project-gantt__sidebar-row.is-drop-target {
+  border-top: 2px solid var(--accent-end);
+}
+
+.project-gantt__members-button {
+  padding: 9px 14px;
+  border: 1px solid var(--dialog-control-border);
+  border-radius: 999px;
+  background: var(--dialog-control-bg), var(--card-sheen);
+  box-shadow: var(--dialog-control-shadow);
+  color: var(--text-main);
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 180ms ease-out, border-color 180ms ease-out, box-shadow 180ms ease-out;
+}
+
+.project-gantt__members-button:hover {
+  transform: translateY(-1px);
+  border-color: color-mix(in srgb, var(--accent-line) 42%, var(--dialog-control-border));
+  box-shadow: var(--dialog-control-shadow), 0 10px 18px color-mix(in srgb, var(--accent-end) 12%, transparent);
+}
+
+.project-gantt__row--subtask-create .project-gantt__track {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent-end) 4%, var(--dialog-control-bg)), color-mix(in srgb, var(--panel-bg) 96%, var(--dialog-control-bg)));
+}
+
 .project-gantt__sidebar-inline-state {
   color: var(--text-soft);
   font-size: 0.82rem;
@@ -1924,6 +2356,7 @@ onBeforeUnmount(() => {
 }
 
 .project-gantt__row--subtask,
+.project-gantt__row--subtask-create,
 .project-gantt__row--loading,
 .project-gantt__row--error,
 .project-gantt__row--empty {

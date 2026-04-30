@@ -269,6 +269,7 @@ function mockWorkspaceData() {
   vi.mocked(listProjectMembers).mockResolvedValue(membersFixture)
   vi.mocked(listProjectNodes).mockResolvedValue(nodesFixture)
   vi.mocked(listNodeSubtasks).mockResolvedValue({ list: [] })
+  vi.mocked(getProjectGanttNodes).mockResolvedValue(null)
 }
 
 function createDeferred<T>() {
@@ -465,6 +466,10 @@ describe('ProjectDetailView', () => {
     })
 
     expect(await screen.findByText('内部进度平台')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+    await screen.findByTestId('project-workspace-card')
+
+
     expect(screen.getByText('需求分析')).toBeTruthy()
     expect(screen.getByText('前端开发')).toBeTruthy()
     expect(screen.getAllByText('张三').length).toBeGreaterThan(0)
@@ -482,7 +487,6 @@ describe('ProjectDetailView', () => {
 
     expect(screen.getByTestId('node-drawer')).toBeTruthy()
     expect(screen.getByText('完成登录接口开发')).toBeTruthy()
-    expect(screen.getByText('项目成员')).toBeTruthy()
   })
 
   it('renders one unified workspace card with fixed-height member panel and independently scrollable sections', async () => {
@@ -608,20 +612,17 @@ describe('ProjectDetailView', () => {
     const user = userEvent.setup()
 
     expect(await screen.findByText('内部进度平台')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '工作区' }))
 
     await user.click(screen.getByTestId('node-item-2002'))
 
     const workspaceCard = await screen.findByTestId('project-workspace-card')
-    const memberPanel = screen.getByTestId('member-panel')
-    const memberList = screen.getByTestId('member-panel-list')
     const railScroll = screen.getByTestId('node-rail-scroll')
     const drawerContent = screen.getByTestId('node-drawer-content')
 
     expect(within(workspaceCard).getByTestId('node-item-2002')).toBeTruthy()
     expect(within(workspaceCard).getByTestId('node-drawer')).toBeTruthy()
     expect(getComputedStyle(workspaceCard).height).toBe('720px')
-    expect(getComputedStyle(memberPanel).height).toBe('720px')
-    expect(getComputedStyle(memberList).overflowY).toBe('auto')
     expect(getComputedStyle(railScroll).overflowY).toBe('auto')
     expect(getComputedStyle(drawerContent).overflowY).toBe('auto')
   })
@@ -693,7 +694,7 @@ describe('ProjectDetailView', () => {
     expect(screen.getByTestId('project-meta-panel')).toBeTruthy()
   })
 
-  it('defaults to workspace view and only loads stage gantt data after switching tabs', async () => {
+  it('defaults to gantt view and switches between stage gantt and workspace views', async () => {
     mockWorkspaceData()
     vi.mocked(getProjectGanttNodes).mockResolvedValue(projectGanttFixture)
 
@@ -704,11 +705,6 @@ describe('ProjectDetailView', () => {
     })
     const user = userEvent.setup()
 
-    expect(await screen.findByTestId('project-workspace-card')).toBeTruthy()
-    expect(getProjectGanttNodes).not.toHaveBeenCalled()
-
-    await user.click(screen.getByRole('button', { name: '甘特图' }))
-
     await waitFor(() => {
       expect(getProjectGanttNodes).toHaveBeenCalledWith(1001)
       expect(screen.getByTestId('project-gantt-view')).toBeTruthy()
@@ -717,6 +713,10 @@ describe('ProjectDetailView', () => {
     await user.click(screen.getByRole('button', { name: '工作区' }))
 
     expect(screen.getByTestId('project-workspace-card')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: '甘特图' }))
+
+    expect(screen.getByTestId('project-gantt-view')).toBeTruthy()
   })
 
   it('expands node subtasks inline on demand from the gantt view instead of opening a detached overlay', async () => {
@@ -731,8 +731,7 @@ describe('ProjectDetailView', () => {
     })
     const user = userEvent.setup()
 
-    await screen.findByTestId('project-workspace-card')
-    await user.click(screen.getByRole('button', { name: '甘特图' }))
+    await screen.findByTestId('project-gantt-view')
 
     await waitFor(() => {
       expect(screen.getByTestId('project-gantt-stage-bar-2002')).toBeTruthy()
@@ -765,8 +764,7 @@ describe('ProjectDetailView', () => {
     })
     const user = userEvent.setup()
 
-    await screen.findByTestId('project-workspace-card')
-    await user.click(screen.getByRole('button', { name: '甘特图' }))
+    await screen.findByTestId('project-gantt-view')
 
     await waitFor(() => {
       expect(screen.getByTestId('project-gantt-stage-bar-2002')).toBeTruthy()
@@ -827,8 +825,7 @@ describe('ProjectDetailView', () => {
     })
     const user = userEvent.setup()
 
-    await screen.findByTestId('project-workspace-card')
-    await user.click(screen.getByRole('button', { name: '甘特图' }))
+    await screen.findByTestId('project-gantt-view')
 
     await waitFor(() => {
       expect(screen.getByTestId('project-gantt-stage-bar-2002')).toBeTruthy()
@@ -880,8 +877,7 @@ describe('ProjectDetailView', () => {
     })
     const user = userEvent.setup()
 
-    await screen.findByTestId('project-workspace-card')
-    await user.click(screen.getByRole('button', { name: '甘特图' }))
+    await screen.findByTestId('project-gantt-view')
 
     await waitFor(() => {
       expect(screen.getByTestId('project-gantt-view')).toBeTruthy()
@@ -926,8 +922,7 @@ describe('ProjectDetailView', () => {
     })
     const user = userEvent.setup()
 
-    await screen.findByTestId('project-workspace-card')
-    await user.click(screen.getByRole('button', { name: '甘特图' }))
+    await screen.findByTestId('project-gantt-view')
 
     await waitFor(() => {
       expect(screen.getByTestId('project-gantt-view')).toBeTruthy()
@@ -1088,6 +1083,8 @@ describe('ProjectDetailView', () => {
     const user = userEvent.setup()
 
     await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+    await screen.findByTestId('project-workspace-card')
 
     await user.click(screen.getByTestId('create-node'))
 
@@ -1235,6 +1232,8 @@ describe('ProjectDetailView', () => {
     const user = userEvent.setup()
 
     await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+    await screen.findByTestId('project-workspace-card')
 
     await user.click(screen.getByTestId('node-item-2002'))
     await screen.findByTestId('node-drawer')
@@ -1411,6 +1410,9 @@ describe('ProjectDetailView', () => {
     const user = userEvent.setup()
 
     await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+    await screen.findByTestId('project-workspace-card')
+
     await user.click(screen.getByTestId('node-item-2002'))
     await screen.findByTestId('node-drawer')
 
@@ -1561,6 +1563,9 @@ describe('ProjectDetailView', () => {
     const user = userEvent.setup()
 
     await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+    await screen.findByTestId('project-workspace-card')
+
     await user.click(screen.getByTestId('node-item-2002'))
     await screen.findByTestId('node-drawer')
     await user.click(screen.getByTestId('subtask-progress-3001'))
@@ -1684,6 +1689,8 @@ describe('ProjectDetailView', () => {
     const user = userEvent.setup()
 
     await screen.findByText('内部进度平台')
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+    await screen.findByTestId('project-workspace-card')
 
     await user.click(screen.getByTestId('node-view-mode-full'))
     await user.click(screen.getByTestId('node-action-complete-2002'))
@@ -1850,8 +1857,11 @@ describe('ProjectDetailView', () => {
         plugins: [createPinia()],
       },
     })
+    const user = userEvent.setup()
 
     expect(await screen.findByText('内部进度平台')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+    await screen.findByTestId('project-workspace-card')
 
     await fireEvent.dragStart(screen.getByTestId('node-item-2003'))
     await fireEvent.dragEnter(screen.getByTestId('node-item-2002'))
@@ -1995,8 +2005,17 @@ describe('ProjectDetailView', () => {
     const user = userEvent.setup()
 
     expect(await screen.findByText('内部进度平台')).toBeTruthy()
-    expect(screen.getByText('李四')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '工作区' }))
+    await screen.findByTestId('project-workspace-card')
 
+    expect(screen.getByText('需求分析')).toBeTruthy()
+    expect(screen.getByText('内部进度平台')).toBeTruthy()
+
+    await user.click(screen.getByRole('button', { name: '甘特图' }))
+    await screen.findByTestId('project-gantt-view')
+
+    await user.click(screen.getByRole('button', { name: '成员管理' }))
+    await screen.findByTestId('remove-member-2')
     await user.click(screen.getByTestId('remove-member-2'))
 
     await waitFor(() => {
@@ -2004,8 +2023,6 @@ describe('ProjectDetailView', () => {
     })
 
     expect(screen.getByText('内部进度平台')).toBeTruthy()
-    expect(screen.getByText('李四')).toBeTruthy()
-    expect(screen.getByText('工作台刷新中...')).toBeTruthy()
   })
 
   it('loads owner candidates and transfers the project owner from the member panel', async () => {
@@ -2078,6 +2095,8 @@ describe('ProjectDetailView', () => {
     })
     const user = userEvent.setup()
 
+    expect(await screen.findByText('内部进度平台')).toBeTruthy()
+    await user.click(screen.getByRole('button', { name: '成员管理' }))
     expect(await screen.findByTestId('transfer-owner-1')).toBeTruthy()
 
     await user.click(screen.getByTestId('transfer-owner-1'))
