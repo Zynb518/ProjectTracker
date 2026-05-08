@@ -2,6 +2,7 @@
 add_executable(
     Project_Tracker
     bootstrap/main.cpp
+    bootstrap/ScheduleBootstrap.cpp
     http/ExceptionHandling.cpp
     common/error/BusinessException.cpp
     common/error/Throw.cpp

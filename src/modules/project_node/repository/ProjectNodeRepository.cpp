@@ -379,9 +379,9 @@ namespace project_tracker::modules::project_node::repository {
             LEFT JOIN node_detail nd ON TRUE
             LEFT JOIN subtasks st ON TRUE
             ORDER BY
-                st.priority DESC NULLS LAST,
+                st.planned_start_date ASC NULLS LAST,
                 st.planned_end_date_order ASC NULLS LAST,
-                st.id DESC NULLS LAST
+                st.id ASC NULLS LAST
         )SQL";
 
         const bool isAdmin = query.currentUserRole == user_domain::SystemRole::Admin;

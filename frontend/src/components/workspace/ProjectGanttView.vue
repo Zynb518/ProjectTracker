@@ -136,6 +136,7 @@ const hoveredSubtaskId = ref<number | null>(null)
 const hoveredSubtaskAnchor = ref({ x: 0, y: 0 })
 const hoveredSubtaskPlacement = ref<HoverCardPlacement>('top-right')
 const activeResize = ref<ActiveResizeState | null>(null)
+const resizeTooltipPos = ref({ x: 0, y: 0 })
 
 // Drag reorder state
 const draggedNodeId = ref<number | null>(null)
@@ -642,6 +643,7 @@ function handleResizeMove(event: MouseEvent) {
     ...activeResize.value,
     ...resizedRange,
   }
+  resizeTooltipPos.value = { x: event.clientX, y: event.clientY }
 }
 
 function handleResizeEnd(event: MouseEvent) {
@@ -1479,6 +1481,23 @@ onBeforeUnmount(() => {
                 </div>
               </dl>
             </aside>
+          </Teleport>
+
+          <Teleport to="body">
+            <div
+              v-if="activeResize"
+              class="project-gantt__resize-tooltip"
+              :style="{
+                left: `${resizeTooltipPos.x + 16}px`,
+                top: `${resizeTooltipPos.y - 40}px`,
+              }"
+            >
+              <span v-if="activeResize.edge === 'start'" class="project-gantt__resize-tooltip-label">开始日期</span>
+              <span v-else class="project-gantt__resize-tooltip-label">截止日期</span>
+              <strong class="project-gantt__resize-tooltip-date">
+                {{ activeResize.edge === 'start' ? activeResize.plannedStartDate : activeResize.plannedEndDate }}
+              </strong>
+            </div>
           </Teleport>
         </div>
       </div>
@@ -2908,5 +2927,34 @@ onBeforeUnmount(() => {
   .project-gantt__subtask-detail-grid-item:last-child {
     grid-column: auto;
   }
+}
+
+.project-gantt__resize-tooltip {
+  position: fixed;
+  z-index: 999;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: #f8f9fa;
+  border: 1px solid color-mix(in srgb, var(--accent-line) 24%, transparent);
+  box-shadow: 0 4px 12px color-mix(in srgb, #000000 8%, transparent);
+  pointer-events: none;
+}
+
+.project-gantt__resize-tooltip-label {
+  font-size: 0.7rem;
+  font-weight: 600;
+  color: #999;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.project-gantt__resize-tooltip-date {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #333;
 }
 </style>

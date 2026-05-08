@@ -7,6 +7,7 @@
 #include "http/RequestLogging.h"
 #include "http/ExceptionHandling.h"
 #include "bootstrap/ThreadNumConfig.h"
+#include "bootstrap/ScheduleBootstrap.h"
 
 
 int main(int argc, char **argv) {
@@ -29,6 +30,7 @@ int main(int argc, char **argv) {
 
         project_tracker::http::registerExceptionHandling(drogon::app());
         project_tracker::http::registerRequestLogging(drogon::app());
+        project_tracker::bootstrap::registerDailyStatusUpdater();
 
         const std::string threadNumText = threadNum.has_value()
                                               ? std::to_string(*threadNum)
