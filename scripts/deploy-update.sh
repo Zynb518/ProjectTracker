@@ -43,6 +43,12 @@ step "同步产物到 ${INSTALL_DIR}..."
 # 确保目标目录存在
 sudo mkdir -p "${INSTALL_DIR}/bin" "${INSTALL_DIR}/www"
 
+# 停止服务以避免 "Text file busy"
+if systemctl list-unit-files | grep -q "${SERVICE_NAME}"; then
+    step "停止当前运行的服务..."
+    sudo systemctl stop "${SERVICE_NAME}"
+fi
+
 # 拷贝后端二进制
 sudo cp cmake-build-release/src/Project_Tracker "${INSTALL_DIR}/bin/"
 
@@ -50,11 +56,11 @@ sudo cp cmake-build-release/src/Project_Tracker "${INSTALL_DIR}/bin/"
 sudo rm -rf "${INSTALL_DIR}/www/*"
 sudo cp -r frontend/dist/* "${INSTALL_DIR}/www/"
 
-# 5. 重启服务
-step "重启系统服务..."
+# 5. 启动服务
+step "启动/重启系统服务..."
 if systemctl list-unit-files | grep -q "${SERVICE_NAME}"; then
-    sudo systemctl restart "${SERVICE_NAME}"
-    log "服务已重启。"
+    sudo systemctl start "${SERVICE_NAME}"
+    log "服务已启动。"
 else
     log "未检测到 systemd 服务 [${SERVICE_NAME}]，请手动启动或运行安装脚本配置。"
 fi

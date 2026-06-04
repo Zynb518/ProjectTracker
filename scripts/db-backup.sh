@@ -23,12 +23,19 @@ log() {
 
 mkdir -p "$BACKUP_DIR"
 
-# 尝试获取密码 (简单 grep 提取，实际生产建议用 jq)
+# 尝试获取密码
 if [ -f "$CONFIG_FILE" ]; then
-    DB_PASS=$(grep -oP '"passwd":\s*"\K[^"]+' "$CONFIG_FILE" || echo "")
+    # 更加兼容的提取方式，处理可能存在的空格
+    DB_PASS=$(grep '"passwd"' "$CONFIG_FILE" | head -n 1 | cut -d '"' -f 4 || echo "")
     if [ -n "$DB_PASS" ]; then
         export PGPASSWORD="$DB_PASS"
+        log "已从配置文件加载数据库密码。"
+    else
+        log "警告: 未能从 $CONFIG_FILE 中提取到密码，将尝试免密连接。"
     fi
+else
+    log "错误: 找不到配置文件 $CONFIG_FILE"
+    exit 1
 fi
 
 ts=$(date +%F-%H%M%S)
