@@ -23,13 +23,18 @@ log() {
 
 mkdir -p "$BACKUP_DIR"
 
-# 尝试获取密码
+# 尝试获取配置
 if [ -f "$CONFIG_FILE" ]; then
-    # 更加兼容的提取方式，处理可能存在的空格
+    # 提取数据库名
+    DB_NAME=$(grep '"dbname"' "$CONFIG_FILE" | head -n 1 | cut -d '"' -f 4 || echo "project_tracker")
+    # 提取用户名
+    DB_USER=$(grep '"user"' "$CONFIG_FILE" | head -n 1 | cut -d '"' -f 4 || echo "project_tracker")
+    # 更加兼容的提取方式，处理密码
     DB_PASS=$(grep '"passwd"' "$CONFIG_FILE" | head -n 1 | cut -d '"' -f 4 || echo "")
+    
     if [ -n "$DB_PASS" ]; then
         export PGPASSWORD="$DB_PASS"
-        log "已从配置文件加载数据库密码。"
+        log "已从配置文件加载数据库配置 (DB: $DB_NAME, User: $DB_USER)。"
     else
         log "警告: 未能从 $CONFIG_FILE 中提取到密码，将尝试免密连接。"
     fi
