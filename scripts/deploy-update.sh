@@ -40,11 +40,17 @@ popd
 # 4. 同步产物到目标目录
 step "同步产物到 ${INSTALL_DIR}..."
 
+# 刷新 systemd 缓存，确保能识别新加或修改的文件
+sudo systemctl daemon-reload
+
 # 确保目标目录存在
 sudo mkdir -p "${INSTALL_DIR}/bin" "${INSTALL_DIR}/www"
 
+# 检查服务是否存在
+SERVICE_EXISTS=$(sudo systemctl list-unit-files "${SERVICE_NAME}" | grep "${SERVICE_NAME}" || echo "")
+
 # 停止服务以避免 "Text file busy"
-if systemctl list-unit-files | grep -q "${SERVICE_NAME}"; then
+if [ -n "$SERVICE_EXISTS" ]; then
     step "停止当前运行的服务..."
     sudo systemctl stop "${SERVICE_NAME}"
 fi
@@ -58,11 +64,13 @@ sudo cp -r frontend/dist/* "${INSTALL_DIR}/www/"
 
 # 5. 启动服务
 step "启动/重启系统服务..."
-if systemctl list-unit-files | grep -q "${SERVICE_NAME}"; then
+if [ -n "$SERVICE_EXISTS" ]; then
     sudo systemctl start "${SERVICE_NAME}"
-    log "服务已启动。"
+    sudo systemctl enable "${SERVICE_NAME}" > /dev/null 2>&1
+    log "服务已启动并设置为开机自启。"
 else
-    log "未检测到 systemd 服务 [${SERVICE_NAME}]，请手动启动或运行安装脚本配置。"
+    log "警告: 未在系统中找到服务 [${SERVICE_NAME}]。"
+    log "如果你是第一次部署，请先运行: sudo cp deploy/systemd/project-tracker.service /etc/systemd/system/ && sudo systemctl daemon-reload"
 fi
 
 log "===================================================================="
