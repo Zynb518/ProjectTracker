@@ -28,7 +28,7 @@ git pull
 # 2. 编译后端
 step "开始编译后端..."
 cmake -S . -B cmake-build-release -DCMAKE_BUILD_TYPE=Release
-cmake --build cmake-build-release -j$(nproc)
+cmake --build cmake-build-release -j2
 
 # 3. 构建前端
 step "开始构建前端..."
