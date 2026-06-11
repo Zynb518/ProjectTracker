@@ -9,11 +9,11 @@
     {
       "name": "default",
       "rdbms": "postgresql",
-      "host": "127.0.0.1",
+      "host": "${DB_HOST}",
       "port": 5432,
-      "dbname": "project_tracker",
-      "user": "project_tracker",
-      "passwd": "change_me",
+      "dbname": "${DB_NAME}",
+      "user": "${DB_USER}",
+      "passwd": "${DB_PASSWORD}",
       "is_fast": false,
       "connection_number": 8
     }

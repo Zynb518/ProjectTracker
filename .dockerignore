@@ -1,0 +1,21 @@
+# 排除本地编译缓存
+build/
+cmake-build-debug/
+cmake-build-release/
+
+# 排除巨大的工具链和模型数据
+tools/
+
+# 排除前端依赖和产物 (因为后端镜像不需要这些)
+frontend/node_modules/
+frontend/dist/
+
+# 排除用户上传的数据和临时文件
+uploads/
+*.log
+
+# 排除 IDE 和 Git 信息
+.git/
+.idea/
+.superpowers/
+.codex/
