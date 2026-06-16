@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import html2canvas from 'html2canvas-pro'
 
 import GanttScaleSwitcher from '@/components/workspace/GanttScaleSwitcher.vue'
 import type {
@@ -14,6 +15,7 @@ import type {
 import { getWorkStatusLabel, getWorkStatusTone } from '@/utils/display'
 import { buildGanttAxisItems, getGanttBarLayout, getPixelsPerDay } from '@/utils/gantt'
 import { normalizeWheelDelta } from '@/utils/smoothWheel'
+import { useNotificationStore } from '@/stores/notifications'
 
 const props = withDefaults(defineProps<{
   canEditSchedule?: boolean
@@ -928,6 +930,83 @@ function handleRowsScroll() {
   syncScrollPosition(ignoredHorizontalScroll, rowsScrollRef.value, axisScrollRef.value, 'scrollLeft')
 }
 
+const ganttViewRef = ref<HTMLElement | null>(null)
+const isExportingImage = ref(false)
+
+async function exportGanttAsImage() {
+  const element = ganttViewRef.value
+  if (!element || !props.gantt) {
+    useNotificationStore().notifyError('无法获取甘特图 DOM 元素，导出失败')
+    return
+  }
+  
+  isExportingImage.value = true
+
+  const originalScrollTop = rowsScrollRef.value?.scrollTop || 0
+  const originalScrollLeft = rowsScrollRef.value?.scrollLeft || 0
+
+  if (rowsScrollRef.value) {
+    rowsScrollRef.value.scrollTop = 0
+    rowsScrollRef.value.scrollLeft = 0
+  }
+  if (topScrollRef.value) {
+    topScrollRef.value.scrollLeft = 0
+  }
+  if (axisScrollRef.value) {
+    axisScrollRef.value.scrollLeft = 0
+  }
+  if (sidebarRowsRailRef.value) {
+    sidebarRowsRailRef.value.style.transform = 'translateY(0)'
+  }
+
+  const isDark = document.documentElement.classList.contains('dark')
+  const exportBgColor = isDark ? '#060916' : '#eaf0f7'
+
+  element.classList.add('gantt-export-active')
+
+  try {
+    const html2canvasFn = (html2canvas as any).default || html2canvas
+    const canvas = await html2canvasFn(element, {
+      backgroundColor: exportBgColor,
+      useCORS: true,
+      scale: 2,
+      logging: true,
+      onclone: (clonedDoc: Document) => {
+        const activeTheme = document.documentElement.classList.contains('dark') ? 'dark' : 'light'
+        clonedDoc.documentElement.classList.remove('light', 'dark')
+        clonedDoc.documentElement.classList.add(activeTheme)
+      }
+    })
+
+    const dataUrl = canvas.toDataURL('image/png')
+    const link = document.createElement('a')
+    link.download = `项目甘特图[${props.gantt.project.name}]_${new Date().toISOString().slice(0, 10)}.png`
+    link.href = dataUrl
+    link.click()
+  } catch (error) {
+    console.error('Html2canvas Error:', error)
+    const errStr = error instanceof Error ? error.message : String(error)
+    useNotificationStore().notifyError(`生成甘特图图片失败: ${errStr}`)
+  } finally {
+    element.classList.remove('gantt-export-active')
+    
+    if (rowsScrollRef.value) {
+      rowsScrollRef.value.scrollTop = originalScrollTop
+      rowsScrollRef.value.scrollLeft = originalScrollLeft
+    }
+    if (topScrollRef.value) {
+      topScrollRef.value.scrollLeft = originalScrollLeft
+    }
+    if (axisScrollRef.value) {
+      axisScrollRef.value.scrollLeft = originalScrollLeft
+    }
+    if (sidebarRowsRailRef.value) {
+      sidebarRowsRailRef.value.style.transform = `translateY(-${originalScrollTop}px)`
+    }
+    isExportingImage.value = false
+  }
+}
+
 onBeforeUnmount(() => {
   cancelShowNodeDetail()
   cancelHideNodeDetail()
@@ -940,7 +1019,30 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <section class="project-gantt" data-testid="project-gantt-view">
+  <section ref="ganttViewRef" class="project-gantt" data-testid="project-gantt-view">
+    <!-- 仅在导出为图片时显示的精美页眉，提升导出文档的专业质感，避免类似普通网页截图 -->
+    <div class="project-gantt__export-header">
+      <div class="project-gantt__export-header-left">
+        <span class="project-gantt__export-header-eyebrow">Project Timeline Matrix</span>
+        <h2 class="project-gantt__export-header-title">项目进度与阶段排期表</h2>
+        <div class="project-gantt__export-header-info">
+          <span class="project-gantt__export-header-info-item">
+            <strong>项目名称：</strong>{{ gantt?.project?.name || '未指定' }}
+          </span>
+          <span class="project-gantt__export-header-info-item">
+            <strong>项目周期：</strong>{{ gantt?.project?.planned_start_date || '-' }} 至 {{ gantt?.project?.planned_end_date || '-' }}
+          </span>
+        </div>
+      </div>
+      <div class="project-gantt__export-header-right">
+        <div class="project-gantt__export-header-meta">
+          <span><strong>视图视角：</strong>{{ perspective === 'stage' ? '阶段视图' : '人员视图' }}</span>
+          <span><strong>时间粒度：</strong>{{ scale === 'day' ? '日' : scale === 'week' ? '周' : '月' }}</span>
+          <span><strong>导出时间：</strong>{{ new Date().toLocaleString() }}</span>
+        </div>
+      </div>
+    </div>
+
     <header class="project-gantt__toolbar">
       <div class="project-gantt__toolbar-copy">
         <p class="project-gantt__eyebrow">Timeline Matrix</p>
@@ -986,6 +1088,18 @@ onBeforeUnmount(() => {
               @click="emit('collapse-all')"
             >
               全部收起
+            </button>
+            <button
+              class="project-gantt__export-img-btn"
+              type="button"
+              :disabled="isExportingImage"
+              @click="exportGanttAsImage"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+                <circle cx="12" cy="13" r="4"></circle>
+              </svg>
+              {{ isExportingImage ? '正在导出...' : '导出为图片 (PNG)' }}
             </button>
             <button
               v-if="canManage"
@@ -2923,10 +3037,6 @@ onBeforeUnmount(() => {
   .project-gantt__subtask-detail-grid {
     grid-template-columns: 1fr;
   }
-
-  .project-gantt__subtask-detail-grid-item:last-child {
-    grid-column: auto;
-  }
 }
 
 .project-gantt__resize-tooltip {
@@ -2956,5 +3066,286 @@ onBeforeUnmount(() => {
   font-size: 0.84rem;
   font-weight: 700;
   color: #333;
+}
+
+/* ==================== 导出甘特图为图片的控制样式 ==================== */
+.gantt-export-active {
+  width: max-content !important;
+  max-width: none !important;
+  height: auto !important;
+  overflow: visible !important;
+  /* 移除外层阴影和圆角以消除截图边缘模糊和黑影问题 */
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  padding: 24px !important;
+}
+
+/* 隐藏所有元素的 box-shadow, text-shadow 和 filter，以消除 html2canvas 对渐变/模糊阴影渲染产生的黑色大方块或杂色边缘 */
+.gantt-export-active * {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  filter: none !important;
+}
+
+/* 隐藏滚动条，避免输出图片中包含默认或自定义滚动条的痕迹 */
+.gantt-export-active ::-webkit-scrollbar {
+  display: none !important;
+}
+.gantt-export-active {
+  scrollbar-width: none !important;
+}
+
+/* 显示精美专业导出页眉 */
+.gantt-export-active .project-gantt__export-header {
+  display: flex !important;
+  justify-content: space-between;
+  align-items: flex-end;
+  width: 100%;
+  padding-bottom: 20px;
+  margin-bottom: 24px;
+}
+
+.project-gantt__export-header {
+  display: none;
+}
+
+.project-gantt__export-header-left {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project-gantt__export-header-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.project-gantt__export-header-title {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 800;
+}
+
+.project-gantt__export-header-info {
+  display: flex;
+  gap: 24px;
+  margin-top: 8px;
+}
+
+.project-gantt__export-header-info-item {
+  font-size: 0.84rem;
+}
+
+.project-gantt__export-header-right {
+  display: flex;
+  align-items: flex-end;
+}
+
+.project-gantt__export-header-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  font-size: 0.76rem;
+}
+
+/* 统一主网格边框与纯实色背景，使用 CSS 变量自适应主题色彩 */
+.gantt-export-active .project-gantt__body {
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  height: auto !important;
+  width: max-content !important;
+  background: var(--panel-bg) !important;
+  border: 1px solid var(--border-soft) !important;
+}
+
+.gantt-export-active .project-gantt__sidebar {
+  border-right: 1px solid var(--border-soft) !important;
+}
+
+.gantt-export-active .project-gantt__sidebar-row,
+.gantt-export-active .project-gantt__track {
+  background: var(--panel-bg) !important;
+  border-bottom: 1px solid var(--border-soft) !important;
+}
+
+.gantt-export-active .project-gantt__sidebar-head,
+.gantt-export-active .project-gantt__sidebar-top-spacer,
+.gantt-export-active .project-gantt__axis-scroll {
+  background: var(--dialog-control-bg) !important;
+  border-bottom: 1px solid var(--border-soft) !important;
+}
+
+.gantt-export-active .project-gantt__axis-cell {
+  background: var(--dialog-control-bg) !important;
+  border-right: 1px solid var(--border-soft) !important;
+}
+
+/* 导出专用页眉文本颜色适配 */
+.gantt-export-active .project-gantt__export-header-eyebrow {
+  color: var(--accent-start) !important;
+}
+
+.gantt-export-active .project-gantt__export-header-title {
+  color: var(--text-main) !important;
+}
+
+.gantt-export-active .project-gantt__export-header-info-item {
+  color: var(--text-soft) !important;
+}
+
+.gantt-export-active .project-gantt__export-header-info-item strong {
+  color: var(--text-main) !important;
+}
+
+.gantt-export-active .project-gantt__export-header-meta {
+  color: var(--text-muted) !important;
+}
+
+.gantt-export-active .project-gantt__export-header-meta strong {
+  color: var(--text-soft) !important;
+}
+
+/* ==================== 浅色主题导出色彩配置 ==================== */
+html:not(.dark) .gantt-export-active {
+  background: #eaf0f7 !important;
+  
+  /* 将状态背景和边框颜色实色化，彻底解决 html2canvas 无法渲染 color-mix 产生的渲染失效 */
+  --work-status-pending-color: #6a7c96 !important;
+  --work-status-pending-bg: #f0f4f9 !important;
+  --work-status-pending-strong: #a3b2c4 !important;
+  --work-status-pending-contrast: #102038 !important;
+
+  --work-status-active-color: #0a66ff !important;
+  --work-status-active-bg: #ebf2ff !important;
+  --work-status-active-strong: #0a66ff !important;
+  --work-status-active-contrast: #ffffff !important;
+
+  --work-status-done-color: #00d27f !important;
+  --work-status-done-bg: #ebfbf5 !important;
+  --work-status-done-strong: #12d587 !important;
+  --work-status-done-contrast: #052116 !important;
+
+  --work-status-delayed-color: #ff9f43 !important;
+  --work-status-delayed-bg: #fffaf4 !important;
+  --work-status-delayed-strong: #ffa752 !important;
+  --work-status-delayed-contrast: #402000 !important;
+}
+
+html:not(.dark) .gantt-export-active .project-gantt__export-header {
+  border-bottom: 2px solid #cbd5e1 !important;
+}
+
+html:not(.dark) .gantt-export-active .project-gantt__sidebar-branch-line {
+  background: #cbd5e1 !important;
+}
+
+html:not(.dark) .gantt-export-active .project-gantt__sidebar-branch-dot {
+  background: #0a66ff !important;
+}
+
+/* ==================== 暗色主题导出色彩配置 ==================== */
+html.dark .gantt-export-active {
+  background: #060916 !important;
+
+  /* 暗色模式状态背景实色化 */
+  --work-status-pending-color: #a6b3cb !important;
+  --work-status-pending-bg: #232a3b !important;
+  --work-status-pending-strong: #7b89a8 !important;
+  --work-status-pending-contrast: #edf3ff !important;
+
+  --work-status-active-color: #67b7ff !important;
+  --work-status-active-bg: #1c2b3e !important;
+  --work-status-active-strong: #67b7ff !important;
+  --work-status-active-contrast: #04101f !important;
+
+  --work-status-done-color: #61dfa1 !important;
+  --work-status-done-bg: #1d362d !important;
+  --work-status-done-strong: #61dfa1 !important;
+  --work-status-done-contrast: #041b12 !important;
+
+  --work-status-delayed-color: #ffbe63 !important;
+  --work-status-delayed-bg: #3c3226 !important;
+  --work-status-delayed-strong: #ffbe63 !important;
+  --work-status-delayed-contrast: #261300 !important;
+}
+
+html.dark .gantt-export-active .project-gantt__export-header {
+  border-bottom: 2px solid #1e293b !important;
+}
+
+html.dark .gantt-export-active .project-gantt__sidebar-branch-line {
+  background: #1e293b !important;
+}
+
+html.dark .gantt-export-active .project-gantt__sidebar-branch-dot {
+  background: #7cd3ff !important;
+}
+
+/* ==================== 布局与交互控制 ==================== */
+/* 隐藏头部工具栏与控制按钮，只保留图表主体 */
+.gantt-export-active .project-gantt__toolbar {
+  display: none !important;
+}
+
+.gantt-export-active .project-gantt__sidebar-add-button {
+  display: none !important;
+}
+
+/* 隐藏“创建/添加子任务”等编辑交互行，避免类似截图 */
+.gantt-export-active .project-gantt__sidebar-row--subtask-create,
+.gantt-export-active .project-gantt__row--subtask-create {
+  display: none !important;
+}
+
+/* 隐藏行内所有的操作交互按钮与拖拽手柄 */
+.gantt-export-active .project-gantt__sidebar-node-actions,
+.gantt-export-active .project-gantt__sidebar-subtask-actions,
+.gantt-export-active .project-gantt__sidebar-drag-handle,
+.gantt-export-active .project-gantt__resize-handle {
+  display: none !important;
+}
+
+.gantt-export-active .project-gantt__body-scroll {
+  max-height: none !important;
+  overflow: visible !important;
+  height: auto !important;
+  box-shadow: none !important;
+  border: none !important;
+}
+
+.gantt-export-active .project-gantt__sidebar-scroll {
+  max-height: none !important;
+  overflow: visible !important;
+  height: auto !important;
+}
+
+.gantt-export-active .project-gantt__timeline-scroll {
+  max-height: none !important;
+  overflow: visible !important;
+  width: auto !important;
+  height: auto !important;
+}
+
+.gantt-export-active .project-gantt__top-scroll {
+  display: none !important;
+}
+
+.project-gantt__export-img-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--gradient-primary) !important;
+  color: var(--text-inverse) !important;
+  border: none !important;
+  box-shadow: 0 4px 12px rgba(10, 102, 255, 0.2) !important;
+}
+
+.project-gantt__export-img-btn:hover:not(:disabled) {
+  filter: brightness(1.1);
+  box-shadow: 0 6px 18px rgba(10, 102, 255, 0.3) !important;
 }
 </style>
