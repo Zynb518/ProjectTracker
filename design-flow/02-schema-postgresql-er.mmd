@@ -97,6 +97,22 @@ erDiagram
         int sequence_no
     }
 
+    device {
+        bigint id PK
+        varchar name
+        text description
+        timestamptz created_at
+        timestamptz updated_at
+    }
+
+    device_usage_log {
+        bigint id PK
+        bigint device_id FK
+        bigint user_id FK
+        varchar purpose
+        timestamptz created_at
+    }
+
     sys_user ||--o{ project : owns
     sys_user ||--o{ project : creates
     project ||--o{ project_member : has
@@ -114,3 +130,6 @@ erDiagram
     sys_user ||--o{ sub_task_progress : operates
 
     project_template ||--o{ project_template_node : contains
+
+    device ||--o{ device_usage_log : records
+    sys_user ||--o{ device_usage_log : operates

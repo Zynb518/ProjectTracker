@@ -2391,7 +2391,66 @@ HTTP `503`
 - 数据库不可用时返回 HTTP `503`
 - 该接口返回 `503` 时，表示服务暂不适合接收真实业务流量
 
-## 18. 下一步建议
+## 18. 设备与使用日志管理接口
+
+### 18.1 新增设备
+
+**Method**
+
+`POST`
+
+**Path**
+
+`/api/devices`
+
+**Body**
+
+```json
+{
+  "name": "MacBook Pro 16",
+  "description": "开发用机"
+}
+```
+
+### 18.2 获取设备列表
+
+**Method**
+
+`GET`
+
+**Path**
+
+`/api/devices`
+
+### 18.3 提交设备使用记录
+
+**Method**
+
+`POST`
+
+**Path**
+
+`/api/devices/{device_id}/logs`
+
+**Body**
+
+```json
+{
+  "purpose": "打印测试报告"
+}
+```
+
+### 18.4 获取设备使用记录
+
+**Method**
+
+`GET`
+
+**Path**
+
+`/api/devices/{device_id}/logs`
+
+## 19. 下一步建议
 
 接口设计定稿后，建议按以下顺序进入实现阶段：
 

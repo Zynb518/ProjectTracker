@@ -84,7 +84,8 @@ Project-Tracker/
 │     ├─ project/               # 项目模块，如项目增删改查与状态管理
 │     ├─ project_member/        # 项目成员模块，如添加成员、移除成员、成员列表
 │     ├─ phase/                 # 阶段节点模块，如阶段顺序、时间区间、状态管理
-│     └─ task/                  # 子任务模块，如任务分配、进度更新、查询视图
+│     ├─ task/                  # 子任务模块，如任务分配、进度更新、查询视图
+│     └─ device_log/            # 设备使用记录模块，如借用、归还、状态管理
 ├─ tests/                       # 测试代码目录
 │  ├─ unit/                     # 单元测试，主要覆盖规则与服务逻辑
 │  ├─ integration/              # 集成测试，主要覆盖 DB、Repository、接口联动
@@ -158,7 +159,8 @@ Project-Tracker/
 │     ├─ project/               # 项目主体相关业务
 │     ├─ project_member/        # 项目成员关系相关业务
 │     ├─ phase/                 # 阶段节点相关业务
-│     └─ task/                  # 子任务与进度相关业务
+│     ├─ task/                  # 子任务与进度相关业务
+│     └─ device_log/            # 设备与使用日志相关业务
 ├─ tests/                       # 测试代码目录
 │  ├─ unit/                     # 单元测试
 │  ├─ integration/              # 集成测试
