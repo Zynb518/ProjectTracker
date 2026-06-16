@@ -32,6 +32,9 @@ add_executable(
     modules/user/controller/UserController.cpp
     modules/user/repository/UserRepository.cpp
     modules/user/service/UserService.cpp
+    modules/device_log/controller/DeviceController.cpp
+    modules/device_log/repository/DeviceRepository.cpp
+    modules/device_log/service/DeviceService.cpp
         http/RequestLogging.cpp
 )
 

@@ -2412,6 +2412,14 @@ HTTP `503`
 }
 ```
 
+**Success `data`**
+
+```json
+{
+  "id": 1
+}
+```
+
 ### 18.2 获取设备列表
 
 **Method**
@@ -2421,6 +2429,25 @@ HTTP `503`
 **Path**
 
 `/api/devices`
+
+**Success `data`**
+
+```json
+{
+  "list": [
+    {
+      "id": 1,
+      "name": "MacBook Pro 16",
+      "description": "开发用机",
+      "created_at": "2026-06-16T10:00:00+08:00",
+      "updated_at": "2026-06-16T10:00:00+08:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 10
+}
+```
 
 ### 18.3 提交设备使用记录
 
@@ -2440,6 +2467,24 @@ HTTP `503`
 }
 ```
 
+**Success `data`**
+
+```json
+{
+  "id": 101
+}
+```
+
+**Failure Example** (设备不存在)
+
+```json
+{
+  "code": 40401,
+  "message": "设备不存在",
+  "data": null
+}
+```
+
 ### 18.4 获取设备使用记录
 
 **Method**
@@ -2449,6 +2494,52 @@ HTTP `503`
 **Path**
 
 `/api/devices/{device_id}/logs`
+
+**Success `data`**
+
+```json
+{
+  "list": [
+    {
+      "id": 101,
+      "device_id": 1,
+      "user_id": 42,
+      "operator_name": "张三",
+      "purpose": "打印测试报告",
+      "created_at": "2026-06-16T10:30:00+08:00"
+    }
+  ],
+  "total": 1,
+  "page": 1,
+  "page_size": 10
+}
+```
+
+### 18.5 删除设备
+
+**Method**
+
+`DELETE`
+
+**Path**
+
+`/api/devices/{device_id}`
+
+**Success `data`**
+
+```json
+null
+```
+
+**Failure Example** (设备不存在)
+
+```json
+{
+  "code": 40401,
+  "message": "设备不存在",
+  "data": null
+}
+```
 
 ## 19. 下一步建议
 

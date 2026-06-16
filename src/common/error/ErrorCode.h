@@ -22,6 +22,7 @@ namespace project_tracker::common::error {
         ProjectMemberNotFound = 40404, // 项目成员不存在
         PhaseNotFound = 40405, // 阶段节点不存在
         SubTaskNotFound = 40406, // 子任务不存在
+        DeviceNotFound = 40407, // 设备不存在
 
         // 409xx：业务规则冲突
         UsernameAlreadyExists = 40901, // 用户名已存在
