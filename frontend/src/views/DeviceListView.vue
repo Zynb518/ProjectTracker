@@ -7,6 +7,7 @@ import { useNotificationStore } from '@/stores/notifications'
 import type { Device, DeviceUsageLog } from '@/types/device'
 import { formatDisplayDateTime } from '@/utils/display'
 import { getTotalPages, getVisiblePages } from '@/utils/pagination'
+import { exportToCSV } from '@/utils/export'
 
 const notificationStore = useNotificationStore()
 
@@ -140,6 +141,50 @@ async function changeLogPage(page: number) {
   await loadDeviceLogs(currentDeviceId.value, page)
 }
 
+const isExportingLogs = ref(false)
+
+async function exportDeviceLogs() {
+  if (!currentDeviceId.value) return
+  isExportingLogs.value = true
+  try {
+    const response = await deviceApi.getDeviceLogs(currentDeviceId.value, 1, 100)
+    let allLogs = [...response.list]
+    const total = response.total
+    
+    if (total > 100) {
+      const extraPagesCount = Math.ceil(total / 100) - 1
+      const promises = []
+      for (let i = 0; i < extraPagesCount; i++) {
+        const page = i + 2
+        promises.push(deviceApi.getDeviceLogs(currentDeviceId.value, page, 100))
+      }
+      const extraResponses = await Promise.all(promises)
+      for (const res of extraResponses) {
+        allLogs.push(...res.list)
+      }
+    }
+    
+    allLogs.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+
+    const headers = ['操作人', '使用目的', '登记时间']
+    const rows = allLogs.map(log => [
+      log.operator_name || '未知',
+      log.purpose || '',
+      formatDisplayDateTime(log.created_at)
+    ])
+    
+    exportToCSV(
+      headers,
+      rows,
+      `设备[${currentDeviceName.value}]使用记录_${new Date().toISOString().split('T')[0]}.csv`
+    )
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '导出设备记录失败'))
+  } finally {
+    isExportingLogs.value = false
+  }
+}
+
 onMounted(loadDevices)
 </script>
 
@@ -259,7 +304,22 @@ onMounted(loadDevices)
       <div class="modal__content">
         <div class="modal__header">
           <h3>[{{ currentDeviceName }}] 使用记录</h3>
-          <button class="modal__close" @click="historyDialogOpen = false">×</button>
+          <div style="display: flex; align-items: center; gap: 12px;">
+            <button
+              class="device-card__action"
+              style="padding: 6px 16px; border-radius: 20px; font-size: 0.85rem; background: var(--gradient-primary); border: none; color: var(--text-inverse); box-shadow: 0 6px 16px rgba(10, 102, 255, 0.16);"
+              :disabled="isExportingLogs"
+              @click="exportDeviceLogs"
+            >
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              {{ isExportingLogs ? '正在导出...' : '导出记录 (CSV)' }}
+            </button>
+            <button class="modal__close" @click="historyDialogOpen = false">×</button>
+          </div>
         </div>
         <div class="modal__body">
           <div v-if="isLogsLoading" class="modal__loading">加载中...</div>

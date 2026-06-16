@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { getWorkStatusLabel, formatDisplayDateTime } from '@/utils/display'
+import { exportToCSV } from '@/utils/export'
 import { storeToRefs } from 'pinia'
 import { useRoute } from 'vue-router'
 
@@ -1055,6 +1057,76 @@ async function openHistoryDrawer(subtaskId: number) {
     notificationStore.notifyError(getErrorMessage(error, '任务历史加载失败'))
   }
 }
+
+const isExportingFlow = ref(false)
+
+async function exportProjectFlow() {
+  if (!project.value || !nodes.value) return
+  isExportingFlow.value = true
+  try {
+    const allSubtasksPromises = nodes.value.map(node =>
+      listNodeSubtasks(projectId, node.id, {})
+    )
+    const subtaskResults = await Promise.all(allSubtasksPromises)
+
+    const headers = [
+      '类型',
+      '阶段/任务名称',
+      '描述',
+      '计划开始日期',
+      '计划结束日期',
+      '状态',
+      '负责人',
+      '优先级',
+      '完成时间',
+    ]
+
+    const rows: string[][] = []
+
+    const getPriorityLabel = (p: number) => {
+      if (p === 1) return '低'
+      if (p === 2) return '中'
+      if (p === 3) return '高'
+      return '未设定'
+    }
+
+    nodes.value.forEach((node, index) => {
+      rows.push([
+        '阶段节点',
+        node.name,
+        node.description || '',
+        node.planned_start_date || '',
+        node.planned_end_date || '',
+        getWorkStatusLabel(node.status),
+        '',
+        '',
+        node.completed_at ? formatDisplayDateTime(node.completed_at) : '',
+      ])
+
+      const nodeSubtasks = subtaskResults[index]?.list || []
+      nodeSubtasks.forEach(subtask => {
+        rows.push([
+          '  └─ 子任务',
+          subtask.name,
+          subtask.description || '',
+          subtask.planned_start_date || '',
+          subtask.planned_end_date || '',
+          getWorkStatusLabel(subtask.status),
+          subtask.responsible_real_name || '未分配',
+          getPriorityLabel(subtask.priority),
+          subtask.completed_at ? formatDisplayDateTime(subtask.completed_at) : '',
+        ])
+      })
+    })
+
+    const filename = `项目流程[${project.value.name}]_${new Date().toISOString().split('T')[0]}.csv`
+    exportToCSV(headers, rows, filename)
+  } catch (error) {
+    notificationStore.notifyError(getErrorMessage(error, '导出项目流程失败'))
+  } finally {
+    isExportingFlow.value = false
+  }
+}
 </script>
 
 <template>
@@ -1072,23 +1144,39 @@ async function openHistoryDrawer(subtaskId: number) {
 
       <ProjectHero :project="project" />
 
-      <section class="project-detail__view-switch" aria-label="项目详情视图">
-        <button
-          :class="['project-detail__view-button', { 'is-active': isWorkspaceView }]"
-          type="button"
-          @click="switchView('workspace')"
-        >
-          工作区
-        </button>
+      <div class="project-detail__actions-row">
+        <section class="project-detail__view-switch" aria-label="项目详情视图">
+          <button
+            :class="['project-detail__view-button', { 'is-active': isWorkspaceView }]"
+            type="button"
+            @click="switchView('workspace')"
+          >
+            工作区
+          </button>
+
+          <button
+            :class="['project-detail__view-button', { 'is-active': !isWorkspaceView }]"
+            type="button"
+            @click="switchView('gantt')"
+          >
+            甘特图
+          </button>
+        </section>
 
         <button
-          :class="['project-detail__view-button', { 'is-active': !isWorkspaceView }]"
+          class="project-detail__export-button"
           type="button"
-          @click="switchView('gantt')"
+          :disabled="isExportingFlow"
+          @click="exportProjectFlow"
         >
-          甘特图
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-right: 6px;">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="7 10 12 15 17 10"></polyline>
+            <line x1="12" y1="15" x2="12" y2="3"></line>
+          </svg>
+          {{ isExportingFlow ? '正在导出流程...' : '导出项目流程 (CSV)' }}
         </button>
-      </section>
+      </div>
 
       <div v-if="isWorkspaceView" class="project-detail__workspace-card" data-testid="project-workspace-card">
           <div class="project-detail__workspace-rail">
@@ -1451,5 +1539,42 @@ async function openHistoryDrawer(subtaskId: number) {
   .project-detail__placeholder {
     min-height: 420px;
   }
+}
+
+.project-detail__actions-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.project-detail__export-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  padding: 0 20px;
+  border: 1px solid var(--border-soft);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--panel-bg) 88%, transparent);
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  backdrop-filter: var(--backdrop-blur);
+  box-shadow: var(--meta-surface-shadow);
+  transition: all 0.2s ease-out;
+}
+
+.project-detail__export-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  border-color: var(--accent-line);
+  box-shadow: var(--shadow-panel-hover);
+  background: color-mix(in srgb, var(--panel-bg) 95%, transparent);
+}
+
+.project-detail__export-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 </style>
