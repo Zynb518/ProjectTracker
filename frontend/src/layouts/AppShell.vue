@@ -99,6 +99,23 @@ async function handleBeginnerTutorial() {
           <span>用户管理</span>
         </RouterLink>
 
+        <RouterLink class="app-shell__link" to="/devices">
+          <span class="app-shell__link-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M5 8h14M5 16h14M8 4v4m8-4v4m-8 8v4m8-4v4"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              />
+              <rect x="3" y="8" width="18" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" />
+            </svg>
+          </span>
+          <span>设备列表</span>
+        </RouterLink>
+
         <button
           class="app-shell__link app-shell__link-button"
           data-testid="sidebar-beginner-tutorial"

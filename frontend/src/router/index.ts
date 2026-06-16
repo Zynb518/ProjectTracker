@@ -53,6 +53,11 @@ export function createAppRouter(pinia: Pinia = appPinia) {
               requiresAdmin: true,
             },
           },
+          {
+            path: 'devices',
+            name: 'devices',
+            component: () => import('@/views/DeviceListView.vue'),
+          },
         ],
       },
     ],

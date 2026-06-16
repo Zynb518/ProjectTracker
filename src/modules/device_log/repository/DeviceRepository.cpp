@@ -164,7 +164,7 @@ namespace project_tracker::modules::device_log::repository {
                     SELECT
                         l.id, l.device_id, l.user_id, l.purpose,
                         to_char(l.created_at, 'YYYY-MM-DD"T"HH24:MI:SSOF') as created_at_str,
-                        u.name as operator_name
+                        u.real_name as operator_name
                     FROM device_usage_log l
                     LEFT JOIN sys_user u ON l.user_id = u.id
                     WHERE l.device_id = $1
