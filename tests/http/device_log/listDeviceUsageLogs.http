@@ -1,0 +1,33 @@
+@baseUrl = http://127.0.0.1:8080
+@adminUsername = admin
+@password = 123456
+
+### 正常路径：管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常路径：获取设备使用记录列表（注意：如果设备ID不为1，请自行替换）
+GET {{baseUrl}}/api/devices/1/logs?page=1&page_size=10
+
+### 正常路径：获取设备使用记录列表（缺省分页参数，默认page=1, page_size=10）
+GET {{baseUrl}}/api/devices/1/logs
+
+### 异常路径：获取不存在的设备的使用记录，预期 404
+GET {{baseUrl}}/api/devices/999999/logs?page=1&page_size=10
+
+### 异常路径：page_size 参数格式错误，预期 400
+GET {{baseUrl}}/api/devices/1/logs?page=1&page_size=-1
+
+### 正常路径：管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 异常路径：未登录获取设备使用记录列表，预期 401
+GET {{baseUrl}}/api/devices/1/logs
