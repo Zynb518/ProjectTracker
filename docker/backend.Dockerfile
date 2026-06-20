@@ -5,8 +5,10 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y libargon2-dev
 
-# 拷贝源码
-COPY . .
+# 拷贝后端必需的源码和配置文件，防止前端代码修改破坏后端编译缓存
+COPY CMakeLists.txt ./
+COPY src/ ./src/
+COPY config/ ./config/
 
 # 直接编译
 # 官方镜像可能没有 NINJA, 使用默认的MAKEFILE
