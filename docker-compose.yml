@@ -48,6 +48,8 @@ services:
       context: .
       dockerfile: docker/frontend.Dockerfile
     container_name: tracker-frontend-run
+    depends_on:
+      - backend
     ports:
       - "80:80"
     volumes:
