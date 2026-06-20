@@ -98,11 +98,11 @@ function emitGanttOrigin(event: MouseEvent) {
 <template>
   <section :class="['project-filters', { 'project-filters--embedded': embedded }]">
     <label class="project-filters__field">
-      <span>项目关键字</span>
+      <span>工单关键字</span>
       <input
         :value="keyword"
         class="project-filters__input"
-        placeholder="按项目名称搜索"
+        placeholder="按工单标题/分类搜索"
         type="text"
         @input="updateKeyword"
         @keydown.enter.prevent="submitKeyword"
@@ -110,8 +110,8 @@ function emitGanttOrigin(event: MouseEvent) {
     </label>
 
     <div class="project-filters__field">
-      <span>项目状态</span>
-      <div class="project-filters__status-bar" role="group" aria-label="项目状态">
+      <span>工单状态</span>
+      <div class="project-filters__status-bar" role="group" aria-label="工单状态">
         <button
           v-for="option in statusOptions"
           :key="option.value || 'all'"
@@ -133,7 +133,7 @@ function emitGanttOrigin(event: MouseEvent) {
     <div class="project-filters__actions" data-tutorial-target="project-create-actions">
       <button
         type="button"
-        aria-label="AI 创建项目"
+        aria-label="AI 自动生成工单"
         class="project-filters__ai-create"
         data-tutorial-target="project-ai-create"
         data-testid="open-ai-project-create"
@@ -145,7 +145,7 @@ function emitGanttOrigin(event: MouseEvent) {
 
       <button
         type="button"
-        aria-label="打开项目甘特图"
+        aria-label="打开工单甘特图"
         class="project-filters__overview"
         data-testid="open-project-gantt"
         @click="emitGanttOrigin"
@@ -160,16 +160,16 @@ function emitGanttOrigin(event: MouseEvent) {
             stroke-width="1.8"
           />
         </svg>
-        <span>项目甘特图</span>
+        <span>工单甘特图</span>
       </button>
 
       <button
         type="button"
         data-testid="create-project"
-        aria-label="新建项目"
+        aria-label="新建工单"
         class="project-filters__create"
         data-tutorial-target="project-manual-create"
-        data-tooltip="新建项目"
+        data-tooltip="新建工单"
         @click="emitCreateOrigin"
       >
         <svg aria-hidden="true" class="project-filters__create-icon" viewBox="0 0 24 24">

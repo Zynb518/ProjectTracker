@@ -45,8 +45,8 @@ async function handleBeginnerTutorial() {
           <span />
         </div>
         <div>
-          <p class="app-shell__eyebrow">Project Tracker</p>
-          <h1>项目台</h1>
+          <p class="app-shell__eyebrow">Operations Ticket</p>
+          <h1>工单台</h1>
         </div>
       </div>
 
@@ -63,7 +63,7 @@ async function handleBeginnerTutorial() {
               />
             </svg>
           </span>
-          <span>项目列表</span>
+          <span>工单大厅</span>
         </RouterLink>
         <RouterLink class="app-shell__link" to="/my-tasks">
           <span class="app-shell__link-icon" aria-hidden="true">
@@ -77,7 +77,7 @@ async function handleBeginnerTutorial() {
               />
             </svg>
           </span>
-          <span>我的任务</span>
+          <span>我的待办</span>
         </RouterLink>
         <RouterLink
           v-if="authStore.currentUser?.system_role === 1"
@@ -113,7 +113,7 @@ async function handleBeginnerTutorial() {
               <rect x="3" y="8" width="18" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" />
             </svg>
           </span>
-          <span>设备列表</span>
+          <span>运维资产</span>
         </RouterLink>
 
         <button

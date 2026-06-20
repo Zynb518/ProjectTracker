@@ -16,6 +16,7 @@ import {
   startProject,
   updateProject,
 } from '@/api/projects'
+import { createProjectNode } from '@/api/nodes'
 import { getErrorMessage } from '@/api/http'
 import { useBeginnerTutorialStore } from '@/stores/beginnerTutorial'
 import { useNotificationStore } from '@/stores/notifications'
@@ -234,6 +235,33 @@ async function submitProject(payload: ProjectFormPayload) {
         await router.push(`/projects/${createdProject.id}`)
         return
       }
+
+      // 自动注入运维工单的标准节点流程
+      if (createdProject.id !== undefined) {
+        const defaultNodes = [
+          {
+            name: '部门审批阶段',
+            description: '省市各层级部门对发起的运维工单进行逐层审批。',
+            planned_start_date: payload.planned_start_date,
+            planned_end_date: payload.planned_end_date,
+          },
+          {
+            name: '派单执行阶段',
+            description: '审批通过后，将任务派发至操作单位或执行人。',
+            planned_start_date: payload.planned_start_date,
+            planned_end_date: payload.planned_end_date,
+          },
+          {
+            name: '现场回单阶段',
+            description: '操作人员现场处理完毕后填写执行说明进行回单。',
+            planned_start_date: payload.planned_start_date,
+            planned_end_date: payload.planned_end_date,
+          },
+        ]
+        for (const defaultNode of defaultNodes) {
+          await createProjectNode(createdProject.id, defaultNode)
+        }
+      }
     } else if (editingProjectId.value !== null) {
       await updateProject(editingProjectId.value, payload)
     }
@@ -241,7 +269,7 @@ async function submitProject(payload: ProjectFormPayload) {
     dialogOpen.value = false
     await loadProjects(pagination.page)
   } catch (error) {
-    notificationStore.notifyError(getErrorMessage(error, '项目保存失败'))
+    notificationStore.notifyError(getErrorMessage(error, '工单保存失败'))
   }
 }
 
@@ -327,12 +355,12 @@ onMounted(loadProjects)
     <section class="project-list__hero-shell" data-testid="project-list-hero-shell">
       <header class="project-list__hero">
         <div>
-          <p class="project-list__eyebrow">Portfolio Console</p>
-          <h2>项目总览</h2>
+          <p class="project-list__eyebrow">Operations Console</p>
+          <h2>工单大厅</h2>
         </div>
 
         <p class="project-list__copy">
-          在这里统一筛选项目、拉起项目详情工作台，并对项目生命周期执行基础动作。
+          在此统一流转并处理运维工单、发起新申请，并跟踪各阶段的执行情况。
         </p>
       </header>
 
@@ -352,10 +380,10 @@ onMounted(loadProjects)
     </section>
 
     <p v-if="isLoading && projects.length === 0" class="project-list__state loading-panel">
-      项目列表加载中...
+      工单列表加载中...
     </p>
     <p v-else-if="!isLoading && !hasLoadError && projects.length === 0" class="project-list__state">
-      当前没有匹配的项目。
+      当前没有匹配的运维工单。
     </p>
 
     <p
@@ -363,7 +391,7 @@ onMounted(loadProjects)
       aria-live="polite"
       class="project-list__refreshing"
     >
-      项目列表刷新中...
+      工单列表刷新中...
     </p>
 
     <ProjectGrid
@@ -381,7 +409,7 @@ onMounted(loadProjects)
       v-if="pagination.total > 0"
       class="project-list__pagination"
     >
-      <p class="project-list__pagination-summary">共 {{ pagination.total }} 个项目</p>
+      <p class="project-list__pagination-summary">共 {{ pagination.total }} 个工单</p>
 
       <div class="project-list__pagination-controls">
         <button

@@ -789,7 +789,36 @@ async function handleRemoveSubtask(subtaskId: number) {
   }
 }
 
+function checkNodeSequence(currentNodeId: number, targetAction: 'start' | 'complete' | 'reopen'): boolean {
+  const sortedNodes = nodes.value
+  const currentIndex = sortedNodes.findIndex((n) => n.id === currentNodeId)
+  if (currentIndex === -1) {
+    return true
+  }
+
+  if (targetAction === 'start' || targetAction === 'complete') {
+    // 开始或完成时，前置节点必须为“已完成（status = 3）”
+    for (let i = 0; i < currentIndex; i++) {
+      if (sortedNodes[i].status !== 3) {
+        notificationStore.notifyError(`流转拦截：前置阶段「${sortedNodes[i].name}」尚未完成，工单必须按顺序逐级审批流转！`)
+        return false
+      }
+    }
+  } else if (targetAction === 'reopen') {
+    // 撤销完成时，后置节点不能已开始或已完成（即 status 不能为 2 或 3）
+    for (let i = currentIndex + 1; i < sortedNodes.length; i++) {
+      if (sortedNodes[i].status === 2 || sortedNodes[i].status === 3) {
+        notificationStore.notifyError(`撤销拦截：后置阶段「${sortedNodes[i].name}」已经开始或已完成，无法撤销当前节点！`)
+        return false
+      }
+    }
+  }
+
+  return true
+}
+
 async function handleStartNode(nodeId: number) {
+  if (!checkNodeSequence(nodeId, 'start')) return
   try {
     await startProjectNode(projectId, nodeId)
     await refreshWorkspace()
@@ -799,6 +828,7 @@ async function handleStartNode(nodeId: number) {
 }
 
 async function handleCompleteNode(nodeId: number) {
+  if (!checkNodeSequence(nodeId, 'complete')) return
   try {
     await completeProjectNode(projectId, nodeId)
     await refreshWorkspace()
@@ -808,6 +838,7 @@ async function handleCompleteNode(nodeId: number) {
 }
 
 async function handleReopenNode(nodeId: number) {
+  if (!checkNodeSequence(nodeId, 'reopen')) return
   try {
     await reopenProjectNode(projectId, nodeId)
     await refreshWorkspace()
@@ -911,6 +942,7 @@ async function handleGanttRemoveNode(nodeId: number) {
 }
 
 async function handleGanttStartNode(nodeId: number) {
+  if (!checkNodeSequence(nodeId, 'start')) return
   try {
     await startProjectNode(projectId, nodeId)
     await loadProjectGantt(true)
@@ -923,6 +955,7 @@ async function handleGanttStartNode(nodeId: number) {
 }
 
 async function handleGanttCompleteNode(nodeId: number) {
+  if (!checkNodeSequence(nodeId, 'complete')) return
   try {
     await completeProjectNode(projectId, nodeId)
     await loadProjectGantt(true)
@@ -935,6 +968,7 @@ async function handleGanttCompleteNode(nodeId: number) {
 }
 
 async function handleGanttReopenNode(nodeId: number) {
+  if (!checkNodeSequence(nodeId, 'reopen')) return
   try {
     await reopenProjectNode(projectId, nodeId)
     await loadProjectGantt(true)

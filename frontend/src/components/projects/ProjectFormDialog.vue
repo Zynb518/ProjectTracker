@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 
 import type { ProjectFormPayload } from '@/types/project'
 
@@ -22,6 +22,8 @@ const emit = defineEmits<{
   submit: [payload: ProjectFormPayload]
 }>()
 
+const ticketType = ref('故障')
+
 const form = reactive<ProjectFormPayload>({
   name: '',
   description: '',
@@ -32,7 +34,14 @@ const form = reactive<ProjectFormPayload>({
 watch(
   () => props.initialValue,
   (value) => {
-    form.name = value.name
+    const match = value.name.match(/^【(.*?)】(.*)$/)
+    if (match) {
+      ticketType.value = match[1]
+      form.name = match[2]
+    } else {
+      ticketType.value = '故障'
+      form.name = value.name
+    }
     form.description = value.description
     form.planned_start_date = value.planned_start_date
     form.planned_end_date = value.planned_end_date
@@ -58,8 +67,12 @@ function close() {
 }
 
 function submit() {
+  let finalName = form.name.trim()
+  if (props.mode === 'create' && !finalName.startsWith('【')) {
+    finalName = `【${ticketType.value}】${finalName}`
+  }
   emit('submit', {
-    name: form.name,
+    name: finalName,
     description: form.description,
     planned_start_date: form.planned_start_date,
     planned_end_date: form.planned_end_date,
@@ -75,31 +88,41 @@ function submit() {
       <section class="project-dialog" data-tutorial-target="project-form-dialog">
         <header class="project-dialog__header">
           <div>
-            <p class="project-dialog__eyebrow">项目操作</p>
-            <h2>{{ mode === 'create' ? '新建项目' : '编辑项目' }}</h2>
+            <p class="project-dialog__eyebrow">工单操作</p>
+            <h2>{{ mode === 'create' ? '新建运维工单' : '编辑工单信息' }}</h2>
           </div>
 
           <button type="button" @click="close">关闭</button>
         </header>
 
         <div class="project-dialog__grid">
-          <label>
-            <span>项目名称</span>
-            <input v-model="form.name" type="text" />
+          <label v-if="mode === 'create'">
+            <span>工单类型</span>
+            <select v-model="ticketType" class="project-dialog__select">
+              <option value="故障">故障处理工单</option>
+              <option value="需求">业务需求工单</option>
+              <option value="巡检">日常巡检工单</option>
+              <option value="配置">设备配置工单</option>
+            </select>
           </label>
 
           <label>
-            <span>项目描述</span>
-            <textarea v-model="form.description" rows="4" />
+            <span>工单标题</span>
+            <input v-model="form.name" type="text" placeholder="请输入工单简要标题" />
           </label>
 
           <label>
-            <span>计划开始</span>
+            <span>故障/需求详情</span>
+            <textarea v-model="form.description" rows="4" placeholder="请详细描述维护事项或故障现象" />
+          </label>
+
+          <label>
+            <span>期望开始时间</span>
             <input v-model="form.planned_start_date" type="date" />
           </label>
 
           <label>
-            <span>计划结束</span>
+            <span>期望截止时间</span>
             <input v-model="form.planned_end_date" type="date" />
           </label>
         </div>
@@ -107,7 +130,7 @@ function submit() {
         <footer class="project-dialog__footer">
           <button type="button" @click="close">取消</button>
           <button type="button" class="primary" @click="submit">
-            {{ mode === 'create' ? '创建项目' : '保存修改' }}
+            {{ mode === 'create' ? '提交工单' : '保存修改' }}
           </button>
         </footer>
       </section>
@@ -289,7 +312,8 @@ span {
 }
 
 input,
-textarea {
+textarea,
+select {
   border: 1px solid var(--dialog-control-border);
   border-radius: 8px;
   padding: 12px 14px;
@@ -299,8 +323,19 @@ textarea {
   font: inherit;
 }
 
+select {
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 40px;
+}
+
 input:focus,
-textarea:focus {
+textarea:focus,
+select:focus {
   border-color: var(--accent-line);
   box-shadow: 0 0 0 4px rgba(10, 102, 255, 0.12);
 }
