@@ -2024,4 +2024,11 @@ JOIN project_node pn ON pn.project_id = p.id AND pn.name = est.node_name
 JOIN sys_user responsible_user ON responsible_user.username = est.responsible_username
 JOIN sys_user created_by_user ON created_by_user.username = est.created_by_username;
 
+-- 将已导入的演示项目名称重命名为符合工单系统分类的标题前缀
+UPDATE project SET name = '【需求】官网重构' WHERE name = '官网重构';
+UPDATE project SET name = '【故障】移动端打卡服务异常' WHERE name = '移动端打卡';
+UPDATE project SET name = '【需求】财务报表平台优化' WHERE name = '财务报表平台';
+UPDATE project SET name = '【配置】仓储扫码枪系统配置' WHERE name = '仓储扫码升级';
+UPDATE project SET name = '【需求】人事流程审批线上化' WHERE name = '人事流程优化';
+
 COMMIT;
