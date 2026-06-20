@@ -3330,7 +3330,8 @@ html.dark .gantt-export-active .project-gantt__sidebar-branch-dot {
   height: auto !important;
 }
 
-.gantt-export-active .project-gantt__top-scroll {
+.gantt-export-active .project-gantt__top-scroll,
+.gantt-export-active .project-gantt__sidebar-top-spacer {
   display: none !important;
 }
 
