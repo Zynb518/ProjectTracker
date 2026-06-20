@@ -9,6 +9,7 @@ RUN apt-get update && apt-get install -y libargon2-dev
 COPY CMakeLists.txt ./
 COPY src/ ./src/
 COPY config/ ./config/
+COPY tests/ ./tests/
 
 # 直接编译
 # 官方镜像可能没有 NINJA, 使用默认的MAKEFILE
