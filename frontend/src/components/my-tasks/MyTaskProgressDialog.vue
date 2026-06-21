@@ -97,10 +97,10 @@ function formatRecordTime(value: string) {
 
             <div class="my-task-progress-dialog__chips">
               <span class="my-task-progress-dialog__chip my-task-progress-dialog__chip--project">
-                {{ subtask.project_name || '未归属项目' }}
+                {{ subtask.project_name || '未归属工单' }}
               </span>
               <span class="my-task-progress-dialog__chip my-task-progress-dialog__chip--node">
-                {{ subtask.node_name || '未归属节点' }}
+                {{ subtask.node_name || '未归属阶段' }}
               </span>
               <span
                 :class="[

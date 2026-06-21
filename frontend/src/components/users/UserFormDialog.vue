@@ -101,9 +101,9 @@ function submit() {
           <label>
             <span>系统角色</span>
             <select v-model.number="form.system_role">
-              <option :value="1">管理员</option>
-              <option :value="2">项目经理</option>
-              <option :value="3">普通员工</option>
+              <option :value="1">系统管理员</option>
+              <option :value="2">工单审批官</option>
+              <option :value="3">运维工程师</option>
             </select>
           </label>
 

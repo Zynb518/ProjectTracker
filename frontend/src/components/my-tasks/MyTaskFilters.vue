@@ -98,7 +98,7 @@ function handleStatusSelect(value: string) {
     ]"
   >
     <label class="my-task-filters__field">
-      <span>项目名称</span>
+      <span>工单标题</span>
       <div class="my-task-filters__combobox">
         <span class="my-task-filters__input-icon" aria-hidden="true">
           <svg viewBox="0 0 20 20" fill="none">
@@ -115,9 +115,9 @@ function handleStatusSelect(value: string) {
           :value="projectKeyword"
           aria-autocomplete="list"
           :aria-expanded="isCandidateOpen && hasProjectCandidates"
-          aria-label="项目名称筛选"
+          aria-label="工单标题筛选"
           class="my-task-filters__input"
-          placeholder="输入项目名称后按回车，或直接选择候选"
+          placeholder="输入工单标题后按回车，或直接选择候选"
           role="combobox"
           type="text"
           @blur="handleProjectKeywordBlur"
@@ -141,7 +141,7 @@ function handleStatusSelect(value: string) {
           v-if="isCandidateOpen && hasProjectCandidates"
           class="my-task-filters__candidate-panel"
           role="listbox"
-          aria-label="项目候选"
+          aria-label="工单候选"
         >
           <button
             v-for="candidate in projectCandidateItems"

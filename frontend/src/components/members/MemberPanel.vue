@@ -25,7 +25,7 @@ defineEmits<{
   >
     <header>
       <div>
-        <p>项目成员</p>
+        <p>工单协作人</p>
         <span>{{ members.length }} 人</span>
       </div>
       <button
@@ -34,7 +34,7 @@ defineEmits<{
         type="button"
         @click="$emit('add')"
       >
-        添加成员
+        添加协作人
       </button>
     </header>
 

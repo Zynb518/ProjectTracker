@@ -78,7 +78,7 @@ const totalPages = computed(() => getTotalPages(pagination.total, pagination.pag
 const visiblePages = computed(() => getVisiblePages(pagination.page, totalPages.value))
 const ganttFiltersSummary = computed(() => {
   const segments = [
-    filters.keyword.trim() ? `关键字：${filters.keyword.trim()}` : '关键字：全部项目',
+    filters.keyword.trim() ? `关键字：${filters.keyword.trim()}` : '关键字：全部工单',
     filters.status ? `状态：${getStatusLabel(filters.status)}` : '状态：全部状态',
   ]
 
@@ -114,7 +114,7 @@ async function loadProjects(page = pagination.page) {
     pagination.page = response.page
   } catch (error) {
     hasLoadError.value = true
-    notificationStore.notifyError(getErrorMessage(error, '项目列表加载失败'))
+    notificationStore.notifyError(getErrorMessage(error, '工单列表加载失败'))
   } finally {
     isLoading.value = false
   }
@@ -156,7 +156,7 @@ async function loadProjectsForGantt() {
 
     ganttProjects.value = mergedProjects
   } catch (error) {
-    ganttLoadError.value = getErrorMessage(error, '项目甘特图加载失败')
+    ganttLoadError.value = getErrorMessage(error, '工单甘特图加载失败')
   } finally {
     isGanttLoading.value = false
   }
@@ -297,7 +297,7 @@ async function runProjectAction(action: 'start' | 'complete' | 'reopen' | 'remov
       await loadProjectsForGantt()
     }
   } catch (error) {
-    notificationStore.notifyError(getErrorMessage(error, '项目操作失败'))
+    notificationStore.notifyError(getErrorMessage(error, '工单操作失败'))
   }
 }
 

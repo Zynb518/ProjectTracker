@@ -209,9 +209,9 @@ onMounted(loadTasks)
       <header class="my-tasks-view__hero">
         <div>
           <p class="my-tasks-view__eyebrow">Execution Desk</p>
-          <h2>我的任务</h2>
+          <h2>我的待办</h2>
         </div>
-        <p>聚焦当前负责人任务，快速查看所属项目、节点与截止日期。</p>
+        <p>聚焦当前负责人任务，快速查看所属工单、流转阶段与截止日期。</p>
       </header>
 
       <div class="my-tasks-view__hero-filters">

@@ -24,18 +24,18 @@ const subtaskProgress = computed(() =>
   <section class="project-overview-card" data-testid="project-overview-card">
     <div class="project-overview-card__content">
       <div class="project-overview-card__lead">
-        <p class="project-overview-card__eyebrow">Project Overview</p>
+        <p class="project-overview-card__eyebrow">Ticket Overview</p>
         <h2>{{ project.name }}</h2>
         <p class="project-overview-card__description">
-          {{ project.description || '当前项目未填写描述。' }}
+          {{ project.description || '当前工单未填写描述。' }}
         </p>
       </div>
 
       <div class="project-overview-card__metrics">
         <article class="project-overview-card__metric project-overview-card__metric--summary" data-testid="member-summary">
-          <span class="project-overview-card__metric-label">成员</span>
+          <span class="project-overview-card__metric-label">协作人</span>
           <strong class="project-overview-card__metric-value">{{ project.member_count }}</strong>
-          <p class="project-overview-card__metric-caption">当前参与协作</p>
+          <p class="project-overview-card__metric-caption">参与工单协作</p>
         </article>
 
         <article class="project-overview-card__metric project-overview-card__metric--progress">
@@ -50,7 +50,7 @@ const subtaskProgress = computed(() =>
             </div>
           </div>
           <div class="project-overview-card__progress-copy">
-            <span class="project-overview-card__metric-label">阶段节点</span>
+            <span class="project-overview-card__metric-label">流转阶段</span>
             <strong>{{ nodeProgress }}%</strong>
           </div>
         </article>
@@ -67,7 +67,7 @@ const subtaskProgress = computed(() =>
             </div>
           </div>
           <div class="project-overview-card__progress-copy">
-            <span class="project-overview-card__metric-label">子任务</span>
+            <span class="project-overview-card__metric-label">派单任务</span>
             <strong>{{ subtaskProgress }}%</strong>
           </div>
         </article>

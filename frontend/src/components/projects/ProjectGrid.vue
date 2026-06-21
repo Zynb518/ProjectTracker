@@ -40,8 +40,8 @@ defineEmits<{
         </span>
       </div>
 
-      <p class="project-card__description" :title="project.description || '当前项目未填写描述。'">
-        {{ project.description || '当前项目未填写描述。' }}
+      <p class="project-card__description" :title="project.description || '当前工单未填写描述。'">
+        {{ project.description || '当前工单未填写描述。' }}
       </p>
 
       <div class="project-card__body">
@@ -132,8 +132,8 @@ defineEmits<{
               </span>
             </dd>
           </div>
-          <div class="project-card__meta-item" data-tooltip="节点 / 子任务">
-            <dt aria-label="节点 / 子任务">
+          <div class="project-card__meta-item" data-tooltip="流转阶段 / 派单任务">
+            <dt aria-label="流转阶段 / 派单任务">
               <span class="project-card__meta-icon" aria-hidden="true">
                 <svg viewBox="0 0 24 24">
                   <rect

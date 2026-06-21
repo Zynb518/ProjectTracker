@@ -100,8 +100,8 @@ function submit() {
       <section class="subtask-form">
         <header class="subtask-form__header">
           <div>
-            <p class="subtask-form__eyebrow">节点任务</p>
-            <h2>{{ mode === 'edit' ? '编辑子任务' : '新建子任务' }}</h2>
+            <p class="subtask-form__eyebrow">流转阶段派单</p>
+            <h2>{{ mode === 'edit' ? '编辑派单任务' : '新建派单任务' }}</h2>
           </div>
 
           <button type="button" @click="close">关闭</button>
@@ -109,8 +109,8 @@ function submit() {
 
         <div class="subtask-form__grid">
           <label>
-            <span>子任务名称</span>
-            <input v-model="form.name" aria-label="子任务名称" type="text" />
+            <span>派单任务名称</span>
+            <input v-model="form.name" aria-label="派单任务名称" type="text" />
           </label>
 
           <label>
@@ -136,8 +136,8 @@ function submit() {
           </label>
 
           <label class="subtask-form__description">
-            <span>子任务说明</span>
-            <textarea v-model="form.description" aria-label="子任务说明" rows="4" />
+            <span>派单任务说明</span>
+            <textarea v-model="form.description" aria-label="派单任务说明" rows="4" />
           </label>
 
           <label>
@@ -166,7 +166,7 @@ function submit() {
         <footer class="subtask-form__footer">
           <button type="button" @click="close">取消</button>
           <button type="button" class="primary" @click="submit">
-            {{ mode === 'edit' ? '保存子任务' : '创建子任务' }}
+            {{ mode === 'edit' ? '保存派单任务' : '创建派单任务' }}
           </button>
         </footer>
       </section>

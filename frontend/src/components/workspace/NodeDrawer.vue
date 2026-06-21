@@ -58,7 +58,7 @@ defineEmits<{
           </dd>
         </div>
         <div>
-          <dt>子任务完成</dt>
+          <dt>派单任务完成</dt>
           <dd>{{ node.completed_sub_task_count }} / {{ node.sub_task_count }}</dd>
         </div>
         <div>

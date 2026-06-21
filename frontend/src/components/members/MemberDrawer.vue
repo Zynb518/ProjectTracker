@@ -26,7 +26,7 @@ const emit = defineEmits<{
       <aside class="member-drawer">
         <header class="member-drawer__header">
           <div class="member-drawer__header-copy">
-            <p>项目成员</p>
+            <p>工单协作人</p>
             <h2>{{ members.length }} 人</h2>
           </div>
           <div class="member-drawer__header-actions">
@@ -35,7 +35,7 @@ const emit = defineEmits<{
               class="member-drawer__add-btn"
               type="button"
               @click="emit('add')"
-            >+ 添加成员</button>
+            >+ 添加协作人</button>
             <button
               class="member-drawer__close-btn"
               type="button"
@@ -45,7 +45,7 @@ const emit = defineEmits<{
         </header>
 
         <div v-if="members.length === 0" class="member-drawer__empty">
-          暂无项目成员
+          暂无工单协作人
         </div>
 
         <article

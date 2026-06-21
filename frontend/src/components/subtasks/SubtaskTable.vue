@@ -103,9 +103,9 @@ function emitAction(key: ActionKey, subtaskId: number) {
         <button
           v-if="canManage"
           data-testid="create-subtask"
-          aria-label="新建子任务"
+          aria-label="新建派单任务"
           class="subtask-table__create"
-          data-tooltip="新建子任务"
+          data-tooltip="新建派单任务"
           type="button"
           @click="$emit('create')"
         >
@@ -125,8 +125,8 @@ function emitAction(key: ActionKey, subtaskId: number) {
     <article v-for="subtask in subtasks" :key="subtask.id" class="subtask-table__row">
       <div class="subtask-table__content">
         <strong class="subtask-table__title" :title="subtask.name">{{ subtask.name }}</strong>
-        <p class="subtask-table__description" :title="subtask.description || '当前子任务未填写说明。'">
-          {{ subtask.description || '当前子任务未填写说明。' }}
+        <p class="subtask-table__description" :title="subtask.description || '当前派单任务未填写说明。'">
+          {{ subtask.description || '当前派单任务未填写说明。' }}
         </p>
       </div>
 
@@ -265,7 +265,7 @@ function emitAction(key: ActionKey, subtaskId: number) {
       </div>
     </article>
 
-    <p v-if="subtasks.length === 0" class="subtask-table__empty">当前节点下还没有子任务。</p>
+    <p v-if="subtasks.length === 0" class="subtask-table__empty">当前流转阶段下还没有派单任务。</p>
   </section>
 </template>
 

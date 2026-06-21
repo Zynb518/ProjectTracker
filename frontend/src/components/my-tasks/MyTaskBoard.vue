@@ -70,11 +70,11 @@ function handleCardKeydown(event: KeyboardEvent, subtaskId: number) {
     >
       <div class="my-task-board__header">
         <div class="my-task-board__title-stack">
-          <p class="my-task-board__project" :title="task.project_name || '未归属项目'">
-            {{ task.project_name || '未归属项目' }}
+          <p class="my-task-board__project" :title="task.project_name || '未归属工单'">
+            {{ task.project_name || '未归属工单' }}
           </p>
-          <span class="my-task-board__node" :title="task.node_name || '未归属节点'">
-            {{ task.node_name || '未归属节点' }}
+          <span class="my-task-board__node" :title="task.node_name || '未归属阶段'">
+            {{ task.node_name || '未归属阶段' }}
           </span>
           <h2>{{ task.name }}</h2>
         </div>

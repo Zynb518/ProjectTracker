@@ -55,8 +55,8 @@ watch(
     <section class="member-dialog">
       <header>
         <div>
-          <p>成员候选</p>
-          <h2>添加项目成员</h2>
+          <p>协作人候选</p>
+          <h2>添加工单协作人</h2>
         </div>
         <button type="button" @click="$emit('update:modelValue', false)">关闭</button>
       </header>
@@ -66,7 +66,7 @@ watch(
         <button type="button" @click="loadCandidates">搜索</button>
       </div>
 
-      <p v-if="isLoading" class="member-dialog__state">候选成员加载中...</p>
+      <p v-if="isLoading" class="member-dialog__state">候选协作人加载中...</p>
       <div v-else class="member-dialog__list">
         <button
           v-for="candidate in candidates"

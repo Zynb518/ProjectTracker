@@ -548,7 +548,7 @@ onBeforeUnmount(() => {
               <strong class="node-rail__name">{{ node.name }}</strong>
 
               <div class="node-rail__progress">
-                <span>{{ node.completed_sub_task_count }} / {{ node.sub_task_count }} 子任务完成</span>
+                <span>{{ node.completed_sub_task_count }} / {{ node.sub_task_count }} 派单任务完成</span>
                 <span>{{ calculateProgressPercent(node.completed_sub_task_count, node.sub_task_count) }}%</span>
               </div>
 
@@ -601,7 +601,7 @@ onBeforeUnmount(() => {
               {{ getWorkStatusLabel(hoveredNode.status) }}
             </span>
           </div>
-          <p>{{ hoveredNode.description || '当前阶段暂无补充说明。' }}</p>
+          <p>{{ hoveredNode.description || '当前流转阶段暂无补充说明。' }}</p>
           <dl class="node-rail__hover-meta">
             <div>
               <dt>计划周期</dt>
@@ -611,7 +611,7 @@ onBeforeUnmount(() => {
               </dd>
             </div>
             <div>
-              <dt>子任务进度</dt>
+              <dt>派单任务进度</dt>
               <dd>{{ hoveredNode.completed_sub_task_count }} / {{ hoveredNode.sub_task_count }}</dd>
             </div>
           </dl>

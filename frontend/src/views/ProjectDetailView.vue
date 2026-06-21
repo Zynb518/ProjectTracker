@@ -168,7 +168,7 @@ onMounted(async () => {
     await workspaceStore.loadWorkspace(projectId)
     await loadProjectGantt()
   } catch (error) {
-    notificationStore.notifyError(getErrorMessage(error, '项目工作台加载失败'))
+    notificationStore.notifyError(getErrorMessage(error, '工单工作台加载失败'))
   }
 })
 
@@ -1153,10 +1153,10 @@ async function exportProjectFlow() {
       })
     })
 
-    const filename = `项目流程[${project.value.name}]_${new Date().toISOString().split('T')[0]}.csv`
+    const filename = `工单流程[${project.value.name}]_${new Date().toISOString().split('T')[0]}.csv`
     exportToCSV(headers, rows, filename)
   } catch (error) {
-    notificationStore.notifyError(getErrorMessage(error, '导出项目流程失败'))
+    notificationStore.notifyError(getErrorMessage(error, '导出工单流程失败'))
   } finally {
     isExportingFlow.value = false
   }
@@ -1179,7 +1179,7 @@ async function exportProjectFlow() {
       <ProjectHero :project="project" />
 
       <div class="project-detail__actions-row">
-        <section class="project-detail__view-switch" aria-label="项目详情视图">
+        <section class="project-detail__view-switch" aria-label="工单详情视图">
           <button
             :class="['project-detail__view-button', { 'is-active': isWorkspaceView }]"
             type="button"
@@ -1208,7 +1208,7 @@ async function exportProjectFlow() {
             <polyline points="7 10 12 15 17 10"></polyline>
             <line x1="12" y1="15" x2="12" y2="3"></line>
           </svg>
-          {{ isExportingFlow ? '正在导出流程...' : '导出项目流程 (CSV)' }}
+          {{ isExportingFlow ? '正在导出流程...' : '导出工单流程 (CSV)' }}
         </button>
       </div>
 
