@@ -133,18 +133,6 @@ function emitGanttOrigin(event: MouseEvent) {
     <div class="project-filters__actions" data-tutorial-target="project-create-actions">
       <button
         type="button"
-        aria-label="AI 自动生成工单"
-        class="project-filters__ai-create"
-        data-tutorial-target="project-ai-create"
-        data-testid="open-ai-project-create"
-        @click="emitAiCreateOrigin"
-      >
-        <span class="project-filters__ai-create-mark">AI</span>
-        <span>AI 创建</span>
-      </button>
-
-      <button
-        type="button"
         aria-label="打开工单甘特图"
         class="project-filters__overview"
         data-testid="open-project-gantt"

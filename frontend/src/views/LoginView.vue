@@ -32,14 +32,14 @@ async function submitLogin() {
     <div aria-hidden="true" class="login-view__background" data-testid="login-background" />
 
     <header class="login-view__toolbar">
-      <p class="login-view__brand">Project Tracker</p>
+      <p class="login-view__brand">Operations Ticket</p>
       <ThemeToggle class="login-view__theme-toggle" />
     </header>
 
     <section class="login-card">
       <div class="login-card__header">
         <p class="login-card__caption">账号登录</p>
-        <h1>进入项目台</h1>
+        <h1>进入工单台</h1>
       </div>
 
       <form class="login-form" @submit.prevent="submitLogin">
@@ -66,7 +66,7 @@ async function submitLogin() {
           placeholder="输入登录密码"
           type="password"
         />
-        <button class="login-button" type="submit">进入项目台</button>
+        <button class="login-button" type="submit">进入工单台</button>
       </form>
     </section>
   </section>

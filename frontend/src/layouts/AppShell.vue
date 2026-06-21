@@ -115,28 +115,6 @@ async function handleBeginnerTutorial() {
           </span>
           <span>运维资产</span>
         </RouterLink>
-
-        <button
-          class="app-shell__link app-shell__link-button"
-          data-testid="sidebar-beginner-tutorial"
-          data-tutorial-target="beginner-tutorial-entry"
-          type="button"
-          @click="handleBeginnerTutorial"
-        >
-          <span class="app-shell__link-icon" aria-hidden="true">
-            <svg viewBox="0 0 24 24">
-              <path
-                d="M12 3.5 5 7v5.5c0 4.1 2.8 6.9 7 8 4.2-1.1 7-3.9 7-8V7l-7-3.5Z M9.25 11.25l1.8 1.8 3.7-3.8"
-                fill="none"
-                stroke="currentColor"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="1.5"
-              />
-            </svg>
-          </span>
-          <span>新手教程</span>
-        </button>
       </nav>
 
       <div class="app-shell__sidebar-foot">
