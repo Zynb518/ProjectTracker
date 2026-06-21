@@ -68,6 +68,21 @@ async function handleLogout() {
           </span>
           <span>我的待办</span>
         </RouterLink>
+        <RouterLink class="app-shell__link" to="/stats">
+          <span class="app-shell__link-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path
+                d="M18 20V10M12 20V4M6 20V14"
+                fill="none"
+                stroke="currentColor"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+              />
+            </svg>
+          </span>
+          <span>统计报表</span>
+        </RouterLink>
         <RouterLink
           v-if="authStore.currentUser?.system_role === 1"
           class="app-shell__link"

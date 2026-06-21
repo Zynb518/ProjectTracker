@@ -58,6 +58,11 @@ export function createAppRouter(pinia: Pinia = appPinia) {
             name: 'devices',
             component: () => import('@/views/DeviceListView.vue'),
           },
+          {
+            path: 'stats',
+            name: 'stats',
+            component: () => import('@/views/StatsView.vue'),
+          },
         ],
       },
     ],
