@@ -1,37 +1,76 @@
-# Project Tracker
+# 运维工单管理系统 (Operations Ticket System)
 
-项目进度跟踪系统，后端基于 `C++20 + Drogon + PostgreSQL`，前端基于 `Vue 3 + TypeScript + Vite`。
+基于 `C++20 + Drogon` 后端与 `Vue 3 + TS + Vite` 前端构建的规范化生产运维工单管理系统。
 
-当前仓库包含：
+---
 
-- 后端服务
-- 前端页面
-- 数据库初始化脚本
-- 本地离线 AI 工具
+## 🌟 核心业务特性
 
-## 技术栈
+本系统通过对底层数据关系的巧妙概念映射，实现了**零修改后端代码、零改动数据库表结构**的轻量级升级，全面对齐企业级运维工单系统的指标：
 
-- Backend: `C++20`, `Drogon`, `PostgreSQL`
-- Frontend: `Vue 3`, `TypeScript`, `Vite`
-- Build: `CMake`
+1. **规范生产与自动节点注入**：
+   * 在工单大厅新建工单时，系统会自动在工单下注入三个标准顺序流转阶段：`部门审批` ➡️ `派单执行` ➡️ `现场回单`。
+2. **逐层审批与流转防插队**：
+   * 采用前向依赖拦截逻辑。若前置流转节点（例如：`部门审批`）未完成，则后续节点（如 `派单执行`）及名下的具体派单任务一律锁定。
+   * 支持多级子任务（如：`【审批】市局初审`、`【审批】省厅终审`）以呈现多层级联合审批。
+3. **操作留痕与责任追踪**：
+   * 每次技术人员提交更新，系统均会记录：**操作人真实姓名、更新进度百分比、操作时间、现场回单备注**，全面入库备查。
+4. **省市多部门快捷发起工单**：
+   * 支持在创建时选择“故障、需求、巡检、配置”等工单分类，系统自动拼接规范的标题前缀（例如：`【故障】省级政专网骨干光缆中断`）。
+5. **系统角色 rebranding 全新重塑**：
+   * `管理员` ➡️ **系统管理员** (系统全局管理权限)
+   * `项目经理` ➡️ **工单审批官** (负责审批与派发协作任务)
+   * `普通员工` ➡️ **运维工程师** (现场执行并填写回单)
+6. **可视化统计报表与超时预警**：
+   * 专属**统计报表**页面。
+   * **近 7 日工单流转趋势**：纯 Vue 3 + 响应式 SVG 渲染（无第三方库依赖），展示每日新建工单与结单完成数的对比。
+   * **工单类型分布**：动态展现各类工单占比。
+   * **超时预警中心**：自动检索超过计划截止日期未完结的工单，展示延期天数并提供一键督办链接。
+7. **多端自适应支持（电脑 WEB 与手机 APP）**：
+   * 针对大屏幕提供宽体网格与拖拽展示。
+   * 针对手机端提供流式卡片折叠、触控弹窗拦截等操作优化，并即将支持底部 APP 导航适配。
 
-## 目录说明
+---
 
-- `src/`: 后端源码
-- `frontend/`: 前端工程
-- `db/migrations/`: 数据库建表脚本
-- `db/seeds/`: 数据初始化脚本
-- `config/`: 配置模板
-- `tools/ai_project_manager/`: 本地离线 AI 工具
+## 📁 目录结构
 
-## Ubuntu 24 虚拟机最短部署路径
+* `src/`：C++ Drogon 后端源码
+* `frontend/`：Vue 3 前端工程
+* `db/migrations/`：PostgreSQL 数据库表结构脚本
+* `db/seeds/`：演示数据与生产种子脚本
+* `config/`：应用配置文件目录
+* `docker/`：前后端编译运行的 Dockerfile
+* `deploy/`：部署用配置文件（如 Nginx、systemd 等）
 
-以下路径适用于“后端部署到虚拟机，前端可先本机打包，AI 模块暂不启用”的场景。
+---
 
-### 1. 安装后端依赖
+## 🚀 极速部署方案 (Docker Compose 推荐)
 
-先安装编译和运行依赖：
+推荐使用 Docker Compose 进行一键拉起，无需本地安装 C++ 编译环境或 Nginx。
 
+### 1. 运行部署命令
+
+在项目根目录下执行：
+```bash
+docker compose down -v && docker compose up -d --build
+```
+> [!IMPORTANT]
+> `-v` 参数会清除旧的 PostgreSQL 数据卷，触发 `/docker-entrypoint-initdb.d/` 种子脚本自动重新注入我们精心准备的**运维工单演示数据**。
+
+### 2. 默认登录账号
+
+数据库中默认种子数据的所有用户密码统一为 `123456`：
+* **系统管理员**：`admin` (系统管理员角色)
+* **工单审批官**：`li_ming`, `wang_jie` (工单审批官角色)
+* **运维工程师**：`chen_xu`, `zhao_yue`, `sun_qiang`, `zhou_tao` (运维工程师角色)
+
+---
+
+## 🔧 本地手动部署方案 (Ubuntu 24.04 示例)
+
+如果您不想使用 Docker，可以按照以下步骤手动在虚拟机中编译和部署。
+
+### 1. 安装系统依赖
 ```bash
 sudo apt update
 sudo apt install -y \
@@ -40,19 +79,13 @@ sudo apt install -y \
   libargon2-dev \
   nginx
 ```
+*注意：如果您是手动编译安装 `Drogon`，请务必先安装 `libpq-dev` 后再开始安装 Drogon。*
 
-如果你是源码安装 `Drogon`，务必先装好 PostgreSQL 开发环境，再编译安装 `Drogon`。
-
-### 2. 初始化 PostgreSQL
-
-建议创建独立数据库用户和数据库，并让数据库 owner 与应用用户保持一致。
-
+### 2. 初始化 PostgreSQL 数据库
 ```bash
 sudo -u postgres psql
 ```
-
-在 `psql` 中执行：
-
+在 psql 控制台中执行：
 ```sql
 CREATE USER project_tracker WITH PASSWORD 'your_strong_password';
 CREATE DATABASE project_tracker OWNER project_tracker;
@@ -62,176 +95,40 @@ ALTER DATABASE project_tracker OWNER TO project_tracker;
 ALTER SCHEMA public OWNER TO project_tracker;
 GRANT ALL ON SCHEMA public TO project_tracker;
 ```
-
-导入表结构与生产用户种子：
-
+导入表结构和运维种子数据：
 ```bash
 psql -h 127.0.0.1 -U project_tracker -d project_tracker -f db/migrations/001_init_schema.sql
-psql -h 127.0.0.1 -U project_tracker -d project_tracker -f db/seeds/002_prod_users.sql
+psql -h 127.0.0.1 -U project_tracker -d project_tracker -f db/seeds/001_demo_data.sql
 ```
 
-### 3. 准备后端配置
-
-从模板复制一份生产配置：
-
+### 3. 配置与启动后端
+复制并修改后端配置文件：
 ```bash
 cp config/config.example.json config/config.prod.json
 ```
+修改 `config.prod.json` 中的 `db_clients` 项，配置正确的数据库 IP、用户名和密码。
 
-建议至少修改以下字段：
-
-- `db_clients[0].host = 127.0.0.1`
-- `db_clients[0].dbname = project_tracker`
-- `db_clients[0].user = project_tracker`
-- `db_clients[0].passwd = 你的数据库密码`
-- 小内存虚拟机可把 `connection_number` 调低到 `2`
-- 压测前可按需设置 `custom_config.threads_num`
-- `custom_config.threads_num = 0` 表示使用全部 CPU 核心
-- 如果暂时不用 AI，可把 `custom_config` 留空对象
-
-### 4. 编译并启动后端
-
+开始编译并运行后端：
 ```bash
 cmake -S . -B cmake-build-release -DCMAKE_BUILD_TYPE=Release
 cmake --build cmake-build-release -j2
 ./cmake-build-release/src/Project_Tracker ./config/config.prod.json
 ```
 
-另开一个终端验证服务是否起来：
-
-```bash
-curl -i http://127.0.0.1:8080/api/auth/me
-```
-
-如果返回 `401` JSON，一般说明服务已经启动，只是当前未登录。
-
-### 5. 前端运行方式
-
-生产环境推荐：
-
-- 在本机执行 `npm ci && npm run build`
-- 把 `frontend/dist` 上传到虚拟机
-- 由 `Nginx` 托管静态文件
-
-临时联调也可以直接在虚拟机运行前端开发服务器：
-
+### 4. 前端打包与 Nginx 部署
+在前端目录下安装依赖并打包：
 ```bash
 cd frontend
-npm ci
-npm run dev
+npm install
+npm run build
 ```
+使用 Nginx 托管打包产物 `frontend/dist`，并反向代理后端 API（参考 `deploy/nginx/` 目录下的 Nginx 配置示例）。
 
-默认访问地址：
+---
 
-- `http://虚拟机IP:5173`
+## 📝 开发与回滚建议
 
-### 6. Nginx 托管前端并反代后端
-
-生产态推荐由 `Nginx` 统一入口处理前端和 `/api`：
-
-```nginx
-server {
-    listen 80;
-    server_name _;
-
-    root /var/www/project-tracker/dist;
-    index index.html;
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8080;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-
-    location / {
-        try_files $uri $uri/ /index.html;
-    }
-}
-```
-
-## 部署踩坑记录
-
-### 1. `psql` 不加 `-h` 可能命中 `peer authentication`
-
-如果直接执行：
-
-```bash
-psql -U project_tracker -d project_tracker
-```
-
-在 Ubuntu 默认配置下，常常会走本地 socket，并命中 `peer` 认证，出现类似：
-
-```text
-peer authentication failed for user "project_tracker"
-```
-
-解决方式是显式走 TCP：
-
-```bash
-psql -h 127.0.0.1 -U project_tracker -d project_tracker
-```
-
-### 2. `Drogon` 可能被编成“无数据库支持”版本
-
-如果启动后端时报错：
-
-```text
-No database is supported by drogon, please install the database development library first.
-```
-
-说明当前机器上的 `Drogon` 在安装时没有正确带上 PostgreSQL 支持。常见原因是：
-
-- 先装了 `Drogon`
-- 后装了 PostgreSQL 开发库
-- 然后直接编项目，没有重装 `Drogon`
-
-正确顺序是：
-
-- 先安装 `libpq-dev` / `postgresql-all`
-- 再重新安装或重新编译 `Drogon`
-- 最后删除项目构建目录并重新完整编译本项目
-
-### 3. 小内存虚拟机不要把数据库连接数开太高
-
-如果虚拟机内存只有 `4G` 左右，建议：
-
-- `connection_number` 先从 `2` 起
-- 暂时不要启用本地 AI 模型
-- 生产态不要长期跑 `vite dev server`
-
-### 4. 生产配置不要直接提交到 GitHub
-
-以下文件或内容不适合直接提交到远程仓库：
-
-- `config/config.dev.json`
-- 生产数据库密码
-- 本地临时产物
-- 本机调试路径
-
-建议：
-
-- 只提交 `config/config.example.json`
-- 在虚拟机本地创建 `config/config.prod.json`
-
-### 5. 前端临时验证可以直接跑，正式部署再切静态托管
-
-在虚拟机中直接运行：
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-适合临时联调，但不适合作为正式部署方案。正式部署应切换为：
-
-- 本机构建 `dist`
-- 虚拟机由 `Nginx` 托管静态文件
-
-## 相关文档
-
-- `systemd` 托管说明见 [deploy/systemd/systemd-deployment.md](/home/ubzy/CLionProjects/Project-Tracker/deploy/systemd/systemd-deployment.md)
-- 前端说明见 [frontend/README.md](/home/ubzy/CLionProjects/Project-Tracker/frontend/README.md)
-- AI 工具说明见 [tools/ai_project_manager/README.md](/home/ubzy/CLionProjects/Project-Tracker/tools/ai_project_manager/README.md)
+若要在 `feature/ticket-system` 分支上继续开发，请遵循以下规范：
+* **分支追踪**：请在 `feature/ticket-system` 分支上提交所有更改。
+* **编译检查**：在提交前端代码前，必须在 `frontend/` 下运行 `npm run build` 确保 TypeScript 强类型检查和 Vite 打包正常通过。
+* **安全回退**：如果您在后续开发中遇到异常需要回滚，可随时使用 `git reset --hard cc12326` 回退到包含“统计报表”在内的最稳定版本。
