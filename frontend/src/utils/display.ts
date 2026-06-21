@@ -13,9 +13,9 @@ const WORK_STATUS_TONES = {
 } as const
 
 const SYSTEM_ROLE_LABELS = {
-  1: '管理员',
-  2: '项目经理',
-  3: '普通员工',
+  1: '系统管理员',
+  2: '工单审批官',
+  3: '运维工程师',
 } as const
 
 const SYSTEM_ROLE_TONES = {
