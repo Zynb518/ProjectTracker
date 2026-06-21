@@ -397,6 +397,21 @@ INSERT INTO sub_task (
         '2026-06-11 09:00:00+08:00',
         '2026-06-20 18:00:00+08:00'
     ),
+    (
+        (SELECT id FROM project_node WHERE project_id = (SELECT id FROM project WHERE name = '【故障】省级政务专网骨干干线光缆中断告警') AND name = '现场回单阶段'),
+        '【回单】提交双向光衰测试报告并申请结单',
+        '上传测试波形与熔接芯数报告，向主管提请归档。',
+        (SELECT id FROM sys_user WHERE username = 'chen_xu'),
+        1, -- 未开始
+        0,
+        3,
+        '2026-06-26',
+        '2026-06-30',
+        NULL,
+        (SELECT id FROM sys_user WHERE username = 'li_ming'),
+        '2026-06-01 09:00:00+08:00',
+        '2026-06-20 18:00:00+08:00'
+    ),
 
     -- 工单 2 任务
     (
@@ -409,6 +424,36 @@ INSERT INTO sub_task (
         2,
         '2026-06-15',
         '2026-06-25',
+        NULL,
+        (SELECT id FROM sys_user WHERE username = 'wang_jie'),
+        '2026-06-05 09:00:00+08:00',
+        '2026-06-05 09:00:00+08:00'
+    ),
+    (
+        (SELECT id FROM project_node WHERE project_id = (SELECT id FROM project WHERE name = '【需求】市公安局第二数据中心新增防火墙策略') AND name = '派单执行阶段'),
+        '【配置】登录边界防火墙下发开通端口策略',
+        '在安全网关上执行路由和IP段绑定，开通新增端口。',
+        (SELECT id FROM sys_user WHERE username = 'chen_xu'),
+        1, -- 未开始
+        0,
+        2,
+        '2026-06-26',
+        '2026-07-05',
+        NULL,
+        (SELECT id FROM sys_user WHERE username = 'wang_jie'),
+        '2026-06-05 09:00:00+08:00',
+        '2026-06-05 09:00:00+08:00'
+    ),
+    (
+        (SELECT id FROM project_node WHERE project_id = (SELECT id FROM project WHERE name = '【需求】市公安局第二数据中心新增防火墙策略') AND name = '现场回单阶段'),
+        '【回单】配合市局技术人员进行连通性测试',
+        '远程telnet确认端口开通无误，核对工单并提交回单。',
+        (SELECT id FROM sys_user WHERE username = 'chen_xu'),
+        1, -- 未开始
+        0,
+        2,
+        '2026-07-06',
+        '2026-07-15',
         NULL,
         (SELECT id FROM sys_user WHERE username = 'wang_jie'),
         '2026-06-05 09:00:00+08:00',
@@ -464,6 +509,21 @@ INSERT INTO sub_task (
 
     -- 工单 4 任务 (已超时)
     (
+        (SELECT id FROM project_node WHERE project_id = (SELECT id FROM project WHERE name = '【故障】政务大楼B座接入层交换机成批掉线告警') AND name = '部门审批阶段'),
+        '【审批】对大面积断网事件进行应急审核',
+        '确认故障波及范围，审核并启动二级别网络故障应急预案。',
+        (SELECT id FROM sys_user WHERE username = 'wang_jie'),
+        3, -- 已完成
+        100,
+        3,
+        '2026-06-01',
+        '2026-06-05',
+        '2026-06-04 11:20:00+08:00',
+        (SELECT id FROM sys_user WHERE username = 'wang_jie'),
+        '2026-06-01 10:00:00+08:00',
+        '2026-06-04 11:20:00+08:00'
+    ),
+    (
         (SELECT id FROM project_node WHERE project_id = (SELECT id FROM project WHERE name = '【故障】政务大楼B座接入层交换机成批掉线告警') AND name = '派单执行阶段'),
         '【执行】到现场测试各楼层机房供电与配电柜',
         '定位是否因为机房空气开关跳闸或PoE电源模板击穿导致大面积红光。',
@@ -476,6 +536,21 @@ INSERT INTO sub_task (
         NULL,
         (SELECT id FROM sys_user WHERE username = 'wang_jie'),
         '2026-06-06 09:00:00+08:00',
+        '2026-06-20 10:00:00+08:00'
+    ),
+    (
+        (SELECT id FROM project_node WHERE project_id = (SELECT id FROM project WHERE name = '【故障】政务大楼B座接入层交换机成批掉线告警') AND name = '现场回单阶段'),
+        '【回单】提交PoE供电模块备件更换报告',
+        '核对替换设备的序列号，上传测试日志，申请工单归档。',
+        (SELECT id FROM sys_user WHERE username = 'chen_xu'),
+        1, -- 未开始
+        0,
+        3,
+        '2026-06-11',
+        '2026-06-15',
+        NULL,
+        (SELECT id FROM sys_user WHERE username = 'wang_jie'),
+        '2026-06-01 10:00:00+08:00',
         '2026-06-20 10:00:00+08:00'
     );
 
