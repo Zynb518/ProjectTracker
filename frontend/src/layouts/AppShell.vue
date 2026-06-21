@@ -5,13 +5,11 @@ import BeginnerTutorialOverlay from '@/components/tutorial/BeginnerTutorialOverl
 import ThemeToggle from '@/components/ThemeToggle.vue'
 import { getErrorMessage } from '@/api/http'
 import { useAuthStore } from '@/stores/auth'
-import { useBeginnerTutorialStore } from '@/stores/beginnerTutorial'
 import { useNotificationStore } from '@/stores/notifications'
 import { getSystemRoleLabel } from '@/utils/display'
 
 const router = useRouter()
 const authStore = useAuthStore()
-const tutorialStore = useBeginnerTutorialStore()
 const notificationStore = useNotificationStore()
 
 function userInitial(name?: string | null) {
@@ -24,15 +22,6 @@ async function handleLogout() {
     await router.push('/login')
   } catch (error) {
     notificationStore.notifyError(getErrorMessage(error, '退出登录失败'))
-  }
-}
-
-async function handleBeginnerTutorial() {
-  try {
-    await router.push('/projects')
-    tutorialStore.start()
-  } catch (error) {
-    notificationStore.notifyError(getErrorMessage(error, '打开新手教程失败'))
   }
 }
 </script>

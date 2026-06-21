@@ -66,20 +66,6 @@ function emitCreateOrigin(event: MouseEvent) {
   })
 }
 
-function emitAiCreateOrigin(event: MouseEvent) {
-  const trigger = event.currentTarget as HTMLElement | null
-
-  if (!trigger) {
-    return
-  }
-
-  const rect = trigger.getBoundingClientRect()
-  emit('create-ai', {
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2,
-  })
-}
-
 function emitGanttOrigin(event: MouseEvent) {
   const trigger = event.currentTarget as HTMLElement | null
 
