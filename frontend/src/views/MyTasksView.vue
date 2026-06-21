@@ -6,6 +6,7 @@ import MyTaskBoard from '@/components/my-tasks/MyTaskBoard.vue'
 import MyTaskFilters from '@/components/my-tasks/MyTaskFilters.vue'
 import MyTaskProgressDialog from '@/components/my-tasks/MyTaskProgressDialog.vue'
 import { listMySubtasks, listSubtaskProgressRecords, submitSubtaskProgress } from '@/api/subtasks'
+import { listProjectNodes } from '@/api/nodes'
 import { useNotificationStore } from '@/stores/notifications'
 import type { Subtask, SubtaskProgressRecord } from '@/types/subtask'
 
@@ -126,6 +127,25 @@ function updateProgressDialogVisibility(value: boolean) {
 }
 
 async function openProgressDialog(subtaskId: number) {
+  const task = tasks.value.find((t) => t.id === subtaskId)
+  if (task && task.project_id) {
+    try {
+      const response = await listProjectNodes(task.project_id)
+      const sortedNodes = response.list.sort((a, b) => a.sequence_no - b.sequence_no)
+      const currentIndex = sortedNodes.findIndex((n) => n.id === task.node_id)
+      if (currentIndex !== -1) {
+        for (let i = 0; i < currentIndex; i++) {
+          if (sortedNodes[i].status !== 3) {
+            notificationStore.notifyError(`操作拦截：前置阶段「${sortedNodes[i].name}」尚未完成，无法对本阶段下的任务提交进度更新！`)
+            return
+          }
+        }
+      }
+    } catch (error) {
+      console.error('获取前置阶段状态失败', error)
+    }
+  }
+
   selectedTaskId.value = subtaskId
   showProgressDialog.value = true
   progressRecords.value = []
