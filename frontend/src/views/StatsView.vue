@@ -727,7 +727,7 @@ function getCleanTitle(fullName: string): string {
   display: grid;
   grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr);
   gap: 24px;
-  align-items: start;
+  align-items: stretch;
 }
 
 .stats-card {
@@ -954,7 +954,6 @@ function getCleanTitle(fullName: string): string {
 
 /* Overdue Warnings card */
 .overdue-card-wrapper {
-  max-height: calc(100vh - 180px);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -972,6 +971,8 @@ function getCleanTitle(fullName: string): string {
 }
 
 .overdue-list {
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
