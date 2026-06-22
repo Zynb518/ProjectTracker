@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 import BeginnerTutorialOverlay from '@/components/tutorial/BeginnerTutorialOverlay.vue'
@@ -11,6 +12,15 @@ import { getSystemRoleLabel } from '@/utils/display'
 const router = useRouter()
 const authStore = useAuthStore()
 const notificationStore = useNotificationStore()
+
+const mobileMenuOpen = ref(false)
+function toggleMobileMenu() {
+  mobileMenuOpen.value = !mobileMenuOpen.value
+}
+
+router.afterEach(() => {
+  mobileMenuOpen.value = false
+})
 
 function userInitial(name?: string | null) {
   return name?.trim().charAt(0) || '访'
@@ -28,6 +38,44 @@ async function handleLogout() {
 
 <template>
   <div class="app-shell">
+    <!-- 移动端顶部 Title Bar -->
+    <header class="app-shell__mobile-header">
+      <div class="app-shell__mobile-brand">
+        <div class="app-shell__brand-mark" aria-hidden="true">
+          <span />
+        </div>
+        <h1>工单台</h1>
+      </div>
+      <div class="app-shell__mobile-user" @click="toggleMobileMenu">
+        <div class="app-shell__account-avatar" aria-hidden="true">
+          {{ userInitial(authStore.currentUser?.real_name) }}
+        </div>
+      </div>
+      
+      <!-- 移动端个人菜单浮层 -->
+      <Transition name="mobile-menu-fade">
+        <div v-if="mobileMenuOpen" class="app-shell__mobile-menu">
+          <div class="app-shell__mobile-menu-user">
+            <strong>{{ authStore.currentUser?.real_name ?? '未登录' }}</strong>
+            <span>{{ getSystemRoleLabel(authStore.currentUser?.system_role) }}</span>
+          </div>
+          <div class="app-shell__mobile-menu-links">
+            <RouterLink 
+              v-if="authStore.currentUser?.system_role === 1" 
+              class="app-shell__mobile-menu-link" 
+              to="/users"
+            >
+              用户管理
+            </RouterLink>
+          </div>
+          <div class="app-shell__mobile-menu-actions">
+            <ThemeToggle class="app-shell__theme-toggle" />
+            <button class="app-shell__logout" type="button" @click="handleLogout">退出登录</button>
+          </div>
+        </div>
+      </Transition>
+    </header>
+
     <aside v-smooth-wheel class="app-shell__sidebar smooth-scroll-surface">
       <div class="app-shell__brand">
         <div class="app-shell__brand-mark" aria-hidden="true">
@@ -149,6 +197,69 @@ async function handleLogout() {
         <RouterView />
       </main>
     </div>
+
+    <!-- 移动端底部 Tab Bar -->
+    <nav class="app-shell__mobile-nav">
+      <RouterLink class="app-shell__mobile-link" to="/projects">
+        <span class="app-shell__mobile-link-icon">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M4 6.5h16M4 12h16M4 17.5h14"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-width="1.5"
+            />
+          </svg>
+        </span>
+        <span>大厅</span>
+      </RouterLink>
+      <RouterLink class="app-shell__mobile-link" to="/my-tasks">
+        <span class="app-shell__mobile-link-icon">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M8 7h11M8 12h11M8 17h11M4 7h.01M4 12h.01M4 17h.01"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-width="1.5"
+            />
+          </svg>
+        </span>
+        <span>待办</span>
+      </RouterLink>
+      <RouterLink class="app-shell__mobile-link" to="/stats">
+        <span class="app-shell__mobile-link-icon">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M18 20V10M12 20V4M6 20V14"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+          </svg>
+        </span>
+        <span>报表</span>
+      </RouterLink>
+      <RouterLink class="app-shell__mobile-link" to="/devices">
+        <span class="app-shell__mobile-link-icon">
+          <svg viewBox="0 0 24 24">
+            <path
+              d="M5 8h14M5 16h14M8 4v4m8-4v4m-8 8v4m8-4v4"
+              fill="none"
+              stroke="currentColor"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.5"
+            />
+            <rect x="3" y="8" width="18" height="8" rx="2" fill="none" stroke="currentColor" stroke-width="1.5" />
+          </svg>
+        </span>
+        <span>资产</span>
+      </RouterLink>
+    </nav>
 
     <BeginnerTutorialOverlay />
   </div>
@@ -481,6 +592,218 @@ async function handleLogout() {
   .app-shell__content {
     min-width: 0;
   }
+}
+
+/* 移动端顶部 Title Bar 样式 */
+.app-shell__mobile-header {
+  display: none;
+}
+
+.app-shell__mobile-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    padding: 0;
+    gap: 0;
+  }
+
+  /* 隐藏桌面侧边栏 */
+  .app-shell__sidebar {
+    display: none !important;
+  }
+
+  /* 移动端顶部 Header */
+  .app-shell__mobile-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    padding: 0 16px;
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--backdrop-blur);
+    border-bottom: 1px solid var(--border-soft);
+    z-index: 100;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  }
+
+  .app-shell__mobile-brand {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .app-shell__mobile-brand h1 {
+    font-size: 1.25rem;
+    margin: 0;
+    color: var(--text-main);
+  }
+
+  .app-shell__mobile-brand .app-shell__brand-mark {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+  }
+
+  .app-shell__mobile-brand .app-shell__brand-mark span {
+    inset: 8px;
+    border-radius: 6px;
+  }
+
+  .app-shell__mobile-user {
+    cursor: pointer;
+  }
+
+  .app-shell__mobile-user .app-shell__account-avatar {
+    width: 34px;
+    height: 34px;
+    font-size: 0.85rem;
+    border-radius: 10px;
+  }
+
+  /* 移动端下拉个人菜单 */
+  .app-shell__mobile-menu {
+    position: absolute;
+    top: 60px;
+    right: 12px;
+    width: 220px;
+    background: var(--dialog-surface-bg);
+    border: 1px solid var(--dialog-surface-border);
+    border-radius: 18px;
+    box-shadow: var(--dialog-surface-shadow);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    z-index: 101;
+  }
+
+  .app-shell__mobile-menu-user {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    border-bottom: 1px solid var(--border-soft);
+    padding-bottom: 10px;
+  }
+
+  .app-shell__mobile-menu-user strong {
+    font-size: 1rem;
+    color: var(--text-main);
+  }
+
+  .app-shell__mobile-menu-user span {
+    font-size: 0.78rem;
+    color: var(--text-soft);
+  }
+
+  .app-shell__mobile-menu-links {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .app-shell__mobile-menu-link {
+    display: block;
+    padding: 8px 12px;
+    background: var(--dialog-control-bg);
+    border: 1px solid var(--dialog-control-border);
+    border-radius: 10px;
+    color: var(--text-main);
+    text-decoration: none;
+    font-size: 0.88rem;
+    font-weight: 600;
+    text-align: center;
+  }
+
+  .app-shell__mobile-menu-link:hover {
+    background: var(--dialog-control-bg-strong);
+  }
+
+  .app-shell__mobile-menu-actions {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* 移动端底部 Tab Bar */
+  .app-shell__mobile-nav {
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 64px;
+    background: var(--glass-bg-strong);
+    backdrop-filter: var(--backdrop-blur);
+    border-top: 1px solid var(--border-soft);
+    z-index: 100;
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .app-shell__mobile-link {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    text-decoration: none;
+    color: var(--text-soft);
+    font-size: 0.75rem;
+    font-weight: 600;
+    flex: 1;
+    height: 100%;
+  }
+
+  .app-shell__mobile-link-icon {
+    display: inline-grid;
+    place-items: center;
+    width: 26px;
+    height: 26px;
+    color: var(--text-muted);
+  }
+
+  .app-shell__mobile-link-icon svg {
+    width: 20px;
+    height: 20px;
+  }
+
+  .app-shell__mobile-link:hover,
+  .router-link-active.app-shell__mobile-link {
+    color: var(--accent-start);
+  }
+
+  .router-link-active.app-shell__mobile-link .app-shell__mobile-link-icon {
+    color: var(--accent-start);
+  }
+
+  /* 调整主要内容区位置，避开顶部和底部遮挡 */
+  .app-shell__content {
+    margin-top: 56px;
+    margin-bottom: calc(64px + env(safe-area-inset-bottom));
+    padding: 16px 12px;
+    overflow-x: hidden;
+  }
+}
+
+/* 动效 */
+.mobile-menu-fade-enter-active,
+.mobile-menu-fade-leave-active {
+  transition: opacity 150ms ease-out, transform 150ms ease-out;
+}
+
+.mobile-menu-fade-enter-from,
+.mobile-menu-fade-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
 }
 </style>
 
