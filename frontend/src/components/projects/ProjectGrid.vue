@@ -526,6 +526,14 @@ defineEmits<{
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .project-card {
+    height: auto;
+    min-height: none;
+    grid-template-rows: auto auto auto auto;
+    padding: 16px;
+    gap: 12px;
+  }
+
   .project-card__header {
     grid-template-columns: 1fr;
   }
@@ -535,7 +543,31 @@ defineEmits<{
   }
 
   .project-card__meta {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .project-card__meta-item {
+    min-height: 56px;
+    padding: 6px 10px;
+  }
+
+  .project-card__meta dd {
+    font-size: 0.84rem;
+  }
+
+  .project-card__meta-icon {
+    width: 22px;
+    height: 22px;
+  }
+
+  .project-card__meta-icon svg {
+    width: 12px;
+    height: 12px;
+  }
+
+  .project-card__schedule {
+    font-size: 0.76rem;
   }
 }
 </style>
