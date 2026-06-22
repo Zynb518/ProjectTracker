@@ -72,6 +72,28 @@ const categoryBreakdown = computed(() => {
   }).sort((a, b) => b.count - a.count)
 })
 
+const pieSlices = computed(() => {
+  const total = totalCount.value
+  if (!total) return []
+  
+  const circumference = 2 * Math.PI * 55 // ~345.575
+  let accumulatedPercent = 0
+  
+  return categoryBreakdown.value.map(cat => {
+    const exactPercent = (cat.count / total) * 100
+    const strokeDashArray = `${(exactPercent / 100) * circumference} ${circumference}`
+    const accumulatedLength = (accumulatedPercent / 100) * circumference
+    accumulatedPercent += exactPercent
+    
+    return {
+      ...cat,
+      strokeDashArray,
+      strokeDashOffset: -accumulatedLength,
+      color: getCategoryColor(cat.name)
+    }
+  })
+})
+
 // 7 Days Flow trend
 const last7Days = computed(() => {
   const dates = []
@@ -410,23 +432,58 @@ function getCleanTitle(fullName: string): string {
           <!-- Type Distribution Below SVG -->
           <div class="stats-card__sub-section">
             <h4>工单类型构成分布</h4>
-            <div class="distribution-list">
-              <div v-for="cat in categoryBreakdown" :key="cat.name" class="dist-item">
-                <div class="dist-item__header">
-                  <span class="dist-item__name">
-                    <span class="dist-item__dot" :style="{ backgroundColor: getCategoryColor(cat.name) }" />
-                    {{ cat.name }}类工单
-                  </span>
-                  <span class="dist-item__value">{{ cat.count }}单 ({{ cat.percentage }}%)</span>
-                </div>
-                <div class="dist-item__bar-bg">
-                  <div 
-                    class="dist-item__bar-fill" 
-                    :style="{ 
-                      width: cat.percentage + '%',
-                      backgroundColor: getCategoryColor(cat.name)
-                    }"
+            <div class="distribution-row">
+              <div class="donut-chart-container">
+                <svg width="160" height="160" viewBox="0 0 160 160" class="donut-chart-svg">
+                  <!-- Empty base track -->
+                  <circle
+                    cx="80"
+                    cy="80"
+                    r="55"
+                    fill="transparent"
+                    stroke="var(--border-soft)"
+                    stroke-width="14"
                   />
+                  <!-- Slices -->
+                  <circle
+                    v-for="slice in pieSlices"
+                    :key="slice.name"
+                    cx="80"
+                    cy="80"
+                    r="55"
+                    fill="transparent"
+                    :stroke="slice.color"
+                    stroke-width="14"
+                    :stroke-dasharray="slice.strokeDashArray"
+                    :stroke-dashoffset="slice.strokeDashOffset"
+                    transform="rotate(-90 80 80)"
+                    class="donut-segment"
+                  />
+                  <!-- Center text: Total Count -->
+                  <g class="donut-center-text">
+                    <text x="80" y="75" text-anchor="middle" class="donut-center-label">总工单</text>
+                    <text x="80" y="102" text-anchor="middle" class="donut-center-val">{{ totalCount }}</text>
+                  </g>
+                </svg>
+              </div>
+              <div class="distribution-list">
+                <div v-for="cat in pieSlices" :key="cat.name" class="dist-item">
+                  <div class="dist-item__header">
+                    <span class="dist-item__name">
+                      <span class="dist-item__dot" :style="{ backgroundColor: cat.color }" />
+                      {{ cat.name }}类工单
+                    </span>
+                    <span class="dist-item__value">{{ cat.count }}单 ({{ cat.percentage }}%)</span>
+                  </div>
+                  <div class="dist-item__bar-bg">
+                    <div 
+                      class="dist-item__bar-fill" 
+                      :style="{ 
+                        width: cat.percentage + '%',
+                        backgroundColor: cat.color
+                      }"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -797,7 +854,55 @@ function getCleanTitle(fullName: string): string {
   color: var(--text-main);
 }
 
+.distribution-row {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.donut-chart-container {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 160px;
+  height: 160px;
+  position: relative;
+}
+
+.donut-chart-svg {
+  width: 100%;
+  height: 100%;
+}
+
+.donut-segment {
+  transition: stroke-dasharray 0.3s ease, stroke-dashoffset 0.3s ease, stroke-width 0.2s ease;
+}
+
+.donut-segment:hover {
+  stroke-width: 16;
+  cursor: pointer;
+}
+
+.donut-center-text {
+  fill: var(--text-main);
+}
+
+.donut-center-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  fill: var(--text-soft);
+  letter-spacing: 0.05em;
+}
+
+.donut-center-val {
+  font-size: 1.6rem;
+  font-weight: 800;
+  fill: var(--text-main);
+}
+
 .distribution-list {
+  flex-grow: 1;
   display: grid;
   grid-template-columns: repeat(2, 1fr);
   gap: 16px;
@@ -1007,7 +1112,14 @@ function getCleanTitle(fullName: string): string {
     grid-template-columns: repeat(2, 1fr);
   }
   
+  .distribution-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+  }
+  
   .distribution-list {
+    width: 100%;
     grid-template-columns: 1fr;
   }
 }
