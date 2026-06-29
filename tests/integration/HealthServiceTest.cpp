@@ -1,10 +1,8 @@
-#include <cstdlib>
-#include <filesystem>
-#include <fstream>
-#include <iostream>
-
+#include <gtest/gtest.h>
 #include <drogon/orm/DbClient.h>
 #include <drogon/utils/coroutine.h>
+#include <filesystem>
+#include <fstream>
 #include <json/json.h>
 
 #include "modules/health/service/HealthService.h"
@@ -35,19 +33,11 @@ namespace {
     }
 }
 
-int main() {
+TEST(HealthServiceTest, CheckDatabaseConnection) {
     const auto dbClient = drogon::orm::DbClient::newPgClient(loadPostgresConnInfo(), 1);
-    if (!dbClient) {
-        std::cerr << "expected postgres db client to be created\n";
-        return EXIT_FAILURE;
-    }
+    ASSERT_NE(dbClient, nullptr);
 
     project_tracker::modules::health::service::HealthService service;
     const auto ready = drogon::sync_wait(service.isDatabaseReady(dbClient));
-    if (!ready) {
-        std::cerr << "expected postgres readiness probe to succeed\n";
-        return EXIT_FAILURE;
-    }
-
-    return EXIT_SUCCESS;
+    EXPECT_TRUE(ready);
 }

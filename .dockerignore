@@ -1,7 +1,8 @@
 # 排除本地编译缓存
 build/
-cmake-build-debug/
-cmake-build-release/
+docker-build-*/
+cmake-build-*/
+clion-build-*/
 
 # 排除巨大的工具链和模型数据
 tools/

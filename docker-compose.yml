@@ -49,6 +49,34 @@ services:
     networks:
       - tracker-network
 
+  # 测试运行器
+  tests:
+    image: drogonframework/drogon:latest
+    container_name: tracker-tests-run
+    depends_on:
+      - db
+    volumes:
+      - .:/app
+    working_dir: /app
+    environment:
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=${DB_NAME}
+      - DB_USER=${DB_USER}
+      - DB_PASSWORD=${DB_PASSWORD}
+    networks:
+      - tracker-network
+    entrypoint: >
+      sh -c "
+      apt-get update && apt-get install -y libargon2-dev gettext-base &&
+      envsubst < config/config.template.json > config/config.dev.json &&
+      cmake -S . -B docker-build-debug -DCMAKE_BUILD_TYPE=Debug &&
+      cmake --build docker-build-debug &&
+      cd docker-build-debug &&
+      ctest --output-on-failure
+      "
+
+
 # 定义“电话线”（网络）
 networks:
   tracker-network:

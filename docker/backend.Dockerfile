@@ -10,8 +10,8 @@ COPY . .
 
 # 直接编译
 # 官方镜像可能没有 NINJA, 使用默认的MAKEFILE
-RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-RUN cmake --build build --target Project_Tracker
+RUN cmake -S . -B docker-build-release -DCMAKE_BUILD_TYPE=Release
+RUN cmake --build docker-build-release --target Project_Tracker
 
 
 
@@ -21,7 +21,7 @@ FROM ubuntu:22.04
 WORKDIR /app
 
 # 1. 拷贝你自己的程序
-COPY --from=builder /app/build/src/Project_Tracker /app/
+COPY --from=builder /app/docker-build-release/src/Project_Tracker /app/
 COPY --from=builder /app/config/config.template.json /app/config/config.template.json
 
 # 2. 关键：拷贝官方镜像里已经编译好的 Drogon 库及其依赖

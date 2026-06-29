@@ -3,7 +3,9 @@
 
 # CMake 构建目录
 cmake-build-*/
+clion-build-*/
 build/
+docker-build-*/
 out/
 
 # 如果误在项目根目录执行过 CMake，这些文件也不需要提交
