@@ -8,12 +8,10 @@
 BEGIN;
 
 TRUNCATE TABLE
-    project_template_node,
     sub_task_progress,
     sub_task,
     project_node,
     project_member,
-    project_template,
     project,
     sys_user
 RESTART IDENTITY CASCADE;
@@ -475,53 +473,6 @@ INSERT INTO sub_task_progress (
         '2026-03-26 18:20:00+08:00'
     );
 
-INSERT INTO project_template (
-    name,
-    description,
-    status
-) VALUES
-    ('标准研发模板', '适用于常规软件研发项目。', 1),
-    ('数据治理模板', '适用于数据治理与报表类项目。', 1),
-    ('流程优化模板', '适用于内部流程优化类项目。', 1),
-    ('设备升级模板', '适用于硬件设备升级与替换。', 1),
-    ('历史停用模板', '历史模板，仅保留展示。', 2);
-
-INSERT INTO project_template_node (
-    template_id,
-    name,
-    description,
-    sequence_no
-) VALUES
-    (
-        (SELECT id FROM project_template WHERE name = '标准研发模板'),
-        '需求确认',
-        '完成需求分析与范围确认。',
-        1
-    ),
-    (
-        (SELECT id FROM project_template WHERE name = '数据治理模板'),
-        '数据梳理',
-        '完成数据源与指标口径梳理。',
-        1
-    ),
-    (
-        (SELECT id FROM project_template WHERE name = '流程优化模板'),
-        '现状调研',
-        '完成流程现状调研与问题收集。',
-        1
-    ),
-    (
-        (SELECT id FROM project_template WHERE name = '设备升级模板'),
-        '设备调研',
-        '完成设备选型与供应商对比。',
-        1
-    ),
-    (
-        (SELECT id FROM project_template WHERE name = '历史停用模板'),
-        '历史阶段',
-        '历史模板中的保留阶段。',
-        1
-    );
 
 -- 追加补充：修正演示数据中的成员关系，保证项目负责人和子任务负责人都属于项目成员。
 INSERT INTO project_member (

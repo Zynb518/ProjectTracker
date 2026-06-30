@@ -9,7 +9,6 @@
 #include "common/db/SqlExecutor.h"
 #include "modules/project/domain/ProjectEnums.h"
 #include "modules/project_node/dto/ProjectNodeDto.h"
-#include "modules/project_template/domain/ProjectTemplateEnums.h"
 #include "modules/user/domain/UserEnums.h"
 
 namespace project_tracker::modules::project_node::repository {
@@ -114,21 +113,6 @@ namespace project_tracker::modules::project_node::repository {
         std::string projectPlannedEndDate;
     };
 
-    // 基于模板批量生成阶段节点前的校验信息
-    struct ProjectNodeApplyTemplateCheckResult {
-        std::int64_t ownerUserId;
-        user::domain::SystemRole creatorUserRole;
-        project::domain::ProjectStatus projectStatus;
-        std::string projectPlannedStartDate;
-        std::string projectPlannedEndDate;
-        std::int64_t projectNodeCount;
-        std::optional<project_template::domain::ProjectTemplateStatus> templateStatus;
-        std::int64_t inputNodeCount;
-        std::int64_t distinctInputNodeCount;
-        std::int64_t templateNodeCount;
-        std::int64_t matchedTemplateNodeCount;
-    };
-
     class ProjectNodeRepository {
     public:
         // 查询项目阶段节点列表
@@ -161,18 +145,6 @@ namespace project_tracker::modules::project_node::repository {
         drogon::Task<dto::view::CreatedProjectNodeView>
         insertProjectNode(const common::db::SqlExecutorPtr &executor,
                           const dto::command::CreateProjectNodeInput &input) const;
-
-        // 锁定项目行并汇总模板映射对账信息，供套用模板写事务做前置检查
-        drogon::Task<std::optional<ProjectNodeApplyTemplateCheckResult>>
-        findProjectNodeApplyTemplateCheckResultForUpdate(
-            const common::db::SqlExecutorPtr &executor,
-            const dto::command::ApplyProjectNodeTemplateInput &input) const;
-
-        // 基于模板批量生成阶段节点
-        drogon::Task<std::optional<dto::view::AppliedProjectNodeTemplateView>>
-        insertProjectNodesFromTemplate(
-            const common::db::SqlExecutorPtr &executor,
-            const dto::command::ApplyProjectNodeTemplateInput &input) const;
 
         // 锁定阶段节点行，供修改阶段节点基础信息写事务做前置检查
         drogon::Task<std::optional<ProjectNodeBasicInfoUpdateCheckResult>>

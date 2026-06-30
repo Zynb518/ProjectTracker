@@ -16,16 +16,12 @@ add_executable(
     modules/project/controller/ProjectController.cpp
     modules/project/repository/ProjectRepository.cpp
     modules/project/service/ProjectService.cpp
-    modules/project_ai/controller/ProjectAiController.cpp
-    modules/project_ai/service/ProjectAiService.cpp
     modules/project_node/controller/ProjectNodeController.cpp
     modules/project_node/repository/ProjectNodeRepository.cpp
     modules/project_node/service/ProjectNodeService.cpp
     modules/project_member/controller/ProjectMemberController.cpp
     modules/project_member/repository/ProjectMemberRepository.cpp
     modules/project_member/service/ProjectMemberService.cpp
-    modules/project_template/controller/ProjectTemplateController.cpp
-    modules/project_template/repository/ProjectTemplateRepository.cpp
     modules/task/controller/TaskController.cpp
     modules/task/repository/TaskRepository.cpp
     modules/task/service/TaskService.cpp

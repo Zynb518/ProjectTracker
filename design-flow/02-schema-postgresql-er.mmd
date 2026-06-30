@@ -82,20 +82,6 @@ erDiagram
         timestamptz created_at
     }
 
-    project_template {
-        bigint id PK
-        varchar name UK
-        text description
-        integer status
-    }
-
-    project_template_node {
-        bigint id PK
-        bigint template_id FK
-        varchar name
-        text description
-        int sequence_no
-    }
 
     device {
         bigint id PK
@@ -129,7 +115,6 @@ erDiagram
     sub_task ||--o{ sub_task_progress : records
     sys_user ||--o{ sub_task_progress : operates
 
-    project_template ||--o{ project_template_node : contains
 
     device ||--o{ device_usage_log : records
     sys_user ||--o{ device_usage_log : operates
