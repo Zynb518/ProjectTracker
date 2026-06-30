@@ -7,3 +7,4 @@ TEST(HealthServiceUnitTest, ReturnsFalseOnNullDbClient) {
     const auto ready = drogon::sync_wait(service.isDatabaseReady(nullptr));
     EXPECT_FALSE(ready);
 }
+

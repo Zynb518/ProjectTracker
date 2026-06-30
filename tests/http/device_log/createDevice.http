@@ -36,6 +36,30 @@ Content-Type: application/json
 
 {}
 
+### 异常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 异常路径：普通用户创建设备，预期 403
+POST {{baseUrl}}/api/devices
+Content-Type: application/json
+
+{
+  "name": "forbidden_device_case",
+  "description": "普通用户创建设备测试"
+}
+
+### 正常路径：普通用户登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
 ### 异常路径：未登录创建设备，预期 401
 POST {{baseUrl}}/api/devices
 Content-Type: application/json

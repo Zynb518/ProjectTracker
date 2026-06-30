@@ -15,6 +15,16 @@ namespace project_tracker::modules::device_log::controller {
 
     drogon::Task<drogon::HttpResponsePtr>
     DeviceController::createDevice(drogon::HttpRequestPtr request) {
+        const auto &session = request->getSession();
+        const auto systemRole = session->getOptional<user::domain::SystemRole>("system_role");
+        if (!systemRole || (*systemRole != user::domain::SystemRole::Admin &&
+                            *systemRole != user::domain::SystemRole::ProjectManager)) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "无权限注册设备");
+        }
+
         const auto &json = request->getJsonObject();
         if (!json || !json->isObject()) {
             co_return api::fail(
@@ -155,6 +165,16 @@ namespace project_tracker::modules::device_log::controller {
 
     drogon::Task<drogon::HttpResponsePtr>
     DeviceController::listDeviceUsageLogs(drogon::HttpRequestPtr request, std::int64_t deviceId) {
+        const auto &session = request->getSession();
+        const auto systemRole = session->getOptional<user::domain::SystemRole>("system_role");
+        if (!systemRole || (*systemRole != user::domain::SystemRole::Admin &&
+                            *systemRole != user::domain::SystemRole::ProjectManager)) {
+            co_return api::fail(
+                drogon::k403Forbidden,
+                error::ErrorCode::Forbidden,
+                "无权限查看设备使用记录");
+        }
+
         repository::DeviceUsageLogListQuery query;
         query.deviceId = deviceId;
         

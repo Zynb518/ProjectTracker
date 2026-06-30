@@ -15,6 +15,7 @@ FetchContent_MakeAvailable(googletest)
 add_executable(
     Project_Tracker_UnitTests
     unit/HealthServiceUnitTest.cpp
+    unit/PasswordUtilTest.cpp
     ${PROJECT_SOURCE_DIR}/src/modules/health/service/HealthService.cpp
 )
 
@@ -29,6 +30,7 @@ target_link_libraries(
     PRIVATE
         GTest::gtest_main
         Drogon::Drogon
+        PkgConfig::ARGON2
 )
 
 # 自动发现 GTest 测试用例

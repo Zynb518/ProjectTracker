@@ -29,5 +29,23 @@ Content-Type: application/json
 
 {}
 
+### 异常路径：普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "chen_xu",
+  "password": "123456"
+}
+
+### 异常路径：普通用户获取使用记录列表，预期 403
+GET {{baseUrl}}/api/devices/1/logs?page=1&page_size=10
+
+### 正常路径：普通用户登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
 ### 异常路径：未登录获取设备使用记录列表，预期 401
 GET {{baseUrl}}/api/devices/1/logs
