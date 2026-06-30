@@ -28,9 +28,6 @@ vi.mock('@/api/projects', () => ({
   reopenProject: vi.fn(),
 }))
 
-vi.mock('@/api/projectAi', () => ({
-  generateProjectDraft: vi.fn(),
-}))
 
 vi.mock('@/api/nodes', () => ({
   createProjectNode: vi.fn(),
@@ -42,7 +39,6 @@ vi.mock('@/api/subtasks', () => ({
 
 import { createProject, completeProject, listProjects } from '@/api/projects'
 import { createProjectNode } from '@/api/nodes'
-import { generateProjectDraft } from '@/api/projectAi'
 import { useNotificationStore } from '@/stores/notifications'
 import { useBeginnerTutorialStore } from '@/stores/beginnerTutorial'
 import { createSubtask } from '@/api/subtasks'
@@ -1041,64 +1037,6 @@ describe('ProjectListView', () => {
     expect(tutorialStore.step).toBe('manual-form')
   })
 
-  it('renders a dedicated AI project creation entry beside the existing actions', async () => {
-    const screen = render(ProjectListView)
-
-    await screen.findByText('内部进度平台')
-
-    const shell = screen.getByTestId('project-list-hero-shell')
-    const aiButton = within(shell).getByRole('button', { name: 'AI 创建项目' })
-
-    expect(aiButton).toBeTruthy()
-  })
-
-  it('automatically opens the AI dialog when the tutorial enters the AI branch, advances after draft generation, and can continue to submit step', async () => {
-    vi.mocked(generateProjectDraft).mockResolvedValue({
-      project: {
-        name: 'AI 首个项目',
-        description: 'AI 生成的首个项目草稿',
-        planned_start_date: '2026-05-01',
-        planned_end_date: '2026-05-20',
-      },
-      nodes: [
-        {
-          name: '需求确认',
-          description: '收集并确认需求',
-          planned_start_date: '2026-05-01',
-          planned_end_date: '2026-05-05',
-          subtasks: [],
-        },
-      ],
-    })
-
-    const pinia = createPinia()
-    setActivePinia(pinia)
-    const tutorialStore = useBeginnerTutorialStore(pinia)
-    tutorialStore.start()
-    tutorialStore.chooseAiBranch()
-
-    const screen = render(ProjectListView, {
-      global: {
-        plugins: [pinia],
-      },
-    })
-    const user = userEvent.setup()
-
-    await screen.findByText('内部进度平台')
-    expect(screen.getByRole('heading', { name: 'AI 创建项目' })).toBeTruthy()
-    expect(tutorialStore.step).toBe('ai-prompt')
-
-    await user.type(screen.getByRole('textbox', { name: 'AI 项目提示词' }), '帮我生成一个首个项目')
-    await user.click(screen.getByRole('button', { name: 'AI 生成草稿' }))
-
-    expect(await screen.findByText('AI 首个项目')).toBeTruthy()
-    expect(tutorialStore.step).toBe('ai-review')
-
-    tutorialStore.advanceAiReview()
-
-    expect(tutorialStore.step).toBe('ai-submit')
-    expect(screen.getByRole('button', { name: '最终提交' })).toBeTruthy()
-  })
 
   it('redirects tutorial-based manual creation to the new project detail page after submit', async () => {
     vi.mocked(createProject).mockResolvedValue({
@@ -1145,195 +1083,6 @@ describe('ProjectListView', () => {
     expect(tutorialStore.createdProjectId).toBe(3201)
   })
 
-  it('opens the AI workbench, generates a draft, then submits it serially and navigates to the new project detail', async () => {
-    vi.mocked(generateProjectDraft).mockResolvedValue({
-      project: {
-        name: 'AI 内部流程平台',
-        description: '由 AI 生成的内部流程协作项目',
-        planned_start_date: '2026-05-01',
-        planned_end_date: '2026-06-20',
-      },
-      nodes: [
-        {
-          name: '需求梳理',
-          description: '完成需求确认',
-          planned_start_date: '2026-05-01',
-          planned_end_date: '2026-05-08',
-          subtasks: [
-            {
-              name: '访谈业务方',
-              description: '收集业务需求',
-              priority: 2,
-              planned_start_date: '2026-05-01',
-              planned_end_date: '2026-05-03',
-            },
-          ],
-        },
-        {
-          name: '开发联调',
-          description: '完成开发与联调',
-          planned_start_date: '2026-05-09',
-          planned_end_date: '2026-05-28',
-          subtasks: [
-            {
-              name: '接口开发',
-              description: '完成接口实现',
-              priority: 3,
-              planned_start_date: '2026-05-09',
-              planned_end_date: '2026-05-16',
-            },
-            {
-              name: '前端联调',
-              description: '完成前端联调',
-              priority: 2,
-              planned_start_date: '2026-05-17',
-              planned_end_date: '2026-05-28',
-            },
-          ],
-        },
-      ],
-    })
-    vi.mocked(createProject).mockResolvedValue({
-      id: 3001,
-      name: 'AI 内部流程平台',
-      description: '由 AI 生成的内部流程协作项目',
-      planned_start_date: '2026-05-01',
-      planned_end_date: '2026-06-20',
-      updated_at: '2026-04-23T10:00:00+08:00',
-    })
-    vi.mocked(createProjectNode)
-      .mockResolvedValueOnce({
-        id: 4001,
-        project_id: 3001,
-        name: '需求梳理',
-        description: '完成需求确认',
-        sequence_no: 1,
-        status: 1,
-        planned_start_date: '2026-05-01',
-        planned_end_date: '2026-05-08',
-        completed_at: null,
-        created_by: 1,
-        created_at: '2026-04-23T10:00:00+08:00',
-        updated_at: '2026-04-23T10:00:00+08:00',
-        sub_task_count: 0,
-        completed_sub_task_count: 0,
-      })
-      .mockResolvedValueOnce({
-        id: 4002,
-        project_id: 3001,
-        name: '开发联调',
-        description: '完成开发与联调',
-        sequence_no: 2,
-        status: 1,
-        planned_start_date: '2026-05-09',
-        planned_end_date: '2026-05-28',
-        completed_at: null,
-        created_by: 1,
-        created_at: '2026-04-23T10:00:00+08:00',
-        updated_at: '2026-04-23T10:00:00+08:00',
-        sub_task_count: 0,
-        completed_sub_task_count: 0,
-      })
-    vi.mocked(createSubtask)
-      .mockResolvedValueOnce({
-        id: 5001,
-        node_id: 4001,
-        name: '访谈业务方',
-        description: '收集业务需求',
-        responsible_user_id: 0,
-        status: 1,
-        progress_percent: 0,
-        priority: 2,
-        planned_start_date: '2026-05-01',
-        planned_end_date: '2026-05-03',
-        completed_at: null,
-        updated_at: '2026-04-23T10:00:00+08:00',
-      })
-      .mockResolvedValueOnce({
-        id: 5002,
-        node_id: 4002,
-        name: '接口开发',
-        description: '完成接口实现',
-        responsible_user_id: 0,
-        status: 1,
-        progress_percent: 0,
-        priority: 3,
-        planned_start_date: '2026-05-09',
-        planned_end_date: '2026-05-16',
-        completed_at: null,
-        updated_at: '2026-04-23T10:00:00+08:00',
-      })
-      .mockResolvedValueOnce({
-        id: 5003,
-        node_id: 4002,
-        name: '前端联调',
-        description: '完成前端联调',
-        responsible_user_id: 0,
-        status: 1,
-        progress_percent: 0,
-        priority: 2,
-        planned_start_date: '2026-05-17',
-        planned_end_date: '2026-05-28',
-        completed_at: null,
-        updated_at: '2026-04-23T10:00:00+08:00',
-      })
-
-    const screen = render(ProjectListView)
-    const user = userEvent.setup()
-
-    await screen.findByText('内部进度平台')
-    await user.click(screen.getByRole('button', { name: 'AI 创建项目' }))
-
-    expect(screen.getByRole('heading', { name: 'AI 创建项目' })).toBeTruthy()
-
-    await user.type(
-      screen.getByRole('textbox', { name: 'AI 项目提示词' }),
-      '做一个内部流程平台项目，包含需求梳理、开发联调、测试上线三个阶段',
-    )
-    await user.click(screen.getByRole('button', { name: 'AI 生成草稿' }))
-
-    expect(await screen.findByText('AI 内部流程平台')).toBeTruthy()
-    expect(screen.getByText('需求梳理')).toBeTruthy()
-    expect(screen.getByText('前端联调')).toBeTruthy()
-
-    await user.click(screen.getByRole('button', { name: '最终提交' }))
-
-    await waitFor(() => {
-      expect(createProject).toHaveBeenCalledWith({
-        name: 'AI 内部流程平台',
-        description: '由 AI 生成的内部流程协作项目',
-        planned_start_date: '2026-05-01',
-        planned_end_date: '2026-06-20',
-      })
-    })
-    expect(createProjectNode).toHaveBeenNthCalledWith(1, 3001, {
-      name: '需求梳理',
-      description: '完成需求确认',
-      planned_start_date: '2026-05-01',
-      planned_end_date: '2026-05-08',
-    })
-    expect(createProjectNode).toHaveBeenNthCalledWith(2, 3001, {
-      name: '开发联调',
-      description: '完成开发与联调',
-      planned_start_date: '2026-05-09',
-      planned_end_date: '2026-05-28',
-    })
-    expect(createSubtask).toHaveBeenNthCalledWith(1, 3001, 4001, {
-      name: '访谈业务方',
-      description: '收集业务需求',
-      priority: 2,
-      planned_start_date: '2026-05-01',
-      planned_end_date: '2026-05-03',
-    })
-    expect(createSubtask).toHaveBeenNthCalledWith(3, 3001, 4002, {
-      name: '前端联调',
-      description: '完成前端联调',
-      priority: 2,
-      planned_start_date: '2026-05-17',
-      planned_end_date: '2026-05-28',
-    })
-    expect(pushMock).toHaveBeenCalledWith('/projects/3001')
-  })
 
   it('shows an error message when a project action fails', async () => {
     vi.mocked(completeProject).mockRejectedValue(new Error('项目完成失败：仍有未完成节点'))

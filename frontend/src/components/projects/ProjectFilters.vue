@@ -22,7 +22,6 @@ const emit = defineEmits<{
   'update:keyword': [value: string]
   'update:status': [value: string]
   submit: []
-  'create-ai': [origin: DialogTriggerOrigin]
   create: [origin: DialogTriggerOrigin]
   'open-gantt': [origin: DialogTriggerOrigin]
 }>()
@@ -66,19 +65,6 @@ function emitCreateOrigin(event: MouseEvent) {
   })
 }
 
-function emitAiCreateOrigin(event: MouseEvent) {
-  const trigger = event.currentTarget as HTMLElement | null
-
-  if (!trigger) {
-    return
-  }
-
-  const rect = trigger.getBoundingClientRect()
-  emit('create-ai', {
-    x: rect.left + rect.width / 2,
-    y: rect.top + rect.height / 2,
-  })
-}
 
 function emitGanttOrigin(event: MouseEvent) {
   const trigger = event.currentTarget as HTMLElement | null
@@ -131,17 +117,6 @@ function emitGanttOrigin(event: MouseEvent) {
     </div>
 
     <div class="project-filters__actions" data-tutorial-target="project-create-actions">
-      <button
-        type="button"
-        aria-label="AI 创建项目"
-        class="project-filters__ai-create"
-        data-tutorial-target="project-ai-create"
-        data-testid="open-ai-project-create"
-        @click="emitAiCreateOrigin"
-      >
-        <span class="project-filters__ai-create-mark">AI</span>
-        <span>AI 创建</span>
-      </button>
 
       <button
         type="button"

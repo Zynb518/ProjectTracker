@@ -3,7 +3,6 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 import ProjectFilters from '@/components/projects/ProjectFilters.vue'
-import ProjectAiDraftDialog from '@/components/projects/ProjectAiDraftDialog.vue'
 import ProjectFormDialog from '@/components/projects/ProjectFormDialog.vue'
 import ProjectListGanttDialog from '@/components/projects/ProjectListGanttDialog.vue'
 import ProjectGrid from '@/components/projects/ProjectGrid.vue'
@@ -56,7 +55,6 @@ const hasLoadError = ref(false)
 const ganttLoadError = ref<string | null>(null)
 const ganttProjects = ref<ProjectListItem[]>([])
 const ganttDialogOpen = ref(false)
-const aiDraftDialogOpen = ref(false)
 const ganttScale = ref<GanttScale>('week')
 const isGanttLoading = ref(false)
 const dialogOpen = ref(false)
@@ -65,7 +63,6 @@ const formValue = ref<ProjectFormPayload>(defaultFormValue())
 const editingProjectId = ref<number | null>(null)
 const dialogMotionOrigin = ref<DialogMotionOrigin | null>(null)
 const ganttDialogMotionOrigin = ref<DialogMotionOrigin | null>(null)
-const aiDraftDialogMotionOrigin = ref<DialogMotionOrigin | null>(null)
 const notificationStore = useNotificationStore()
 const pagination = reactive({
   page: 1,
@@ -190,10 +187,6 @@ function openCreateDialog(origin: DialogTriggerOrigin | null = null) {
   dialogOpen.value = true
 }
 
-function openAiCreateDialog(origin: DialogTriggerOrigin | null = null) {
-  aiDraftDialogMotionOrigin.value = createDialogMotionOrigin(origin)
-  aiDraftDialogOpen.value = true
-}
 
 async function openGanttDialog(origin: DialogTriggerOrigin) {
   ganttDialogMotionOrigin.value = createDialogMotionOrigin(origin)
@@ -281,22 +274,6 @@ function handleProjectDialogVisibility(value: boolean) {
   }
 }
 
-function handleAiDialogVisibility(value: boolean) {
-  aiDraftDialogOpen.value = value
-
-  if (!value) {
-    tutorialStore.handleDialogClosed('ai')
-  }
-}
-
-async function handleTutorialProjectCreated(projectId: number) {
-  if (!tutorialStore.active || tutorialStore.mode !== 'ai') {
-    return
-  }
-
-  tutorialStore.markCreated(projectId)
-  await router.push(`/projects/${projectId}`)
-}
 
 watch(
   () => tutorialStore.dialogRequest,
@@ -304,12 +281,6 @@ watch(
     if (dialogRequest === 'manual') {
       tutorialStore.consumeDialogRequest('manual')
       openCreateDialog()
-      return
-    }
-
-    if (dialogRequest === 'ai') {
-      tutorialStore.consumeDialogRequest('ai')
-      openAiCreateDialog()
     }
   },
   { immediate: true },
@@ -341,7 +312,6 @@ onMounted(loadProjects)
           :embedded="true"
           :keyword="filters.keyword"
           :status="filters.status"
-          @create-ai="openAiCreateDialog"
           @create="openCreateDialog"
           @open-gantt="openGanttDialog"
           @submit="applyFilters"
@@ -440,14 +410,6 @@ onMounted(loadProjects)
       @submit="submitProject"
     />
 
-    <ProjectAiDraftDialog
-      :model-value="aiDraftDialogOpen"
-      :motion-origin="aiDraftDialogMotionOrigin"
-      :redirect-on-created="!(tutorialStore.active && tutorialStore.mode === 'ai')"
-      @created="handleTutorialProjectCreated"
-      @draft-generated="tutorialStore.markAiDraftGenerated()"
-      @update:model-value="handleAiDialogVisibility"
-    />
 
     <ProjectListGanttDialog
       v-model="ganttDialogOpen"

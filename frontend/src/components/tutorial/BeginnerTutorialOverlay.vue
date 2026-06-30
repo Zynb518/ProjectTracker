@@ -44,13 +44,6 @@ const content = computed<TutorialContent | null>(() => {
         description: '这套教程只做一件事：带你走完第一次项目创建，不让你在入口按钮和弹窗之间来回试。',
         target: 'beginner-tutorial-entry',
       }
-    case 'choose-mode':
-      return {
-        badge: 'Create Mode',
-        title: '选择创建方式',
-        description: '你可以直接手动创建，也可以先让 AI 生成项目草稿，再确认结构和日期。',
-        target: 'project-create-actions',
-      }
     case 'manual-form':
       return {
         badge: 'Manual Create',
@@ -58,30 +51,7 @@ const content = computed<TutorialContent | null>(() => {
         description: '先填项目名称和计划日期。描述可以先写简版，创建成功后会直接带你进入项目详情页。',
         target: 'project-form-dialog',
       }
-    case 'ai-prompt':
-      return {
-        badge: 'AI Create',
-        title: '先输入项目需求提示词',
-        description: '把项目目标、阶段拆分和时间范围写进去，然后点击“AI 生成草稿”。草稿出来后，我会继续带你审阅。',
-        target: 'project-ai-prompt',
-      }
-    case 'ai-review':
-      return {
-        badge: 'Draft Review',
-        title: '先检查结构树和右侧属性编辑',
-        description: '这里先确认阶段、子任务和日期关系是否合理。你可以在中间查看结构树，在右侧直接修改名称、描述和计划时间。',
-        target: 'project-ai-review-stage',
-        preferredPlacement: 'left',
-        showNextAction: true,
-      }
-    case 'ai-submit':
-      return {
-        badge: 'Submit Draft',
-        title: '确认无误后提交整份草稿',
-        description: '如果结构和日期都确认好了，点击这个“最终提交”按钮，系统会按当前草稿顺序创建项目、阶段和子任务。',
-        target: 'project-ai-submit',
-        preferredPlacement: 'left',
-      }
+
     case 'created-success':
       return {
         badge: 'Next Step',
@@ -349,25 +319,7 @@ function scheduleMeasureBurst() {
 
 function handlePrimaryAction() {
   if (tutorialStore.step === 'intro') {
-    tutorialStore.showModeChoice()
-  }
-}
-
-function handleChooseAi() {
-  tutorialStore.chooseAiBranch()
-}
-
-function handleChooseManual() {
-  tutorialStore.chooseManualBranch()
-}
-
-function handleBackToChoice() {
-  tutorialStore.showModeChoice()
-}
-
-function handleNextStep() {
-  if (tutorialStore.step === 'ai-review') {
-    tutorialStore.advanceAiReview()
+    tutorialStore.chooseManualBranch()
   }
 }
 
@@ -432,25 +384,13 @@ onBeforeUnmount(() => {
             <button type="button" class="beginner-tutorial__ghost" @click="handleFinish">结束教程</button>
           </template>
 
-        <template v-else-if="tutorialStore.step === 'choose-mode'">
-          <button type="button" class="beginner-tutorial__primary" @click="handleChooseAi">AI 创建</button>
-          <button type="button" class="beginner-tutorial__ghost" @click="handleChooseManual">手动创建</button>
-          <button type="button" class="beginner-tutorial__ghost" @click="handleFinish">结束教程</button>
-        </template>
-
-        <template v-else-if="content.showNextAction">
-          <button type="button" class="beginner-tutorial__ghost" @click="handleBackToChoice">重新选择方式</button>
-          <button type="button" class="beginner-tutorial__primary" @click="handleNextStep">下一步</button>
-        </template>
-
         <template v-else-if="tutorialStore.step === 'created-success'">
           <button type="button" class="beginner-tutorial__primary" @click="handleFinish">结束教程</button>
         </template>
 
-          <template v-else>
-            <button type="button" class="beginner-tutorial__ghost" @click="handleBackToChoice">重新选择方式</button>
-            <button type="button" class="beginner-tutorial__primary" @click="handleFinish">结束教程</button>
-          </template>
+        <template v-else>
+          <button type="button" class="beginner-tutorial__ghost" @click="handleFinish">结束教程</button>
+        </template>
         </div>
       </section>
     </div>
