@@ -20,6 +20,12 @@ namespace project_tracker::modules::device_log::service {
 
     drogon::Task<void>
     DeviceService::deleteDevice(const dto::command::DeleteDeviceInput &input) const {
+        if (input.operatorUserRole != modules::user::domain::SystemRole::Admin) {
+            error::throwForbidden(
+                error::ErrorCode::Forbidden,
+                "当前操作者无权限删除设备");
+        }
+
         try {
             const auto dbClient = drogon::app().getDbClient();
             bool deleted = co_await deviceRepository_.deleteDevice(dbClient, input.deviceId);

@@ -47,6 +47,13 @@ RUN apt-get update && apt-get install -y \
 # 4. 刷新动态库缓存，让系统认出刚拷过来的 libdrogon
 RUN ldconfig
 
+# 创建非 root 用户并修改 /app 拥有权
+RUN groupadd -r appgroup && useradd -r -g appgroup -d /app -s /sbin/nologin appuser \
+    && chown -R appuser:appgroup /app
+
+# 切换为普通非 root 用户
+USER appuser
+
 # 声明容器运行时监听的端口（仅作说明）
 EXPOSE 8080
 

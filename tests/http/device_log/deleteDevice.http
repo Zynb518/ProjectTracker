@@ -25,3 +25,21 @@ Content-Type: application/json
 
 ### 异常路径：未登录删除设备，预期 401
 DELETE {{baseUrl}}/api/devices/1
+
+### 异常路径：普通用户登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "chen_xu",
+  "password": "123456"
+}
+
+### 异常路径：普通用户删除设备，预期 403
+DELETE {{baseUrl}}/api/devices/1
+
+### 正常路径：普通用户登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
