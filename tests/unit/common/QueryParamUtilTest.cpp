@@ -4,7 +4,7 @@
 
 namespace project_tracker::common::util {
 
-    // Helper 函数：创建一个带指定 query 参数的 mock 请求
+    // 辅助函数：创建一个带指定 query 参数的 mock 请求
     static drogon::HttpRequestPtr createMockRequest(const std::unordered_map<std::string, std::string>& params) {
         auto req = drogon::HttpRequest::newHttpRequest();
         for (const auto& [key, value] : params) {
@@ -13,7 +13,7 @@ namespace project_tracker::common::util {
         return req;
     }
 
-    // --- readQueryString Tests ---
+    // --- readQueryString 函数测试 ---
     TEST(QueryParamUtilTest, ReadQueryString_ParamExists_ReturnsValue) {
         auto req = createMockRequest({{"keyword", "alice"}});
         auto result = readQueryString(req, "keyword");
@@ -27,7 +27,7 @@ namespace project_tracker::common::util {
         EXPECT_FALSE(result.has_value());
     }
 
-    // --- readQueryInt Tests ---
+    // --- readQueryInt 函数测试 ---
     TEST(QueryParamUtilTest, ReadQueryInt_ValidInt_ReturnsTrue) {
         auto req = createMockRequest({{"system_role", "2"}});
         std::optional<int> value;
@@ -50,7 +50,7 @@ namespace project_tracker::common::util {
         EXPECT_FALSE(value.has_value());
     }
 
-    // --- readPositiveQueryInt Tests ---
+    // --- readPositiveQueryInt 函数测试 ---
     TEST(QueryParamUtilTest, ReadPositiveQueryInt_PositiveInt_ReturnsTrue) {
         auto req = createMockRequest({{"page", "2"}});
         std::optional<int> value;
@@ -67,13 +67,13 @@ namespace project_tracker::common::util {
     }
 
     TEST(QueryParamUtilTest, ReadPositiveQueryInt_ZeroOrNegativeInt_ReturnsFalse) {
-        // 测试 0
+        // 测试值为 0 的场景
         {
             auto req = createMockRequest({{"page", "0"}});
             std::optional<int> value = 10;
             EXPECT_FALSE(readPositiveQueryInt(req, "page", value));
         }
-        // 测试负数
+        // 测试值为负数的场景
         {
             auto req = createMockRequest({{"page", "-5"}});
             std::optional<int> value = 10;
@@ -81,7 +81,7 @@ namespace project_tracker::common::util {
         }
     }
 
-    // --- readPositiveQueryInt64 Tests ---
+    // --- readPositiveQueryInt64 函数测试 ---
     TEST(QueryParamUtilTest, ReadPositiveQueryInt64_PositiveInt64_ReturnsTrue) {
         auto req = createMockRequest({{"page_size", "123456789012"}});
         std::optional<std::int64_t> value;
@@ -98,13 +98,13 @@ namespace project_tracker::common::util {
     }
 
     TEST(QueryParamUtilTest, ReadPositiveQueryInt64_ZeroOrNegativeInt64_ReturnsFalse) {
-        // 测试 0
+        // 测试值为 0 的场景
         {
             auto req = createMockRequest({{"page_size", "0"}});
             std::optional<std::int64_t> value;
             EXPECT_FALSE(readPositiveQueryInt64(req, "page_size", value));
         }
-        // 测试负数
+        // 测试值为负数的场景
         {
             auto req = createMockRequest({{"page_size", "-100000000000"}});
             std::optional<std::int64_t> value;

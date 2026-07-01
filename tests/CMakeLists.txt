@@ -19,7 +19,10 @@ add_executable(
     unit/bootstrap/ThreadNumConfigTest.cpp
     unit/common/JsonUtilTest.cpp
     unit/common/QueryParamUtilTest.cpp
+    unit/common/ErrorTest.cpp
     ${PROJECT_SOURCE_DIR}/src/modules/health/service/HealthService.cpp
+    ${PROJECT_SOURCE_DIR}/src/common/error/BusinessException.cpp
+    ${PROJECT_SOURCE_DIR}/src/common/error/Throw.cpp
 )
 
 target_include_directories(

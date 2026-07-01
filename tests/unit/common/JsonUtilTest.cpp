@@ -3,7 +3,7 @@
 
 namespace project_tracker::common::util {
 
-    // --- readRequiredString Tests ---
+    // --- readRequiredString 函数测试 ---
     TEST(JsonUtilTest, ReadRequiredString_ValidString_ReturnsTrue) {
         Json::Value json;
         json["name"] = "Alice";
@@ -39,7 +39,7 @@ namespace project_tracker::common::util {
         EXPECT_FALSE(readRequiredString(json, "name", value));
     }
 
-    // --- readRequiredInt Tests ---
+    // --- readRequiredInt 函数测试 ---
     TEST(JsonUtilTest, ReadRequiredInt_ValidInt_ReturnsTrue) {
         Json::Value json;
         json["age"] = 25;
@@ -68,7 +68,7 @@ namespace project_tracker::common::util {
         EXPECT_FALSE(readRequiredInt(json, "age", value));
     }
 
-    // --- readRequiredInt64 Tests ---
+    // --- readRequiredInt64 函数测试 ---
     TEST(JsonUtilTest, ReadRequiredInt64_ValidInt64_ReturnsTrue) {
         Json::Value json;
         json["id"] = static_cast<Json::Int64>(9223372036854775807LL);
@@ -84,7 +84,7 @@ namespace project_tracker::common::util {
         EXPECT_FALSE(readRequiredInt64(json, "id", value));
     }
 
-    // --- readOptionalString (std::string&) Tests ---
+    // --- readOptionalString (std::string& 重载) 函数测试 ---
     TEST(JsonUtilTest, ReadOptionalStringStdString_ValidString_ReturnsTrue) {
         Json::Value json;
         json["desc"] = "some description";
@@ -97,7 +97,7 @@ namespace project_tracker::common::util {
         Json::Value json;
         std::string value = "default";
         EXPECT_TRUE(readOptionalString(json, "desc", value));
-        EXPECT_EQ(value, "default"); // remains unchanged
+        EXPECT_EQ(value, "default"); // 保持原有的初始值不变
     }
 
     TEST(JsonUtilTest, ReadOptionalStringStdString_NotAnObject_ReturnsTrueAndKeepsDefault) {
@@ -114,7 +114,7 @@ namespace project_tracker::common::util {
         EXPECT_FALSE(readOptionalString(json, "desc", value));
     }
 
-    // --- readOptionalString (std::optional<std::string>&) Tests ---
+    // --- readOptionalString (std::optional<std::string>& 重载) 函数测试 ---
     TEST(JsonUtilTest, ReadOptionalStringOptional_ValidString_ReturnsTrue) {
         Json::Value json;
         json["desc"] = "some description";
@@ -139,7 +139,7 @@ namespace project_tracker::common::util {
         EXPECT_FALSE(value.has_value());
     }
 
-    // --- readOptionalInt Tests ---
+    // --- readOptionalInt 函数测试 ---
     TEST(JsonUtilTest, ReadOptionalInt_ValidInt_ReturnsTrue) {
         Json::Value json;
         json["limit"] = 50;
@@ -164,7 +164,7 @@ namespace project_tracker::common::util {
         EXPECT_FALSE(value.has_value());
     }
 
-    // --- readOptionalInt64 Tests ---
+    // --- readOptionalInt64 函数测试 ---
     TEST(JsonUtilTest, ReadOptionalInt64_ValidInt64_ReturnsTrue) {
         Json::Value json;
         json["id"] = static_cast<Json::Int64>(12345678901234LL);

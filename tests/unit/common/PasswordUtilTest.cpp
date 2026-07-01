@@ -13,7 +13,7 @@ namespace project_tracker::common::util {
         
         const std::string hash = *hashOpt;
         EXPECT_FALSE(hash.empty());
-        EXPECT_EQ(hash.rfind("$argon2id$", 0), 0); // Should be Argon2id encoded string
+        EXPECT_EQ(hash.rfind("$argon2id$", 0), 0); // 应该为 Argon2id 编码格式的字符串
         
         auto verifyResult = verifyPassword(password, hash);
         EXPECT_EQ(verifyResult, PasswordVerifyResult::Matched);
@@ -82,16 +82,16 @@ namespace project_tracker::common::util {
         std::random_device rd;
         const std::uint32_t seed = rd(); 
         
-        // 在标准输出中打印种子，若失败可在日志中看到并进行本地复现
-        std::cout << "[INFO] PasswordUtilTest Random Seed: " << seed << std::endl;
+        // 在标准输出中打印随机种子，若测试失败可在日志中找到该值以用于本地复现
+        std::cout << "[信息] PasswordUtilTest 随机数种子: " << seed << std::endl;
 
-        // 限制在 5 次以内，防止因 Argon2 多次验证引起测试运行时间过长
+        // 限制在 5 次以内，防止因 Argon2 密集计算导致测试运行时间过长
         for (std::size_t i = 1; i <= 5; ++i) {
             std::size_t passwordLength = 8 + (i * 10); // 长度从 18 递增到 58
             std::string randomPassword = generateRandomPassword(seed + i, passwordLength);
             
             auto hashOpt = hashPassword(randomPassword);
-            ASSERT_TRUE(hashOpt.has_value()) << "Failed to hash password of length " << passwordLength;
+            ASSERT_TRUE(hashOpt.has_value()) << "对长度为 " << passwordLength << " 的密码计算哈希失败";
             
             // 验证匹配
             EXPECT_EQ(verifyPassword(randomPassword, *hashOpt), PasswordVerifyResult::Matched);
