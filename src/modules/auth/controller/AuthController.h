@@ -4,6 +4,7 @@
 #include <drogon/utils/coroutine.h>
 
 #include "filters/LoginRequiredFilter.h"
+#include "filters/LoginRateLimitFilter.h"
 #include "modules/auth/repository/AuthRepository.h"
 #include "modules/auth/service/AuthService.h"
 
@@ -12,7 +13,10 @@ namespace project_tracker::modules::auth::controller {
     class AuthController : public drogon::HttpController<AuthController> {
     public:
         METHOD_LIST_BEGIN
-            ADD_METHOD_TO(AuthController::login, "/api/auth/login", drogon::Post);
+            ADD_METHOD_TO(AuthController::login,
+                          "/api/auth/login",
+                          drogon::Post,
+                          filters::LoginRateLimitFilter::classTypeName());
             ADD_METHOD_TO(AuthController::logout, "/api/auth/logout", drogon::Post);
             ADD_METHOD_TO(AuthController::me,
                           "/api/auth/me",

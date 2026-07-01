@@ -8,6 +8,7 @@ add_executable(
     common/error/Throw.cpp
     filters/AdminRequiredFilter.cpp
     filters/LoginRequiredFilter.cpp
+    filters/LoginRateLimitFilter.cpp
     modules/auth/controller/AuthController.cpp
     modules/health/controller/HealthController.cpp
     modules/health/service/HealthService.cpp

@@ -15,7 +15,9 @@ FetchContent_MakeAvailable(googletest)
 add_executable(
     Project_Tracker_UnitTests
     unit/HealthServiceUnitTest.cpp
-    unit/PasswordUtilTest.cpp
+    unit/common/PasswordUtilTest.cpp
+    unit/bootstrap/ThreadNumConfigTest.cpp
+    unit/common/JsonUtilTest.cpp
     ${PROJECT_SOURCE_DIR}/src/modules/health/service/HealthService.cpp
 )
 

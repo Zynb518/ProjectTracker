@@ -259,6 +259,12 @@ namespace project_tracker::modules::user::controller {
                 error::ErrorCode::InvalidParameter,
                 "password 必须是非空字符串");
         }
+        if (command.password.size() < 6 || command.password.size() > 72) {
+            co_return api::fail(
+                drogon::k400BadRequest,
+                error::ErrorCode::InvalidParameter,
+                "password 长度必须在 6 到 72 字节之间");
+        }
 
         if (!util::readRequiredString(*json, "real_name", command.realName)) {
             co_return api::fail(

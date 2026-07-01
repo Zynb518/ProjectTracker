@@ -20,9 +20,11 @@ int main(int argc, char **argv) {
         drogon::app().loadConfigFile(configPath);
         const auto threadNum = project_tracker::bootstrap::readConfiguredThreadNum(
             drogon::app().getCustomConfig());
+
         if (threadNum) {
             drogon::app().setThreadNum(*threadNum);
         }
+
         drogon::app().enableSession(
             24 * 60 * 60,
             drogon::Cookie::SameSite::kLax,

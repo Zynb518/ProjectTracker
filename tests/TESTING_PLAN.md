@@ -100,3 +100,61 @@
    * 我们可以在 `tests/` 目录下集成基于 NodeJS 的 `httpyac` CLI，对项目原有的 50+ 个 `.http` 请求执行自动化校验（校验返回状态码、JSON 返回值等）。
 3. **安全审计与漏扫（Penetration Sandbox）**
    * 采用模拟工具或脚本检测 API 的未授权访问（如绕过 Token 访问受保护接口）。
+
+---
+
+## 4. 资源泄露与并发安全检测 (Resource Leak & Concurrency Safety)
+
+由于本项目后端采用 C++ 开发，并且基于高并发、多线程异步的 Drogon 框架，内存管理与线程安全至关重要。因此，测试计划引入以下三类工具进行资源泄露与安全检测：
+
+### 4.1 AddressSanitizer (ASan) & LeakSanitizer (LSan)
+* **检测目标**：动态捕获内存越界（Buffer Overflow）、使用已释放内存（Use-After-Free）、内存泄漏（Memory Leaks）等常见 C++ 内存安全问题。
+* **执行方式**：
+  * 在编译期注入。在 CMake 中，可以通过在编译选项中加入 `-fsanitize=address` 启用（LSan 在 GCC/Clang 下作为 ASan 的一部分默认开启）。
+  * 建议在调试模式（Debug Build）或专门的 CI 安全流水线中开启，例如在 [tests/CMakeLists.txt](file:///home/ubzy/CLionProjects/Project-Tracker/tests/CMakeLists.txt) 中为测试目标添加：
+    ```cmake
+    target_compile_options(Project_Tracker_UnitTests PRIVATE -fsanitize=address -fno-omit-frame-pointer)
+    target_link_options(Project_Tracker_UnitTests PRIVATE -fsanitize=address)
+    ```
+* **特点**：速度极快（相较于 Valgrind，性能损耗通常仅为 2x 左右），非常适合与单元测试/集成测试结合在 CI 中频繁运行。
+
+### 4.2 ThreadSanitizer (TSan)
+* **检测目标**：检测多线程环境下的数据竞争（Data Race）。Drogon 使用多线程 EventLoop 模式，若在多个线程间共享临界资源（如未加锁的 std::shared_ptr、自定义缓存、Service 中的共享状态等）且未进行正确同步，TSan 会在运行时直接报错。
+* **执行方式**：
+  * 在编译选项中加入 `-fsanitize=thread`。
+  * **注意**：ASan 与 TSan 互斥，不能在同一次编译中同时开启。需要配置独立的 TSan 编译通道，建议在本地专项排查或专属 CI Job 中运行测试。
+    ```cmake
+    target_compile_options(Project_Tracker_UnitTests PRIVATE -fsanitize=thread)
+    target_link_options(Project_Tracker_UnitTests PRIVATE -fsanitize=thread)
+    ```
+
+### 4.3 Valgrind (Memcheck + Track-FDs)
+* **检测目标**：
+  * **内存泄漏 (Memcheck)**：更细粒度的内存分析，无需重新编译即可分析任何二进制程序（但推荐带 `-g` 调试信息）。
+  * **描述符泄露 (Track FDs)**：高并发后端容易发生套接字（Socket）或文件描述符（FD）打开后未正确关闭（资源泄露），最终导致句柄耗尽（`EMFILE: Too many open files`）。
+* **执行方式**：
+  * 运行集成测试或启动服务实例时，使用 valgrind 包装：
+    ```bash
+    valgrind --tool=memcheck --leak-check=full --track-origins=yes --track-fds=yes ./Project_Tracker_IntegrationTests
+    ```
+* **特点**：由于采用指令集翻译模拟，运行速度慢（通常变慢 10x-50x），但能捕获到极其隐蔽的文件描述符泄露，是测试后期和发布前必不可少的专项检测工具。
+
+---
+
+## 5. 性能与并发压力测试 (Performance & Concurrency Load Testing)
+
+由于 Drogon 框架以极高的吞吐能力著称，后端接口在面临真实高并发时，需要有量化的性能指标支撑。
+
+### 5.1 压测工具选型
+* **wrk**：基于 epoll 的极简高性能 HTTP 压测工具，适合对单个或多个固定端点进行超高并发的吞吐量压测。
+* **hey**：Go 语言编写的现代命令行压测工具，支持设置请求上限、指定并发数，输出漂亮的直方图和百分位数延迟（如 p95/p99）。
+
+### 5.2 核心压测场景
+1. **静态/轻量接口 (如 Health Check)**：测试框架底层处理上限，验证网络协议栈与 Drogon EventLoop 的极致性能。
+2. **核心业务读接口 (如获取项目详情/任务列表)**：结合数据库查询，测试在一定并发下（如 500/1000 并发连接）系统的吞吐量（RPS）与响应耗时变化曲线。
+3. **混合读写场景 (如登录后创建任务、更新状态)**：模拟真实用户的高频写入操作，验证数据库连接池（Drogon DB Client Pool）是否存在死锁或排队延迟，以及数据库在高频并发事务下的稳定性和数据一致性。
+
+### 5.3 关键监控指标与阈值
+* **吞吐量 (Throughput)**：系统在不同并发等级下能达到的最高每秒请求数 (RPS)。
+* **响应延迟 (Latency)**：核心接口平均延迟控制在 < 50ms，且 p99 延迟控制在 < 200ms 以内。
+* **资源使用率 (System Resource Usage)**：CPU 使用率曲线、内存平稳性（无阶梯式上涨，验证无泄漏）、网络带宽饱和度，以及系统的 FD (File Descriptor) 计数监控。
