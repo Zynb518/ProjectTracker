@@ -1,5 +1,6 @@
 #include "http/RequestLogging.h"
 
+#include <algorithm>
 #include <chrono>
 #include <sstream>
 
@@ -10,6 +11,13 @@ namespace project_tracker::http {
         constexpr const char *kRequestIdKey = "request_id";
         constexpr const char *kRequestStartTimeKey = "request_start_time";
         constexpr std::int64_t kSlowRequestThresholdMs = 1000;
+
+        std::string sanitizePath(const std::string &path) {
+            std::string clean = path;
+            std::replace(clean.begin(), clean.end(), '\r', '_');
+            std::replace(clean.begin(), clean.end(), '\n', '_');
+            return clean;
+        }
     }
 
     std::string getOrCreateRequestId(const drogon::HttpRequestPtr &request) {
@@ -54,7 +62,7 @@ namespace project_tracker::http {
 
                 const auto statusCode = static_cast<int>(response->getStatusCode());
                 const auto method = request->getMethodString();
-                const auto &path = request->getPath();
+                const auto path = sanitizePath(request->getPath());
                 const auto ip = request->getPeerAddr().toIp();
                 const auto requestId = getOrCreateRequestId(request);
                 const auto logLevel = resolveRequestLogLevel(statusCode, elapsedMs);
