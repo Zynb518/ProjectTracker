@@ -1,0 +1,68 @@
+# 测试环境 baseUrl，通过 Nginx 访问
+@baseUrl = http://127.0.0.1
+
+### 1. 用户 A 登录 (第 1 次，扣减令牌，预期 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "user_a",
+  "password": "wrong_password_a"
+}
+
+?? status == 401
+
+### 2. 用户 A 登录 (第 2 次，扣减令牌，预期 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "user_a",
+  "password": "wrong_password_a"
+}
+
+?? status == 401
+
+### 3. 用户 B 登录 (第 3 次，扣减令牌，预期 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "user_b",
+  "password": "wrong_password_b"
+}
+
+?? status == 401
+
+### 4. 用户 B 登录 (第 4 次，扣减令牌，预期 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "user_b",
+  "password": "wrong_password_b"
+}
+
+?? status == 401
+
+### 5. 用户 A 登录 (第 5 次，扣减令牌至 0，预期 401)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "user_a",
+  "password": "wrong_password_a"
+}
+
+?? status == 401
+
+### 6. 用户 B 登录 (第 6 次，令牌不足，预期触发限流 429)
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "user_b",
+  "password": "wrong_password_b"
+}
+
+?? status == 429

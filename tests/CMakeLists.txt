@@ -18,6 +18,7 @@ add_executable(
     unit/common/PasswordUtilTest.cpp
     unit/bootstrap/ThreadNumConfigTest.cpp
     unit/common/JsonUtilTest.cpp
+    unit/common/QueryParamUtilTest.cpp
     ${PROJECT_SOURCE_DIR}/src/modules/health/service/HealthService.cpp
 )
 
