@@ -22,10 +22,14 @@ add_executable(
     unit/common/ErrorTest.cpp
     unit/filters/AuthHelperTest.cpp
     unit/filters/RateLimitHelperTest.cpp
+    unit/http/ExceptionHandlingTest.cpp
+    unit/http/RequestLoggingTest.cpp
     ${PROJECT_SOURCE_DIR}/src/modules/health/service/HealthService.cpp
     ${PROJECT_SOURCE_DIR}/src/common/error/BusinessException.cpp
     ${PROJECT_SOURCE_DIR}/src/common/error/Throw.cpp
     ${PROJECT_SOURCE_DIR}/src/filters/RateLimitHelper.cpp
+    ${PROJECT_SOURCE_DIR}/src/http/ExceptionHandling.cpp
+    ${PROJECT_SOURCE_DIR}/src/http/RequestLogging.cpp
 )
 
 target_include_directories(

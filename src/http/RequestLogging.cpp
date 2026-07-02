@@ -11,13 +11,35 @@ namespace project_tracker::http {
         constexpr const char *kRequestIdKey = "request_id";
         constexpr const char *kRequestStartTimeKey = "request_start_time";
         constexpr std::int64_t kSlowRequestThresholdMs = 1000;
+    }
 
-        std::string sanitizePath(const std::string &path) {
-            std::string clean = path;
-            std::replace(clean.begin(), clean.end(), '\r', '_');
-            std::replace(clean.begin(), clean.end(), '\n', '_');
-            return clean;
+    std::string sanitizePath(const std::string &path) {
+        std::string clean = path;
+        std::replace(clean.begin(), clean.end(), '\r', '_');
+        std::replace(clean.begin(), clean.end(), '\n', '_');
+        return clean;
+    }
+
+    std::string formatRequestLog(const std::string &requestId,
+                                 const std::string &method,
+                                 const std::string &path,
+                                 int statusCode,
+                                 std::int64_t elapsedMs,
+                                 const std::string &ip,
+                                 const std::string &userIdText) {
+        std::ostringstream stream;
+        stream << "请求日志"
+               << " | request_id=" << requestId
+               << " | 方法=" << method
+               << " | 路径=" << path
+               << " | 状态码=" << statusCode
+               << " | 耗时_ms=" << elapsedMs
+               << " | IP=" << ip
+               << " | user_id=" << userIdText;
+        if (elapsedMs >= kSlowRequestThresholdMs) {
+            stream << " | slow_request=true";
         }
+        return stream.str();
     }
 
     std::string getOrCreateRequestId(const drogon::HttpRequestPtr &request) {
@@ -66,24 +88,11 @@ namespace project_tracker::http {
                 const auto ip = request->getPeerAddr().toIp();
                 const auto requestId = getOrCreateRequestId(request);
                 const auto logLevel = resolveRequestLogLevel(statusCode, elapsedMs);
-                const auto isSlowRequest = elapsedMs >= kSlowRequestThresholdMs;
 
                 const auto userId = request->getSession()->getOptional<std::int64_t>("user_id");
                 const std::string userIdText = userId.has_value() ? std::to_string(*userId) : "anonymous";
 
-                std::ostringstream stream;
-                stream << "请求日志"
-                       << " | request_id=" << requestId
-                       << " | 方法=" << method
-                       << " | 路径=" << path
-                       << " | 状态码=" << statusCode
-                       << " | 耗时_ms=" << elapsedMs
-                       << " | IP=" << ip
-                       << " | user_id=" << userIdText;
-                if (isSlowRequest) {
-                    stream << " | slow_request=true";
-                }
-                const auto message = stream.str();
+                const auto message = formatRequestLog(requestId, method, path, statusCode, elapsedMs, ip, userIdText);
 
                 if (logLevel == RequestLogLevel::Error) {
                     LOG_ERROR << message;

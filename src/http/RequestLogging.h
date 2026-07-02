@@ -12,6 +12,15 @@ namespace project_tracker::http {
         Error
     };
 
+    std::string sanitizePath(const std::string &path);
+    std::string formatRequestLog(const std::string &requestId,
+                                 const std::string &method,
+                                 const std::string &path,
+                                 int statusCode,
+                                 std::int64_t elapsedMs,
+                                 const std::string &ip,
+                                 const std::string &userIdText);
+
     std::string getOrCreateRequestId(const drogon::HttpRequestPtr &request);
     RequestLogLevel resolveRequestLogLevel(int statusCode, std::int64_t elapsedMs);
     void registerRequestLogging(drogon::HttpAppFramework &app);
