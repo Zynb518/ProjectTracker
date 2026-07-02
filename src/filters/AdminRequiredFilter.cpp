@@ -1,4 +1,5 @@
 #include "filters/AdminRequiredFilter.h"
+#include "filters/AuthHelper.h"
 
 #include <cstdint>
 
@@ -17,25 +18,18 @@ namespace project_tracker::filters {
         drogon::FilterChainCallback &&successCallback) {
         const auto &session = request->getSession();
         const auto userId = session->getOptional<std::int64_t>("user_id");
-        if (!userId || *userId <= 0) {
-            failureCallback(api::fail(
-                drogon::k401Unauthorized,
-                error::ErrorCode::Unauthorized,
-                "未登录或登录态失效"));
-            return;
-        }
-
         const auto systemRole =
             session->getOptional<user_domain::SystemRole>("system_role");
-        if (!systemRole) {
+
+        auto result = checkAdmin(userId, systemRole);
+        if (result == AdminCheckResult::Unauthorized) {
             failureCallback(api::fail(
                 drogon::k401Unauthorized,
                 error::ErrorCode::Unauthorized,
                 "未登录或登录态失效"));
             return;
         }
-
-        if (*systemRole != user_domain::SystemRole::Admin) {
+        if (result == AdminCheckResult::Forbidden) {
             failureCallback(api::fail(
                 drogon::k403Forbidden,
                 error::ErrorCode::Forbidden,

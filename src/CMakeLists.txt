@@ -9,6 +9,7 @@ add_executable(
     filters/AdminRequiredFilter.cpp
     filters/LoginRequiredFilter.cpp
     filters/LoginRateLimitFilter.cpp
+    filters/RateLimitHelper.cpp
     modules/auth/controller/AuthController.cpp
     modules/health/controller/HealthController.cpp
     modules/health/service/HealthService.cpp

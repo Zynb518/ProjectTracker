@@ -1,4 +1,5 @@
 #include "filters/LoginRequiredFilter.h"
+#include "filters/AuthHelper.h"
 
 #include <cstdint>
 
@@ -15,7 +16,8 @@ namespace project_tracker::filters {
         drogon::FilterChainCallback &&successCallback) {
         const auto &session = request->getSession();
         const auto userId = session->getOptional<std::int64_t>("user_id");
-        if (!userId || *userId <= 0) {
+        
+        if (!isLoginAllowed(userId)) {
             failureCallback(api::fail(
                 drogon::k401Unauthorized,
                 error::ErrorCode::Unauthorized,

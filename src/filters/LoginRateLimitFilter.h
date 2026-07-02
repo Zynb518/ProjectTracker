@@ -1,10 +1,7 @@
 #pragma once
 
 #include <drogon/HttpFilter.h>
-#include <unordered_map>
-#include <mutex>
-#include <chrono>
-#include <string>
+#include "filters/RateLimitHelper.h"
 
 namespace project_tracker::filters {
 
@@ -17,13 +14,7 @@ namespace project_tracker::filters {
                       drogon::FilterChainCallback &&successCallback) override;
 
     private:
-        struct LimitState {
-            std::chrono::steady_clock::time_point lastRefillTime = std::chrono::steady_clock::now();
-            double tokens = 5.0; // 桶的最大容量，初始为满
-        };
-
-        std::unordered_map<std::string, LimitState> ipCache_;
-        std::mutex mutex_; // 保护 ipCache_ 线程安全
+        RateLimiter rateLimiter_;
     };
     
 } // namespace project_tracker::filters
