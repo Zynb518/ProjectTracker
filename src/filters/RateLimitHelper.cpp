@@ -6,9 +6,7 @@ namespace project_tracker::filters {
     std::string determineClientIp(const std::string &realIpHeader,
                                   const std::string &forwardedForHeader,
                                   const std::string &peerIp) {
-        if (!realIpHeader.empty()) {
-            return realIpHeader;
-        }
+        // 优先从 X-Forwarded-For 提取，以便支持多级代理链路并允许通过该头进行测试隔离
         if (!forwardedForHeader.empty()) {
             // 如果有多个代理，取第一个 IP
             auto commaPos = forwardedForHeader.find(',');
@@ -16,6 +14,9 @@ namespace project_tracker::filters {
                 return forwardedForHeader.substr(0, commaPos);
             }
             return forwardedForHeader;
+        }
+        if (!realIpHeader.empty()) {
+            return realIpHeader;
         }
         return peerIp;
     }

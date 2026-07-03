@@ -1,0 +1,199 @@
+@baseUrl = http://127.0.0.1
+@adminUsername = admin
+@password = 123456
+@employeeUsername = chen_xu
+
+### ==========================================
+### 1. 管理员登录
+### ==========================================
+# @name adminLogin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("管理员登录成功", function() {
+    client.assert(response.status === 200, "状态码应为 200");
+});
+%}
+
+### ==========================================
+### 2. 创建临时项目
+### ==========================================
+< {%
+  var rand = Math.floor(Math.random() * 1000000);
+  request.variables.set("projectName", "project_member_test_" + rand);
+%}
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{projectName}}",
+  "description": "项目成员模块测试项目。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {%
+client.global.set("tempProjectId", response.body.data.id);
+%}
+
+### ==========================================
+### 3. 获取候选人列表
+### ==========================================
+### 获取可添加为该项目成员的候选列表
+GET {{baseUrl}}/api/projects/{{tempProjectId}}/members/candidates?page=1&page_size=10
+
+> {%
+client.test("获取项目成员候选列表成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+});
+%}
+
+### 带关键字筛选候选人
+GET {{baseUrl}}/api/projects/{{tempProjectId}}/members/candidates?keyword=wang
+
+> {%
+client.test("带关键字获取候选人成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### ==========================================
+### 4. 添加项目成员
+### ==========================================
+### 正常添加成员 (添加用户 wang_jie, id=3)
+POST {{baseUrl}}/api/projects/{{tempProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": 3
+}
+
+> {%
+client.test("正常添加项目成员成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+});
+%}
+
+### 异常：重复添加该成员，预期 409 (40903)
+POST {{baseUrl}}/api/projects/{{tempProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": 3
+}
+
+> {%
+client.test("重复添加报错 409", function() {
+    client.assert(response.status === 409);
+    client.assert(response.body.code === 40903, "预期重复成员业务码 40903");
+});
+%}
+
+### 异常：添加不存在的用户，预期 404
+POST {{baseUrl}}/api/projects/{{tempProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": 999999
+}
+
+> {%
+client.test("添加不存在用户报错 404", function() {
+    client.assert(response.status === 404);
+});
+%}
+
+### ==========================================
+### 5. 获取项目当前成员列表
+### ==========================================
+### 获取临时项目的现有成员列表
+GET {{baseUrl}}/api/projects/{{tempProjectId}}/members
+
+> {%
+client.test("获取项目现有成员列表成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+});
+%}
+
+### ==========================================
+### 6. 移除项目成员与权限校验
+### ==========================================
+### 管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 越权尝试：普通员工移除非本人负责项目的成员，预期 403
+DELETE {{baseUrl}}/api/projects/{{tempProjectId}}/members/3
+
+> {%
+client.test("越权移除成员被拦截", function() {
+    client.assert(response.status === 403);
+});
+%}
+
+### 普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 正常移除成员
+DELETE {{baseUrl}}/api/projects/{{tempProjectId}}/members/3
+
+> {%
+client.test("管理员正常移除成员成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+});
+%}
+
+### 异常：重复移除，预期 404 (40404)
+DELETE {{baseUrl}}/api/projects/{{tempProjectId}}/members/3
+
+> {%
+client.test("重复移除非项目成员报错 404", function() {
+    client.assert(response.status === 404);
+    client.assert(response.body.code === 40404);
+});
+%}
+
+### ==========================================
+### 7. 数据闭环清理
+### ==========================================
+### 删除新建项目，保证环境干净
+DELETE {{baseUrl}}/api/projects/{{tempProjectId}}
+
+> {%
+client.test("项目删除成功，完成清理", function() {
+    client.assert(response.status === 200);
+});
+%}

@@ -1,0 +1,353 @@
+@baseUrl = http://127.0.0.1
+@adminUsername = admin
+@pmUsername = wang_jie
+@devUsername = chen_xu
+@password = 123456
+
+### ==========================================================================
+### 1. 管理员登录并创建核心项目，添加各角色成员与移交负责人
+### ==========================================================================
+
+### 管理员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("管理员登录成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 创建协同项目
+< {%
+  var rand = Math.floor(Math.random() * 1000000);
+  request.variables.set("projectName", "E2E_collaboration_" + rand);
+%}
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{projectName}}",
+  "description": "E2E多角色业务协同与全生命周期演示项目",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {%
+client.test("协同项目创建成功", function() {
+    client.assert(response.status === 200);
+    client.global.set("projId", response.body.data.id);
+});
+%}
+
+### 添加项目经理成员 (wang_jie, ID 为 3)
+POST {{baseUrl}}/api/projects/{{projId}}/members
+Content-Type: application/json
+
+{
+  "user_id": 3
+}
+
+> {%
+client.test("添加项目经理成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 添加开发人员成员 (chen_xu, ID 为 4)
+POST {{baseUrl}}/api/projects/{{projId}}/members
+Content-Type: application/json
+
+{
+  "user_id": 4
+}
+
+> {%
+client.test("添加开发人员成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 移交负责人至项目经理 wang_jie (ID 为 3)
+POST {{baseUrl}}/api/projects/{{projId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+> {%
+client.test("项目负责人移交成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 管理员退出登录
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+
+### ==========================================================================
+### 2. 项目经理登录，编制项目计划（创建阶段节点与指派子任务）并启动项目
+### ==========================================================================
+
+### 项目经理登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{pmUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("项目经理登录成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 创建阶段节点 1 (需求分析与方案设计)
+POST {{baseUrl}}/api/projects/{{projId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "需求分析与方案设计",
+  "description": "产品需求分析以及物理模型定义阶段",
+  "planned_start_date": "2026-04-02",
+  "planned_end_date": "2026-04-10"
+}
+
+> {%
+client.test("阶段节点1创建成功", function() {
+    client.assert(response.status === 200);
+    client.global.set("nodeId1", response.body.data.id);
+});
+%}
+
+### 指派子任务 1 给项目经理自己负责 (产品原型绘制)
+POST {{baseUrl}}/api/projects/{{projId}}/nodes/{{nodeId1}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "产品原型绘制",
+  "description": "输出系统核心交互高保真原型",
+  "responsible_user_id": 3,
+  "priority": 3,
+  "planned_start_date": "2026-04-03",
+  "planned_end_date": "2026-04-06"
+}
+
+> {%
+client.test("指派子任务1成功", function() {
+    client.assert(response.status === 200);
+    client.global.set("taskId1", response.body.data.id);
+});
+%}
+
+### 指派子任务 2 给开发人员负责 (物理表设计与API规范)
+POST {{baseUrl}}/api/projects/{{projId}}/nodes/{{nodeId1}}/subtasks
+Content-Type: application/json
+
+{
+  "name": "物理表设计与API规范",
+  "description": "核心业务表设计以及路由API契约定义",
+  "responsible_user_id": 4,
+  "priority": 3,
+  "planned_start_date": "2026-04-05",
+  "planned_end_date": "2026-04-09"
+}
+
+> {%
+client.test("指派子任务2成功", function() {
+    client.assert(response.status === 200);
+    client.global.set("taskId2", response.body.data.id);
+});
+%}
+
+### 启动项目 (status 由 1 变为 2)
+POST {{baseUrl}}/api/projects/{{projId}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目启动成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.status === 2);
+});
+%}
+
+### 启动阶段节点 1 (status 由 1 变为 2)
+POST {{baseUrl}}/api/projects/{{projId}}/nodes/{{nodeId1}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("阶段节点1启动成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.status === 2);
+});
+%}
+
+### 开始处理子任务 1 (产品原型绘制)
+POST {{baseUrl}}/api/subtasks/{{taskId1}}/start
+Content-Type: application/json
+
+{
+  "progress_note": "正式启动系统原型图输出工作"
+}
+
+> {%
+client.test("开始子任务1成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.subtask.status === 2);
+});
+%}
+
+### 提交 100% 进度完成子任务 1
+POST {{baseUrl}}/api/subtasks/{{taskId1}}/progress
+Content-Type: application/json
+
+{
+  "progress_percent": 100,
+  "progress_note": "原型绘制完毕并得到全员确认"
+}
+
+> {%
+client.test("原型绘制子任务已闭环完成", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.subtask.status === 3);
+});
+%}
+
+### 项目经理退出登录
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+
+### ==========================================================================
+### 3. 开发人员登录，认领并处理分配给自己的子任务
+### ==========================================================================
+
+### 开发人员登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{devUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("开发人员登录成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 开始处理子任务 2 (物理表设计与API规范)
+POST {{baseUrl}}/api/subtasks/{{taskId2}}/start
+Content-Type: application/json
+
+{
+  "progress_note": "开始数据库建模"
+}
+
+> {%
+client.test("开始子任务2成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 提交子任务 2 完成
+POST {{baseUrl}}/api/subtasks/{{taskId2}}/progress
+Content-Type: application/json
+
+{
+  "progress_percent": 100,
+  "progress_note": "完成SQL物理表模型构建与Swagger契约导出"
+}
+
+> {%
+client.test("表设计子任务已闭环完成", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.subtask.status === 3);
+});
+%}
+
+### 开发人员退出登录
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+
+### ==========================================================================
+### 4. 项目经理登录，确认当前阶段全部子任务完成，将该阶段节点标志为已完结
+### ==========================================================================
+
+### 项目经理登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{pmUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("项目经理二次登录成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 完成阶段节点 1 (由于其下的两个子任务都已完成，节点符合完结条件)
+POST {{baseUrl}}/api/projects/{{pmUsername}}/nodes/{{nodeId1}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("阶段节点1完结成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.status === 3);
+});
+%}
+
+### 项目经理退出登录
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+
+### ==========================================================================
+### 5. 管理员登录并执行数据闭环清理 (保证环境零依赖、零残留，维持幂等性)
+### ==========================================================================
+
+### 管理员重新登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 级联删除该项目 (同时级联清空其下的关联成员、阶段节点、子任务以及历史操作明细记录)
+DELETE {{baseUrl}}/api/projects/{{projId}}
+
+> {%
+client.test("级联物理清空该项目成功，全量链路演示闭环完毕，测试前后数据库保持无污染", function() {
+    client.assert(response.status === 200);
+});
+%}

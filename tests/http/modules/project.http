@@ -1,0 +1,289 @@
+@baseUrl = http://127.0.0.1
+@adminUsername = admin
+@password = 123456
+@employeeUsername = chen_xu
+
+### ==========================================
+### 1. 管理员登录
+### ==========================================
+# @name adminLogin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("管理员登录成功", function() {
+    client.assert(response.status === 200, "状态码应为 200");
+});
+%}
+
+### ==========================================
+### 2. 创建新项目 (正常路径与数据校验)
+### ==========================================
+### 正常创建项目
+< {%
+  var rand = Math.floor(Math.random() * 1000000);
+  request.variables.set("projectName", "project_" + rand);
+%}
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{projectName}}",
+  "description": "模块化重构项目测试。",
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {%
+client.test("项目创建成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.global.set("newProjectId", response.body.data.id);
+});
+%}
+
+### 异常：缺少名称，预期 400
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-04-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {%
+client.test("缺少名称报错 400", function() {
+    client.assert(response.status === 400);
+});
+%}
+
+### 异常：开始时间晚于结束时间，预期 409
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "invalid_date_project",
+  "planned_start_date": "2026-05-01",
+  "planned_end_date": "2026-04-30"
+}
+
+> {%
+client.test("日期区间错误报错 409", function() {
+    client.assert(response.status === 409);
+});
+%}
+
+### ==========================================
+### 3. 获取项目详情与列表
+### ==========================================
+### 获取项目详情
+GET {{baseUrl}}/api/projects/{{newProjectId}}
+
+> {%
+client.test("获取项目详情成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.id === parseInt(client.global.get("newProjectId")));
+});
+%}
+
+### 获取项目列表 (不带过滤)
+GET {{baseUrl}}/api/projects
+
+> {%
+client.test("获取项目列表成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 带关键字与状态筛选
+GET {{baseUrl}}/api/projects?keyword=proj&status=1
+
+> {%
+client.test("带筛选获取项目列表成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### ==========================================
+### 4. 修改项目基本信息
+### ==========================================
+### 正常修改项目
+PATCH {{baseUrl}}/api/projects/{{newProjectId}}
+Content-Type: application/json
+
+{
+  "name": "项目更名测试",
+  "description": "更新后的项目描述",
+  "planned_start_date": "2026-03-01",
+  "planned_end_date": "2026-05-10"
+}
+
+> {%
+client.test("更新项目基本信息成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+});
+%}
+
+### 异常：项目不存在，预期 404
+PATCH {{baseUrl}}/api/projects/999999
+Content-Type: application/json
+
+{
+  "name": "不存在的项目"
+}
+
+> {%
+client.test("修改不存在项目报错 404", function() {
+    client.assert(response.status === 404);
+});
+%}
+
+### ==========================================
+### 5. 负责人移交与候选人查询
+### ==========================================
+### 获取负责人转交候选列表
+GET {{baseUrl}}/api/projects/{{newProjectId}}/owner/candidates?page=1&page_size=10
+
+> {%
+client.test("获取负责人转交候选人列表成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 转交项目负责人 (移交至项目经理 wang_jie, ID 为 3)
+POST {{baseUrl}}/api/projects/{{newProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": 3
+}
+
+> {%
+client.test("转交负责人成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+});
+%}
+
+### ==========================================
+### 6. 项目状态控制测试 (手动开始、完成、撤销)
+### ==========================================
+### 手动开始新项目 (由状态 1 变更为 2，因为没有阶段节点)
+POST {{baseUrl}}/api/projects/{{newProjectId}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("手动开始项目成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.status === 2, "状态应变更为 2 (进行中)");
+});
+%}
+
+### 手动完成项目 (由状态 2 变更为 3)
+POST {{baseUrl}}/api/projects/{{newProjectId}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("手动完成项目成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.status === 3, "状态应变更为 3 (已完成)");
+});
+%}
+
+### 撤销完成项目 (由状态 3 重新变更为 2)
+POST {{baseUrl}}/api/projects/{{newProjectId}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("撤销完成项目成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.status === 2, "状态应重新回到 2 (进行中)");
+});
+%}
+
+### ==========================================
+### 7. 甘特图数据获取测试
+### ==========================================
+### 获取甘特图阶段/时间数据
+GET {{baseUrl}}/api/projects/{{newProjectId}}/gantt/nodes
+
+> {%
+client.test("获取甘特图节点成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 获取甘特图成员/时间数据
+GET {{baseUrl}}/api/projects/{{newProjectId}}/gantt/members
+
+> {%
+client.test("获取甘特图成员成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### ==========================================
+### 8. 权限边界与越权测试
+### ==========================================
+### 管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### 越权尝试：普通员工不能删除非本人负责项目，预期 403
+DELETE {{baseUrl}}/api/projects/{{newProjectId}}
+
+> {%
+client.test("越权删除项目被拦截", function() {
+    client.assert(response.status === 403);
+});
+%}
+
+### 普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### ==========================================
+### 9. 数据闭环清理 (删除项目保证幂等性)
+### ==========================================
+### 重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 删除创建的新项目
+DELETE {{baseUrl}}/api/projects/{{newProjectId}}
+
+> {%
+client.test("删除项目成功，环境清理完毕", function() {
+    client.assert(response.status === 200);
+});
+%}

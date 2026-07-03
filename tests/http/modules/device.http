@@ -1,0 +1,171 @@
+@baseUrl = http://127.0.0.1
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+
+### ==========================================
+### 1. 管理员登录
+### ==========================================
+# @name adminLogin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("管理员登录成功", function() {
+    client.assert(response.status === 200, "状态码应为 200");
+});
+%}
+
+### ==========================================
+### 2. 创建设备
+### ==========================================
+< {%
+  var rand = Math.floor(Math.random() * 1000000);
+  request.variables.set("deviceName", "device_" + rand);
+%}
+POST {{baseUrl}}/api/devices
+Content-Type: application/json
+
+{
+  "name": "{{deviceName}}",
+  "description": "模块化重构设备测试"
+}
+
+> {%
+client.test("设备创建成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+    client.global.set("tempDeviceId", response.body.data.id);
+});
+%}
+
+### 异常：缺少名称，预期 400
+POST {{baseUrl}}/api/devices
+Content-Type: application/json
+
+{
+  "description": "缺少名称测试"
+}
+
+> {%
+client.test("缺少名称报错 400", function() {
+    client.assert(response.status === 400);
+});
+%}
+
+### ==========================================
+### 3. 获取设备列表
+### ==========================================
+GET {{baseUrl}}/api/devices?page=1&page_size=10
+
+> {%
+client.test("获取设备列表成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+});
+%}
+
+### ==========================================
+### 4. 提交设备使用记录
+### ==========================================
+POST {{baseUrl}}/api/devices/{{tempDeviceId}}/logs
+Content-Type: application/json
+
+{
+  "purpose": "管理员调试打印周报"
+}
+
+> {%
+client.test("管理员提交设备记录成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.code === 0);
+});
+%}
+
+### ==========================================
+### 5. 获取设备使用记录列表 (仅管理员有权)
+### ==========================================
+GET {{baseUrl}}/api/devices/{{tempDeviceId}}/logs
+
+> {%
+client.test("管理员获取设备使用记录成功", function() {
+    client.assert(response.status === 200);
+    client.assert(response.body.data.list.length === 1);
+});
+%}
+
+### ==========================================
+### 6. 管理员登出与普通员工登录
+### ==========================================
+### 管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### 普通员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+### ==========================================
+### 7. 普通员工操作校验
+### ==========================================
+### 普通员工允许提交设备使用记录
+POST {{baseUrl}}/api/devices/{{tempDeviceId}}/logs
+Content-Type: application/json
+
+{
+  "purpose": "员工打印测试周报"
+}
+
+> {%
+client.test("员工提交设备记录成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 越权尝试：普通员工获取使用记录列表，预期 403
+GET {{baseUrl}}/api/devices/{{tempDeviceId}}/logs
+
+> {%
+client.test("员工获取记录列表被拦截", function() {
+    client.assert(response.status === 403);
+});
+%}
+
+### 普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+### ==========================================
+### 8. 数据闭环清理
+### ==========================================
+### 重新登录管理员
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+### 删除创建的设备
+DELETE {{baseUrl}}/api/devices/{{tempDeviceId}}
+
+> {%
+client.test("删除设备成功，环境清理完毕", function() {
+    client.assert(response.status === 200);
+});
+%}

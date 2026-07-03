@@ -1,0 +1,324 @@
+@baseUrl = http://127.0.0.1
+@adminUsername = admin
+@employeeUsername = chen_xu
+@password = 123456
+
+### ==========================================
+### 1. 管理员登录
+### ==========================================
+# @name adminLogin
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("管理员登录成功", function() {
+    client.assert(response.status === 200, "状态码应为 200");
+});
+%}
+
+### ==========================================
+### 2. 用户列表获取与筛选测试
+### ==========================================
+### 获取完整用户列表
+GET {{baseUrl}}/api/users
+
+> {%
+client.test("管理员获取用户列表成功", function() {
+    client.assert(response.status === 200, "状态码应为 200");
+    client.assert(response.body.code === 0, "业务错误码应为 0");
+});
+%}
+
+### 带条件筛选用户列表 (正常参数)
+GET {{baseUrl}}/api/users?system_role=2&page=1&page_size=2
+
+> {%
+client.test("带筛选获取用户列表成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 带关键字和状态过滤
+GET {{baseUrl}}/api/users?keyword=chen&status=1
+
+> {%
+client.test("关键字筛选过滤成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### ==========================================
+### 3. 创建用户 (正常路径与重名拦截)
+### ==========================================
+### 正常创建用户
+< {%
+  var rand = Math.floor(Math.random() * 1000000);
+  request.variables.set("dynamicUsername", "user_" + rand);
+%}
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "{{dynamicUsername}}",
+  "password": "{{password}}",
+  "real_name": "创建测试用户",
+  "system_role": 3,
+  "email": "create_user@example.com",
+  "phone": "13800009999"
+}
+
+> {%
+client.test("正常创建用户成功", function() {
+    client.assert(response.status === 200, "状态码应为 200");
+    client.assert(response.body.code === 0, "业务错误码应为 0");
+    // 将返回的用户 ID 和创建的动态用户名保存为全局变量，供后续步骤使用
+    client.global.set("newUserId", response.body.data.id);
+    client.global.set("savedUsername", client.global.get("dynamicUsername"));
+});
+%}
+
+### 异常：重复用户名创建，预期 409
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "{{savedUsername}}",
+  "password": "{{password}}",
+  "real_name": "创建测试用户",
+  "system_role": 3,
+  "email": "create_user@example.com",
+  "phone": "13800009999"
+}
+
+> {%
+client.test("重名创建报错409", function() {
+    client.assert(response.status === 409, "重名应该返回 409");
+    client.assert(response.body.code === 40901, "重复用户业务码 40901");
+});
+%}
+
+### ==========================================
+### 4. 获取用户详情
+### ==========================================
+### 获取新建用户的详情
+GET {{baseUrl}}/api/users/{{newUserId}}
+
+> {%
+client.test("获取详情正确", function() {
+    client.assert(response.status === 200, "状态码应为 200");
+    client.assert(response.body.data.id === parseInt(client.global.get("newUserId")), "ID 应匹配");
+    client.assert(response.body.data.username === client.global.get("savedUsername"), "用户名应匹配");
+});
+%}
+
+### 异常：获取不存在的用户，预期 404
+GET {{baseUrl}}/api/users/999999
+
+> {%
+client.test("不存在的用户返回404", function() {
+    client.assert(response.status === 404, "不存在用户应返回 404");
+});
+%}
+
+### 异常：用户 ID 小于等于 0，预期 400
+GET {{baseUrl}}/api/users/0
+
+> {%
+client.test("非法用户ID返回400", function() {
+    client.assert(response.status === 400, "用户ID非法应返回 400");
+});
+%}
+
+### ==========================================
+### 5. 修改用户基础信息
+### ==========================================
+### 正常修改
+PATCH {{baseUrl}}/api/users/{{newUserId}}
+Content-Type: application/json
+
+{
+  "real_name": "修剪后的名字",
+  "system_role": 2,
+  "email": "updated_user@example.com",
+  "phone": "13800008888"
+}
+
+> {%
+client.test("更新基础信息成功", function() {
+    client.assert(response.status === 200, "更新状态应为 200");
+});
+%}
+
+### 异常：修改不存在的用户，预期 404
+PATCH {{baseUrl}}/api/users/999999
+Content-Type: application/json
+
+{
+  "real_name": "不存在"
+}
+
+> {%
+client.test("修改不存在用户返回404", function() {
+    client.assert(response.status === 404);
+});
+%}
+
+### 异常：修改属性类型不匹配 (email 不是字符串)，预期 400
+PATCH {{baseUrl}}/api/users/{{newUserId}}
+Content-Type: application/json
+
+{
+  "email": 12345
+}
+
+> {%
+client.test("参数类型错误返回400", function() {
+    client.assert(response.status === 400);
+});
+%}
+
+### ==========================================
+### 6. 修改用户状态
+### ==========================================
+### 修改状态为禁用 (status = 2)
+PATCH {{baseUrl}}/api/users/{{newUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 2
+}
+
+> {%
+client.test("更新状态为禁用成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 修改状态为启用 (status = 1)
+PATCH {{baseUrl}}/api/users/{{newUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 1
+}
+
+> {%
+client.test("更新状态为启用成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 异常：修改状态不在枚举范围内 (status = 3)，预期 400
+PATCH {{baseUrl}}/api/users/{{newUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 3
+}
+
+> {%
+client.test("非法状态范围返回400", function() {
+    client.assert(response.status === 400);
+});
+%}
+
+### ==========================================
+### 7. 普通员工登录与越权测试
+### ==========================================
+### 管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员登出成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 员工登录
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("员工登录成功", function() {
+    client.assert(response.status === 200);
+});
+%}
+
+### 越权尝试：员工不能获取用户列表，预期 403
+GET {{baseUrl}}/api/users
+
+> {%
+client.test("员工查看用户列表被拦截", function() {
+    client.assert(response.status === 403, "普通员工应无权访问 403");
+});
+%}
+
+### 越权尝试：员工不能创建用户，预期 403
+POST {{baseUrl}}/api/users
+Content-Type: application/json
+
+{
+  "username": "forbidden_{{$timestamp}}",
+  "password": "{{password}}",
+  "real_name": "越权用户",
+  "system_role": 3
+}
+
+> {%
+client.test("员工创建用户被拦截", function() {
+    client.assert(response.status === 403);
+});
+%}
+
+### 越权尝试：员工不能修改其他用户基础信息，预期 403
+PATCH {{baseUrl}}/api/users/{{newUserId}}
+Content-Type: application/json
+
+{
+  "real_name": "越权修改"
+}
+
+> {%
+client.test("员工修改用户被拦截", function() {
+    client.assert(response.status === 403);
+});
+%}
+
+### 越权尝试：员工不能修改其他用户状态，预期 403
+PATCH {{baseUrl}}/api/users/{{newUserId}}/status
+Content-Type: application/json
+
+{
+  "status": 2
+}
+
+> {%
+client.test("员工修改用户状态被拦截", function() {
+    client.assert(response.status === 403);
+});
+%}
+
+### 员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("员工登出成功", function() {
+    client.assert(response.status === 200);
+});
+%}
