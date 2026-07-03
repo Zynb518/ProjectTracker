@@ -100,15 +100,11 @@ client.test("格式错误阻断", function() {
 %}
 
 
-### ==========================================
-### 限流测试部分 (通过动态随机 IP 隔离，支持重复运行测试而不冲突)
-### ==========================================
-
 ### 1. 用户 A 登录 (第 1 次，扣减令牌，预期 401)
 < {%
   var o3 = Math.floor(Math.random() * 200) + 1;
   var o4 = Math.floor(Math.random() * 250) + 1;
-  request.variables.set("testIp", "192.168." + o3 + "." + o4);
+  client.global.set("testIp", "192.168." + o3 + "." + o4);
 %}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
