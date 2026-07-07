@@ -1,14 +1,106 @@
 @baseUrl = http://127.0.0.1
 @adminUsername = admin
-@password = 123456
+@managerUsername = wang_jie
 @employeeUsername = chen_xu
+@password = 123456
+@missingProjectId = 999999999999
+@missingUserId = 999999999999
 
-### ==========================================
-### 1. 管理员登录
-### ==========================================
+### 1. 清理登录态
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("清理登录态成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 2. 未登录访问项目列表被拦截
+GET {{baseUrl}}/api/projects
+
+> {%
+client.test("未登录访问项目列表返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 3. 普通员工登录并创建个人项目
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.40." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("普通员工登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.system_role === 3, "预期普通员工角色");
+    client.global.set("employeeUserId", response.body.data.user.id);
+});
+%}
+
+### 普通员工创建个人项目
+< {%
+  var rand = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+  request.variables.set("employeeProjectName", "employee_project_" + rand);
+%}
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{employeeProjectName}}",
+  "description": "普通员工个人项目测试",
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-31"
+}
+
+> {%
+client.test("普通员工创建个人项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id > 0, "预期返回项目 ID");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("employeeUserId")), "个人项目负责人应为创建人");
+    client.global.set("employeeProjectId", response.body.data.id);
+});
+%}
+
+### 4. 普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("普通员工登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 5. 管理员登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.41." + o3 + "." + o4);
+%}
 # @name adminLogin
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{adminUsername}}",
@@ -17,273 +109,959 @@ Content-Type: application/json
 
 > {%
 client.test("管理员登录成功", function() {
-    client.assert(response.status === 200, "状态码应为 200");
-});
-%}
-
-### ==========================================
-### 2. 创建新项目 (正常路径与数据校验)
-### ==========================================
-### 正常创建项目
-< {%
-  var rand = Math.floor(Math.random() * 1000000);
-  request.variables.set("projectName", "project_" + rand);
-%}
-POST {{baseUrl}}/api/projects
-Content-Type: application/json
-
-{
-  "name": "{{projectName}}",
-  "description": "模块化重构项目测试。",
-  "planned_start_date": "2026-04-01",
-  "planned_end_date": "2026-04-30"
-}
-
-> {%
-client.test("项目创建成功", function() {
     client.assert(response.status === 200, "预期状态码 200");
     client.assert(response.body.code === 0, "预期业务码 0");
-    client.global.set("newProjectId", response.body.data.id);
+    client.assert(response.body.data.user.system_role === 1, "预期管理员角色");
+    client.global.set("adminUserId", response.body.data.user.id);
 });
 %}
 
-### 异常：缺少名称，预期 400
+### 6. 管理员创建项目
+< {%
+  var rand = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+  request.variables.set("adminProjectName", "admin_project_" + rand);
+%}
 POST {{baseUrl}}/api/projects
 Content-Type: application/json
 
 {
-  "planned_start_date": "2026-04-01",
-  "planned_end_date": "2026-04-30"
+  "name": "{{adminProjectName}}",
+  "description": "项目模块管理员创建测试",
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-31"
 }
 
 > {%
-client.test("缺少名称报错 400", function() {
-    client.assert(response.status === 400);
+client.test("管理员创建项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id > 0, "预期返回项目 ID");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("adminUserId")), "项目负责人应为管理员");
+    client.assert(response.body.data.status === 1, "新项目状态应为未开始");
+    client.global.set("adminProjectId", response.body.data.id);
 });
 %}
 
-### 异常：开始时间晚于结束时间，预期 409
+### 7. 创建项目参数校验
+### 缺少 name，预期 400
 POST {{baseUrl}}/api/projects
 Content-Type: application/json
 
 {
-  "name": "invalid_date_project",
-  "planned_start_date": "2026-05-01",
-  "planned_end_date": "2026-04-30"
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-31"
 }
 
 > {%
-client.test("日期区间错误报错 409", function() {
-    client.assert(response.status === 409);
+client.test("缺少 name 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 3. 获取项目详情与列表
-### ==========================================
-### 获取项目详情
-GET {{baseUrl}}/api/projects/{{newProjectId}}
-
-> {%
-client.test("获取项目详情成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.id === parseInt(client.global.get("newProjectId")));
-});
-%}
-
-### 获取项目列表 (不带过滤)
-GET {{baseUrl}}/api/projects
-
-> {%
-client.test("获取项目列表成功", function() {
-    client.assert(response.status === 200);
-});
-%}
-
-### 带关键字与状态筛选
-GET {{baseUrl}}/api/projects?keyword=proj&status=1
-
-> {%
-client.test("带筛选获取项目列表成功", function() {
-    client.assert(response.status === 200);
-});
-%}
-
-### ==========================================
-### 4. 修改项目基本信息
-### ==========================================
-### 正常修改项目
-PATCH {{baseUrl}}/api/projects/{{newProjectId}}
+### description 类型错误，预期 400
+POST {{baseUrl}}/api/projects
 Content-Type: application/json
 
 {
-  "name": "项目更名测试",
+  "name": "invalid_description_project",
+  "description": 123,
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-31"
+}
+
+> {%
+client.test("description 非字符串返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### planned_start_date 格式错误，预期 400
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "invalid_date_format_project",
+  "planned_start_date": "2026/12/01",
+  "planned_end_date": "2026-12-31"
+}
+
+> {%
+client.test("planned_start_date 格式错误返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 开始时间晚于结束时间，预期 409
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "invalid_date_range_project",
+  "planned_start_date": "2026-12-31",
+  "planned_end_date": "2026-12-01"
+}
+
+> {%
+client.test("项目日期区间错误返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40909, "预期业务码 40909");
+});
+%}
+
+### 请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+[
+  {
+    "name": "invalid_body_project"
+  }
+]
+
+> {%
+client.test("非对象 JSON 请求体返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 8. 查询项目详情与列表
+GET {{baseUrl}}/api/projects/{{adminProjectId}}
+
+> {%
+client.test("管理员获取项目详情成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("adminProjectId")), "项目 ID 应匹配");
+    client.assert(response.body.data.permissions.can_edit_basic === true, "管理员应可编辑未完成项目");
+    client.assert(response.body.data.permissions.can_delete === true, "管理员应可删除项目");
+});
+%}
+
+### 查询不存在项目详情，预期 404
+GET {{baseUrl}}/api/projects/{{missingProjectId}}
+
+> {%
+client.test("查询不存在项目详情返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### project_id 非正整数，预期 400
+GET {{baseUrl}}/api/projects/0
+
+> {%
+client.test("project_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 获取项目列表
+GET {{baseUrl}}/api/projects?page=1&page_size=10
+
+> {%
+client.test("管理员获取项目列表成功", function() {
+    var adminProjectId = parseInt(client.global.get("adminProjectId"));
+    var exists = response.body.data.list.some(function(item) {
+        return item.id === adminProjectId;
+    });
+
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.page === 1, "预期 page 为 1");
+    client.assert(response.body.data.page_size === 10, "预期 page_size 为 10");
+    client.assert(exists, "项目列表应包含管理员刚创建的项目");
+});
+%}
+
+### 按状态与关键字筛选项目列表
+GET {{baseUrl}}/api/projects?keyword=admin_project_&status=1&page=1&page_size=10
+
+> {%
+client.test("管理员按状态与关键字筛选项目列表成功", function() {
+    var adminProjectId = parseInt(client.global.get("adminProjectId"));
+    var exists = response.body.data.list.some(function(item) {
+        return item.id === adminProjectId && item.status === 1;
+    });
+
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(exists, "筛选结果应包含未开始的管理员测试项目");
+});
+%}
+
+### 管理员按负责人筛选项目列表
+GET {{baseUrl}}/api/projects?owner_user_id={{adminUserId}}&page=1&page_size=10
+
+> {%
+client.test("管理员按负责人筛选项目列表成功", function() {
+    var adminUserId = parseInt(client.global.get("adminUserId"));
+    var adminProjectId = parseInt(client.global.get("adminProjectId"));
+    var exists = response.body.data.list.some(function(item) {
+        return item.id === adminProjectId && item.owner_user_id === adminUserId;
+    });
+
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(exists, "负责人筛选结果应包含管理员测试项目");
+});
+%}
+
+### status 非法枚举值，预期 400
+GET {{baseUrl}}/api/projects?status=9
+
+> {%
+client.test("status 非法枚举值返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### status 非整数，预期 400
+GET {{baseUrl}}/api/projects?status=abc
+
+> {%
+client.test("status 非整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### page 非正整数，预期 400
+GET {{baseUrl}}/api/projects?page=0&page_size=10
+
+> {%
+client.test("page 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### owner_user_id 非正整数，预期 400
+GET {{baseUrl}}/api/projects?owner_user_id=0
+
+> {%
+client.test("owner_user_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 9. 修改项目基本信息
+PATCH {{baseUrl}}/api/projects/{{adminProjectId}}
+Content-Type: application/json
+
+{
+  "name": "管理员项目更名测试",
   "description": "更新后的项目描述",
-  "planned_start_date": "2026-03-01",
-  "planned_end_date": "2026-05-10"
+  "planned_start_date": "2026-12-02",
+  "planned_end_date": "2026-12-30"
 }
 
 > {%
-client.test("更新项目基本信息成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("管理员修改项目基本信息成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("adminProjectId")), "项目 ID 应匹配");
+    client.assert(response.body.data.name === "管理员项目更名测试", "项目名称应更新");
 });
 %}
 
-### 异常：项目不存在，预期 404
-PATCH {{baseUrl}}/api/projects/999999
+### 修改项目未提供字段，预期 400
+PATCH {{baseUrl}}/api/projects/{{adminProjectId}}
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("修改项目未提供字段返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 修改项目 name 为空，预期 400
+PATCH {{baseUrl}}/api/projects/{{adminProjectId}}
 Content-Type: application/json
 
 {
-  "name": "不存在的项目"
+  "name": ""
 }
 
 > {%
-client.test("修改不存在项目报错 404", function() {
-    client.assert(response.status === 404);
+client.test("修改项目 name 为空返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 5. 负责人移交与候选人查询
-### ==========================================
-### 获取负责人转交候选列表
-GET {{baseUrl}}/api/projects/{{newProjectId}}/owner/candidates?page=1&page_size=10
-
-> {%
-client.test("获取负责人转交候选人列表成功", function() {
-    client.assert(response.status === 200);
-});
-%}
-
-### 转交项目负责人 (移交至项目经理 wang_jie, ID 为 3)
-POST {{baseUrl}}/api/projects/{{newProjectId}}/owner/transfer
+### 修改项目日期格式错误，预期 400
+PATCH {{baseUrl}}/api/projects/{{adminProjectId}}
 Content-Type: application/json
 
 {
-  "target_user_id": 3
+  "planned_start_date": "2026/12/02"
 }
 
 > {%
-client.test("转交负责人成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("修改项目日期格式错误返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 6. 项目状态控制测试 (手动开始、完成、撤销)
-### ==========================================
-### 手动开始新项目 (由状态 1 变更为 2，因为没有阶段节点)
-POST {{baseUrl}}/api/projects/{{newProjectId}}/start
+### 修改项目日期区间错误，预期 409
+PATCH {{baseUrl}}/api/projects/{{adminProjectId}}
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-12-31",
+  "planned_end_date": "2026-12-01"
+}
+
+> {%
+client.test("修改项目日期区间错误返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40909, "预期业务码 40909");
+});
+%}
+
+### 修改不存在项目，预期 404
+PATCH {{baseUrl}}/api/projects/{{missingProjectId}}
+Content-Type: application/json
+
+{
+  "name": "不存在项目修改测试"
+}
+
+> {%
+client.test("修改不存在项目返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 10. 负责人候选人与负责人转交
+GET {{baseUrl}}/api/projects/{{adminProjectId}}/owner/candidates?keyword=wang&page=1&page_size=10
+
+> {%
+client.test("管理员获取负责人转交候选人成功", function() {
+    var wangCandidate = null;
+    for (var i = 0; i < response.body.data.list.length; i++) {
+        if (response.body.data.list[i].username === "wang_jie") {
+            wangCandidate = response.body.data.list[i];
+            break;
+        }
+    }
+
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(wangCandidate !== null, "候选人列表应包含 wang_jie");
+    client.assert(wangCandidate.system_role === 2, "wang_jie 应为项目经理");
+    client.global.set("wangJieUserId", wangCandidate.id);
+});
+%}
+
+### 负责人候选人 page 非正整数，预期 400
+GET {{baseUrl}}/api/projects/{{adminProjectId}}/owner/candidates?page=0&page_size=10
+
+> {%
+client.test("负责人候选人 page 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 转交负责人请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/owner/transfer
+Content-Type: application/json
+
+[
+  {
+    "target_user_id": {{wangJieUserId}}
+  }
+]
+
+> {%
+client.test("转交负责人非对象 JSON 请求体返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 转交负责人缺少 target_user_id，预期 400
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/owner/transfer
 Content-Type: application/json
 
 {}
 
 > {%
-client.test("手动开始项目成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.status === 2, "状态应变更为 2 (进行中)");
+client.test("转交负责人缺少 target_user_id 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### 手动完成项目 (由状态 2 变更为 3)
-POST {{baseUrl}}/api/projects/{{newProjectId}}/complete
+### 转交给不存在用户，预期 404
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{missingUserId}}
+}
+
+> {%
+client.test("转交给不存在用户返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40401, "预期业务码 40401");
+});
+%}
+
+### 转交给当前负责人，预期 409
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{adminUserId}}
+}
+
+> {%
+client.test("转交给当前负责人返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40918, "预期业务码 40918");
+});
+%}
+
+### 转交给普通员工，预期 409
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{employeeUserId}}
+}
+
+> {%
+client.test("转交给普通员工返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40918, "预期业务码 40918");
+});
+%}
+
+### 正常转交给项目经理 wang_jie
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{wangJieUserId}}
+}
+
+> {%
+client.test("管理员转交负责人成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.project_id === parseInt(client.global.get("adminProjectId")), "项目 ID 应匹配");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("wangJieUserId")), "负责人应变为 wang_jie");
+});
+%}
+
+### 重复转交给当前负责人，预期 409
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{wangJieUserId}}
+}
+
+> {%
+client.test("重复转交给当前负责人返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40918, "预期业务码 40918");
+});
+%}
+
+### 11. 项目状态流转
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/start
 Content-Type: application/json
 
 {}
 
 > {%
-client.test("手动完成项目成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.status === 3, "状态应变更为 3 (已完成)");
+client.test("管理员手动开始项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.status === 2, "项目状态应变为进行中");
 });
 %}
 
-### 撤销完成项目 (由状态 3 重新变更为 2)
-POST {{baseUrl}}/api/projects/{{newProjectId}}/reopen
+### 重复开始项目，预期 409
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/start
 Content-Type: application/json
 
 {}
 
 > {%
-client.test("撤销完成项目成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.status === 2, "状态应重新回到 2 (进行中)");
+client.test("重复开始项目返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40916, "预期业务码 40916");
 });
 %}
 
-### ==========================================
-### 7. 甘特图数据获取测试
-### ==========================================
-### 获取甘特图阶段/时间数据
-GET {{baseUrl}}/api/projects/{{newProjectId}}/gantt/nodes
+### 状态动作请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/complete
+Content-Type: application/json
+
+[]
 
 > {%
-client.test("获取甘特图节点成功", function() {
-    client.assert(response.status === 200);
+client.test("状态动作非对象 JSON 请求体返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### 获取甘特图成员/时间数据
-GET {{baseUrl}}/api/projects/{{newProjectId}}/gantt/members
+### 手动完成项目
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/complete
+Content-Type: application/json
+
+{}
 
 > {%
-client.test("获取甘特图成员成功", function() {
-    client.assert(response.status === 200);
+client.test("管理员手动完成项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.status === 3, "项目状态应变为已完成");
+    client.assert(response.body.data.completed_at !== null, "完成时间不能为空");
 });
 %}
 
-### ==========================================
-### 8. 权限边界与越权测试
-### ==========================================
-### 管理员登出
+### 重复完成项目，预期 409
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("重复完成项目返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 已完成项目禁止修改基础信息，预期 409
+PATCH {{baseUrl}}/api/projects/{{adminProjectId}}
+Content-Type: application/json
+
+{
+  "name": "已完成项目修改测试"
+}
+
+> {%
+client.test("已完成项目禁止修改基础信息", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 撤销完成项目
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员撤销完成项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.status === 2, "项目状态应回到进行中");
+    client.assert(response.body.data.completed_at === null, "完成时间应清空");
+});
+%}
+
+### 重复撤销完成，预期 409
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("重复撤销完成返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40917, "预期业务码 40917");
+});
+%}
+
+### 12. 甘特图数据查询
+GET {{baseUrl}}/api/projects/{{adminProjectId}}/gantt/nodes
+
+> {%
+client.test("管理员获取项目阶段甘特图成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.project.id === parseInt(client.global.get("adminProjectId")), "项目 ID 应匹配");
+    client.assert(Array.isArray(response.body.data.nodes), "nodes 应为数组");
+});
+%}
+
+### 获取项目成员甘特图
+GET {{baseUrl}}/api/projects/{{adminProjectId}}/gantt/members
+
+> {%
+client.test("管理员获取项目成员甘特图成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.project.id === parseInt(client.global.get("adminProjectId")), "项目 ID 应匹配");
+    client.assert(Array.isArray(response.body.data.member_rows), "member_rows 应为数组");
+});
+%}
+
+### 获取不存在项目甘特图，预期 404
+GET {{baseUrl}}/api/projects/{{missingProjectId}}/gantt/nodes
+
+> {%
+client.test("获取不存在项目甘特图返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 13. 普通员工个人项目对管理员的限制
+PATCH {{baseUrl}}/api/projects/{{employeeProjectId}}
+Content-Type: application/json
+
+{
+  "name": "管理员修改员工个人项目测试"
+}
+
+> {%
+client.test("管理员不能修改普通员工个人项目", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 管理员不能获取普通员工个人项目负责人候选人
+GET {{baseUrl}}/api/projects/{{employeeProjectId}}/owner/candidates
+
+> {%
+client.test("管理员不能转交普通员工个人项目负责人", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 管理员不能开始普通员工个人项目
+POST {{baseUrl}}/api/projects/{{employeeProjectId}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员不能开始普通员工个人项目", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 14. 管理员登出
 POST {{baseUrl}}/api/auth/logout
 Content-Type: application/json
 
 {}
 
-### 普通员工登录
+> {%
+client.test("管理员登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 15. 普通员工重新登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.42." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{employeeUsername}}",
   "password": "{{password}}"
 }
 
-### 越权尝试：普通员工不能删除非本人负责项目，预期 403
-DELETE {{baseUrl}}/api/projects/{{newProjectId}}
-
 > {%
-client.test("越权删除项目被拦截", function() {
-    client.assert(response.status === 403);
+client.test("普通员工重新登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
 });
 %}
 
-### 普通员工登出
+### 16. 普通员工权限校验
+GET {{baseUrl}}/api/projects?page=1&page_size=20
+
+> {%
+client.test("普通员工只能在列表中看到有权限的项目", function() {
+    var adminProjectId = parseInt(client.global.get("adminProjectId"));
+    var employeeProjectId = parseInt(client.global.get("employeeProjectId"));
+    var containsAdminProject = response.body.data.list.some(function(item) {
+        return item.id === adminProjectId;
+    });
+    var containsEmployeeProject = response.body.data.list.some(function(item) {
+        return item.id === employeeProjectId;
+    });
+
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(containsEmployeeProject, "普通员工应能看到自己的个人项目");
+    client.assert(!containsAdminProject, "普通员工不应在列表中看到非成员项目");
+});
+%}
+
+### 普通员工使用 owner_user_id 筛选被拒绝，预期 403
+GET {{baseUrl}}/api/projects?owner_user_id={{adminUserId}}
+
+> {%
+client.test("普通员工使用 owner_user_id 筛选返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通员工查看自己的个人项目成功
+GET {{baseUrl}}/api/projects/{{employeeProjectId}}
+
+> {%
+client.test("普通员工查看自己的个人项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("employeeProjectId")), "项目 ID 应匹配");
+    client.assert(response.body.data.permissions.can_edit_basic === true, "个人项目负责人应可编辑项目");
+});
+%}
+
+### 普通员工修改自己的个人项目成功
+PATCH {{baseUrl}}/api/projects/{{employeeProjectId}}
+Content-Type: application/json
+
+{
+  "description": "普通员工自行修改个人项目"
+}
+
+> {%
+client.test("普通员工修改自己的个人项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("employeeProjectId")), "项目 ID 应匹配");
+});
+%}
+
+### 普通员工查看非成员项目详情，预期 404
+GET {{baseUrl}}/api/projects/{{adminProjectId}}
+
+> {%
+client.test("普通员工查看非成员项目详情返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 普通员工查看非成员项目甘特图，预期 403
+GET {{baseUrl}}/api/projects/{{adminProjectId}}/gantt/nodes
+
+> {%
+client.test("普通员工查看非成员项目甘特图返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通员工删除非本人负责项目，预期 403
+DELETE {{baseUrl}}/api/projects/{{adminProjectId}}
+
+> {%
+client.test("普通员工删除非本人负责项目返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 17. 普通员工登出
 POST {{baseUrl}}/api/auth/logout
 Content-Type: application/json
 
 {}
 
-### ==========================================
-### 9. 数据闭环清理 (删除项目保证幂等性)
-### ==========================================
-### 重新登录管理员
+> {%
+client.test("普通员工登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 18. 项目负责人登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.43." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{managerUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("项目负责人登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.id === parseInt(client.global.get("wangJieUserId")), "登录用户应为 wang_jie");
+    client.assert(response.body.data.user.system_role === 2, "预期项目经理角色");
+});
+%}
+
+### 19. 项目负责人权限校验
+GET {{baseUrl}}/api/projects/{{adminProjectId}}
+
+> {%
+client.test("项目负责人查看项目详情成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("wangJieUserId")), "负责人应为当前项目经理");
+    client.assert(response.body.data.permissions.can_edit_basic === true, "负责人应可编辑未完成项目");
+});
+%}
+
+### 项目负责人修改项目成功
+PATCH {{baseUrl}}/api/projects/{{adminProjectId}}
+Content-Type: application/json
+
+{
+  "description": "项目负责人修改后的项目描述"
+}
+
+> {%
+client.test("项目负责人修改项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("adminProjectId")), "项目 ID 应匹配");
+});
+%}
+
+### 项目负责人获取转交候选人
+GET {{baseUrl}}/api/projects/{{adminProjectId}}/owner/candidates?page=1&page_size=10
+
+> {%
+client.test("项目负责人获取转交候选人成功且仅包含项目经理", function() {
+    var onlyProjectManagers = response.body.data.list.every(function(item) {
+        return item.system_role === 2;
+    });
+
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(onlyProjectManagers, "项目负责人转交候选人只能是项目经理");
+});
+%}
+
+### 项目负责人转交给管理员，预期 409
+POST {{baseUrl}}/api/projects/{{adminProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{adminUserId}}
+}
+
+> {%
+client.test("项目负责人转交给管理员返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40918, "预期业务码 40918");
+});
+%}
+
+### 20. 项目负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目负责人登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 21. 管理员重新登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.44." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{adminUsername}}",
   "password": "{{password}}"
 }
 
-### 删除创建的新项目
-DELETE {{baseUrl}}/api/projects/{{newProjectId}}
+> {%
+client.test("管理员重新登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 22. 数据闭环清理
+DELETE {{baseUrl}}/api/projects/{{adminProjectId}}
 
 > {%
-client.test("删除项目成功，环境清理完毕", function() {
-    client.assert(response.status === 200);
+client.test("删除管理员测试项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("adminProjectId")), "删除项目 ID 应匹配");
+});
+%}
+
+### 删除普通员工个人项目
+DELETE {{baseUrl}}/api/projects/{{employeeProjectId}}
+
+> {%
+client.test("删除普通员工个人项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("employeeProjectId")), "删除项目 ID 应匹配");
+});
+%}
+
+### 重复删除项目，预期 404
+DELETE {{baseUrl}}/api/projects/{{adminProjectId}}
+
+> {%
+client.test("重复删除项目返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 管理员最终登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员最终登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
 });
 %}

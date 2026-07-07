@@ -498,13 +498,15 @@ namespace project_tracker::modules::task::controller {
         }
 
         const auto dbClient = drogon::app().getDbClient();
+        repository::TaskDetailQuery query{
+            .subTaskId = subTaskId,
+            .currentUserId = *userId,
+            .currentUserRole = *systemRole
+        };
+
         const auto result = co_await taskRepository_.findTaskDetail(
             dbClient,
-            repository::TaskDetailQuery{
-                .subTaskId = subTaskId,
-                .currentUserId = *userId,
-                .currentUserRole = *systemRole
-            });
+            query);
 
         if (!result) {
             co_return api::fail(
@@ -795,13 +797,15 @@ namespace project_tracker::modules::task::controller {
                 "subtask_id 必须是大于 0 的整数");
         }
         const auto dbClient = drogon::app().getDbClient();
+        repository::TaskProgressRecordListQuery query{
+            .subTaskId = subTaskId,
+            .currentUserId = *userId,
+            .currentUserRole = *systemRole
+        };
+
         const auto result = co_await taskRepository_.listTaskProgressRecords(
             dbClient,
-            repository::TaskProgressRecordListQuery{
-                .subTaskId = subTaskId,
-                .currentUserId = *userId,
-                .currentUserRole = *systemRole
-            });
+            query);
 
         if (!result) {
             co_return api::fail(

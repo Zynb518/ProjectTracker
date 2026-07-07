@@ -17,5 +17,9 @@ pkg_check_modules(ARGON2 REQUIRED IMPORTED_TARGET libargon2)
 # 进入 src 子目录
 add_subdirectory(src)
 
-enable_testing()
-add_subdirectory(tests)
+option(PROJECT_TRACKER_BUILD_TESTS "Build Project Tracker tests" ON)
+
+if(PROJECT_TRACKER_BUILD_TESTS)
+    enable_testing()
+    add_subdirectory(tests)
+endif()

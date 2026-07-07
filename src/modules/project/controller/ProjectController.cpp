@@ -438,13 +438,15 @@ namespace project_tracker::modules::project::controller {
         }
 
         const auto dbClient = drogon::app().getDbClient();
+        repository::ProjectGanttNodesQuery query{
+            .projectId = projectId,
+            .currentUserId = *userId,
+            .currentUserRole = *systemRole
+        };
+
         const auto result = co_await projectRepository_.findProjectGanttNodes(
             dbClient,
-            repository::ProjectGanttNodesQuery{
-                .projectId = projectId,
-                .currentUserId = *userId,
-                .currentUserRole = *systemRole
-            });
+            query);
 
         if (!result) {
             co_return api::fail(
@@ -499,13 +501,15 @@ namespace project_tracker::modules::project::controller {
         }
 
         const auto dbClient = drogon::app().getDbClient();
+        repository::ProjectGanttMembersQuery query{
+            .projectId = projectId,
+            .currentUserId = *userId,
+            .currentUserRole = *systemRole
+        };
+
         const auto result = co_await projectRepository_.findProjectGanttMembers(
             dbClient,
-            repository::ProjectGanttMembersQuery{
-                .projectId = projectId,
-                .currentUserId = *userId,
-                .currentUserRole = *systemRole
-            });
+            query);
 
         if (!result) {
             co_return api::fail(

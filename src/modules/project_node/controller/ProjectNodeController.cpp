@@ -301,13 +301,15 @@ namespace project_tracker::modules::project_node::controller {
         }
 
         const auto dbClient = drogon::app().getDbClient();
+        repository::ProjectNodeListQuery query{
+            .projectId = projectId,
+            .currentUserId = *userId,
+            .currentUserRole = *systemRole
+        };
+
         const auto result = co_await projectNodeRepository_.listProjectNodes(
             dbClient,
-            repository::ProjectNodeListQuery{
-                .projectId = projectId,
-                .currentUserId = *userId,
-                .currentUserRole = *systemRole
-            });
+            query);
 
         if (!result) {
             co_return api::fail(
@@ -362,14 +364,16 @@ namespace project_tracker::modules::project_node::controller {
         }
 
         const auto dbClient = drogon::app().getDbClient();
+        repository::ProjectNodeDetailQuery query{
+            .projectId = projectId,
+            .nodeId = nodeId,
+            .currentUserId = *userId,
+            .currentUserRole = *systemRole
+        };
+
         const auto result = co_await projectNodeRepository_.findProjectNodeDetail(
             dbClient,
-            repository::ProjectNodeDetailQuery{
-                .projectId = projectId,
-                .nodeId = nodeId,
-                .currentUserId = *userId,
-                .currentUserRole = *systemRole
-            });
+            query);
 
         if (!result) {
             co_return api::fail(
@@ -425,14 +429,16 @@ namespace project_tracker::modules::project_node::controller {
         }
 
         const auto dbClient = drogon::app().getDbClient();
+        repository::ProjectNodeGanttQuery query{
+            .projectId = projectId,
+            .nodeId = nodeId,
+            .currentUserId = *userId,
+            .currentUserRole = *systemRole
+        };
+
         const auto result = co_await projectNodeRepository_.findProjectNodeGantt(
             dbClient,
-            repository::ProjectNodeGanttQuery{
-                .projectId = projectId,
-                .nodeId = nodeId,
-                .currentUserId = *userId,
-                .currentUserRole = *systemRole
-            });
+            query);
 
         if (!result) {
             co_return api::fail(

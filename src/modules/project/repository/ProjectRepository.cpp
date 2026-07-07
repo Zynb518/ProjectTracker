@@ -986,17 +986,21 @@ namespace project_tracker::modules::project::repository {
         static const std::string listProjectOwnerCandidatesSql = R"SQL(
             WITH project_context AS (
                 SELECT
-                    (p.id IS NOT NULL) AS project_exists,
+                    CASE
+                        WHEN p.id IS NULL THEN 0
+                        ELSE 1
+                    END AS project_exists,
                     COALESCE(p.owner_user_id, 0::bigint) AS owner_user_id,
                     CASE
-                        WHEN p.id IS NULL THEN FALSE
-                        WHEN creator_user.system_role = 3 THEN FALSE
-                        ELSE TRUE
+                        WHEN p.id IS NULL THEN 0
+                        WHEN creator_user.system_role = 3 THEN 0
+                        ELSE 1
                     END AS owner_transfer_allowed,
                     CASE
-                        WHEN p.id IS NULL THEN FALSE
-                        WHEN $2 = TRUE THEN TRUE
-                        ELSE p.owner_user_id = $3
+                        WHEN p.id IS NULL THEN 0
+                        WHEN $2 = 1 THEN 1
+                        WHEN p.owner_user_id = $3 THEN 1
+                        ELSE 0
                     END AS has_permission
                 FROM (SELECT 1) anchor
                 LEFT JOIN project p ON p.id = $1
@@ -1009,18 +1013,23 @@ namespace project_tracker::modules::project::repository {
                     u.real_name,
                     u.system_role,
                     u.status,
-                    EXISTS (
-                        SELECT 1
-                        FROM project_member pm
-                        WHERE pm.project_id = $1 AND
-                            pm.user_id = u.id
-                    ) AS is_project_member
+                    CASE
+                        WHEN EXISTS (
+                            SELECT 1
+                            FROM project_member pm
+                            WHERE pm.project_id = $1 AND
+                                pm.user_id = u.id
+                        ) THEN 1
+                        ELSE 0
+                    END AS is_project_member
                 FROM project_context pc
-                JOIN sys_user u ON pc.project_exists AND pc.has_permission AND pc.owner_transfer_allowed
+                JOIN sys_user u ON pc.project_exists = 1 AND
+                    pc.has_permission = 1 AND
+                    pc.owner_transfer_allowed = 1
                 WHERE u.status = 1 AND
                     (
-                        ($2 = TRUE AND u.system_role IN (1, 2)) OR
-                        ($2 = FALSE AND u.system_role = 2)
+                        ($2 = 1 AND u.system_role IN (1, 2)) OR
+                        ($2 = 0 AND u.system_role = 2)
                     ) AND
                     ($4 = '' OR u.username ILIKE $4 OR u.real_name ILIKE $4) AND
                     u.id <> pc.owner_user_id
@@ -1061,21 +1070,22 @@ namespace project_tracker::modules::project::repository {
         const std::int64_t pageSizeForSql = std::max(query.pageSize, std::int64_t{1});
         const std::int64_t offsetForSql = (page - 1) * pageSizeForSql;
         const std::string keyword = query.keyword.empty() ? "" : "%" + query.keyword + "%";
+        const int includeAdminCandidates = query.includeAdminCandidates ? 1 : 0;
 
         try {
             const auto listResult = co_await executor->execSqlCoro(
                 listProjectOwnerCandidatesSql,
                 query.projectId,
-                query.includeAdminCandidates,
+                includeAdminCandidates,
                 query.operatorUserId,
                 keyword,
                 pageSizeForSql,
                 offsetForSql);
 
             ProjectOwnerCandidateListResult result{
-                .projectExists = listResult.front()["project_exists"].as<bool>(),
-                .hasPermission = listResult.front()["has_permission"].as<bool>(),
-                .ownerTransferAllowed = listResult.front()["owner_transfer_allowed"].as<bool>(),
+                .projectExists = listResult.front()["project_exists"].as<int>() != 0,
+                .hasPermission = listResult.front()["has_permission"].as<int>() != 0,
+                .ownerTransferAllowed = listResult.front()["owner_transfer_allowed"].as<int>() != 0,
                 .page = ProjectOwnerCandidatePage{
                     .list = {},
                     .total = listResult.front()["total"].as<std::int64_t>(),
@@ -1097,7 +1107,7 @@ namespace project_tracker::modules::project::repository {
                     .realName = row["real_name"].as<std::string>(),
                     .systemRole = static_cast<user_domain::SystemRole>(row["system_role"].as<int>()),
                     .status = static_cast<user_domain::UserStatus>(row["status"].as<int>()),
-                    .isProjectMember = row["is_project_member"].as<bool>()
+                    .isProjectMember = row["is_project_member"].as<int>() != 0
                 });
             }
 

@@ -1,22 +1,34 @@
 # 第一阶段 编译阶段 官方镜像
 FROM drogonframework/drogon:latest AS builder
 
+ARG APT_MIRROR=http://mirrors.aliyun.com/ubuntu
+
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y libargon2-dev
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list ]; then \
+        sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${APT_MIRROR}#g" /etc/apt/sources.list; \
+    fi; \
+    find /etc/apt/sources.list.d -type f \( -name "*.list" -o -name "*.sources" \) \
+        -exec sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${APT_MIRROR}#g" {} +; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends libargon2-dev; \
+    rm -rf /var/lib/apt/lists/*
 
 # 拷贝源码
 COPY . .
 
 # 直接编译
 # 官方镜像可能没有 NINJA, 使用默认的MAKEFILE
-RUN cmake -S . -B docker-build-release -DCMAKE_BUILD_TYPE=Release
+RUN cmake -S . -B docker-build-release -DCMAKE_BUILD_TYPE=Release -DPROJECT_TRACKER_BUILD_TESTS=OFF
 RUN cmake --build docker-build-release --target Project_Tracker
 
 
 
 # 第二阶段 运行环境
 FROM ubuntu:22.04
+
+ARG APT_MIRROR=http://mirrors.aliyun.com/ubuntu
 
 WORKDIR /app
 
@@ -30,18 +42,25 @@ COPY --from=builder /usr/local/lib/libdrogon* /usr/local/lib/
 COPY --from=builder /usr/lib/x86_64-linux-gnu/libhiredis.so.0.14 /usr/lib/x86_64-linux-gnu/
 
 # 3. 安装系统级的基础库（这些是 Ubuntu 仓库里有的）
-RUN apt-get update && apt-get install -y \
-    gettext-base \
-    libargon2-1 \
-    libpq5 \
-    libsqlite3-0 \
-    libmariadb3 \
-    libhiredis0.14 \
-    libjsoncpp25 \
-    uuid-runtime \
-    libc-ares2 \
-    libssl3 \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    if [ -f /etc/apt/sources.list ]; then \
+        sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${APT_MIRROR}#g" /etc/apt/sources.list; \
+    fi; \
+    find /etc/apt/sources.list.d -type f \( -name "*.list" -o -name "*.sources" \) \
+        -exec sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${APT_MIRROR}#g" {} +; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+        gettext-base \
+        libargon2-1 \
+        libpq5 \
+        libsqlite3-0 \
+        libmariadb3 \
+        libhiredis0.14 \
+        libjsoncpp25 \
+        uuid-runtime \
+        libc-ares2 \
+        libssl3; \
+    rm -rf /var/lib/apt/lists/*
 
 
 # 4. 刷新动态库缓存，让系统认出刚拷过来的 libdrogon
@@ -59,7 +78,3 @@ EXPOSE 8080
 
 # 容器启动时执行的最终命令
 CMD ["sh", "-c", "envsubst < /app/config/config.template.json > /app/config/config.dev.json && ./Project_Tracker"]
-
-
-
-

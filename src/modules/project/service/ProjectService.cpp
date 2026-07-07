@@ -143,16 +143,18 @@ namespace project_tracker::modules::project::service {
             const auto dbClient = drogon::app().getDbClient();
             const bool isAdmin = input.operatorUserRole == user_domain::SystemRole::Admin;
 
+            repository::ProjectOwnerCandidateQuery query{
+                .projectId = input.projectId,
+                .operatorUserId = input.operatorUserId,
+                .includeAdminCandidates = isAdmin,
+                .keyword = input.keyword,
+                .page = input.page,
+                .pageSize = input.pageSize
+            };
+
             const auto queryResult = co_await projectRepository_.listProjectOwnerCandidates(
                 dbClient,
-                repository::ProjectOwnerCandidateQuery{
-                    .projectId = input.projectId,
-                    .operatorUserId = input.operatorUserId,
-                    .includeAdminCandidates = isAdmin,
-                    .keyword = input.keyword,
-                    .page = input.page,
-                    .pageSize = input.pageSize
-                });
+                query);
 
             if (!queryResult.projectExists) {
                 error::throwNotFound(
