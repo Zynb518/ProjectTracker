@@ -5,12 +5,10 @@ ARG APT_MIRROR=http://mirrors.aliyun.com/ubuntu
 
 WORKDIR /app
 
+COPY docker/use-apt-mirror.sh /tmp/use-apt-mirror.sh
+
 RUN set -eux; \
-    if [ -f /etc/apt/sources.list ]; then \
-        sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${APT_MIRROR}#g" /etc/apt/sources.list; \
-    fi; \
-    find /etc/apt/sources.list.d -type f \( -name "*.list" -o -name "*.sources" \) \
-        -exec sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${APT_MIRROR}#g" {} +; \
+    sh /tmp/use-apt-mirror.sh "$APT_MIRROR"; \
     apt-get update; \
     apt-get install -y --no-install-recommends libargon2-dev; \
     rm -rf /var/lib/apt/lists/*
@@ -32,6 +30,8 @@ ARG APT_MIRROR=http://mirrors.aliyun.com/ubuntu
 
 WORKDIR /app
 
+COPY --from=builder /tmp/use-apt-mirror.sh /tmp/use-apt-mirror.sh
+
 # 1. 拷贝你自己的程序
 COPY --from=builder /app/docker-build-release/src/Project_Tracker /app/
 COPY --from=builder /app/config/config.template.json /app/config/config.template.json
@@ -43,11 +43,7 @@ COPY --from=builder /usr/lib/x86_64-linux-gnu/libhiredis.so.0.14 /usr/lib/x86_64
 
 # 3. 安装系统级的基础库（这些是 Ubuntu 仓库里有的）
 RUN set -eux; \
-    if [ -f /etc/apt/sources.list ]; then \
-        sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${APT_MIRROR}#g" /etc/apt/sources.list; \
-    fi; \
-    find /etc/apt/sources.list.d -type f \( -name "*.list" -o -name "*.sources" \) \
-        -exec sed -i -E "s#https?://(archive|security)\.ubuntu\.com/ubuntu#${APT_MIRROR}#g" {} +; \
+    sh /tmp/use-apt-mirror.sh "$APT_MIRROR"; \
     apt-get update; \
     apt-get install -y --no-install-recommends \
         gettext-base \
@@ -60,6 +56,7 @@ RUN set -eux; \
         uuid-runtime \
         libc-ares2 \
         libssl3; \
+    rm -f /tmp/use-apt-mirror.sh; \
     rm -rf /var/lib/apt/lists/*
 
 
