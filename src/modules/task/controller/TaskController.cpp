@@ -858,12 +858,14 @@ namespace project_tracker::modules::task::controller {
                 error::ErrorCode::InvalidParameter,
                 "请求体必须是 JSON 对象");
         }
-        const auto task = co_await taskService_.reopenTask(
-            dto::command::TaskStatusActionInput{
-                .subTaskId = subTaskId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+
+        auto input = dto::command::TaskStatusActionInput{
+            .subTaskId = subTaskId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+
+        const auto task = co_await taskService_.reopenTask(input);
         co_return api::ok(buildUpdatedTaskStatusJson(task));
     }
 
@@ -888,12 +890,13 @@ namespace project_tracker::modules::task::controller {
                 "subtask_id 必须是大于 0 的整数");
         }
 
-        const auto deletedTaskId = co_await taskService_.deleteTask(
-            dto::command::DeleteTaskInput{
-                .subTaskId = subTaskId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::DeleteTaskInput{
+            .subTaskId = subTaskId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+
+        const auto deletedTaskId = co_await taskService_.deleteTask(input);
 
         Json::Value data(Json::objectValue);
         data["id"] = deletedTaskId;

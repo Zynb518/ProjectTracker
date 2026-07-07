@@ -781,13 +781,13 @@ namespace project_tracker::modules::project::controller {
                 error::ErrorCode::InvalidParameter,
                 "project_id 必须是大于 0 的整数");
         }
+        auto input = dto::command::DeleteProjectInput{
+            .projectId = projectId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
 
-        const auto deletedProjectId = co_await projectService_.deleteProject(
-            dto::command::DeleteProjectInput{
-                .projectId = projectId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        const auto deletedProjectId = co_await projectService_.deleteProject(input);
 
         Json::Value data(Json::objectValue);
         data["id"] = deletedProjectId;
@@ -822,13 +822,12 @@ namespace project_tracker::modules::project::controller {
                 error::ErrorCode::InvalidParameter,
                 "请求体必须是 JSON 对象");
         }
-
-        const auto project = co_await projectService_.startProject(
-            dto::command::ProjectStatusActionInput{
-                .projectId = projectId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::ProjectStatusActionInput{
+            .projectId = projectId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+        const auto project = co_await projectService_.startProject(input);
 
         Json::Value data(Json::objectValue);
         data["id"] = project.id;
@@ -872,12 +871,13 @@ namespace project_tracker::modules::project::controller {
                 "请求体必须是 JSON 对象");
         }
 
-        const auto project = co_await projectService_.completeProject(
-            dto::command::ProjectStatusActionInput{
-                .projectId = projectId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::ProjectStatusActionInput{
+            .projectId = projectId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+
+        const auto project = co_await projectService_.completeProject(input);
 
         Json::Value data(Json::objectValue);
         data["id"] = project.id;
@@ -921,13 +921,12 @@ namespace project_tracker::modules::project::controller {
                 error::ErrorCode::InvalidParameter,
                 "请求体必须是 JSON 对象");
         }
-
-        const auto project = co_await projectService_.reopenProject(
-            dto::command::ProjectStatusActionInput{
-                .projectId = projectId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::ProjectStatusActionInput{
+            .projectId = projectId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+        const auto project = co_await projectService_.reopenProject(input);
 
         Json::Value data(Json::objectValue);
         data["id"] = project.id;

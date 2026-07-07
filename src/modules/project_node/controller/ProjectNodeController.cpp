@@ -623,14 +623,13 @@ namespace project_tracker::modules::project_node::controller {
                 error::ErrorCode::InvalidParameter,
                 "请求体必须是 JSON 对象");
         }
-
-        const auto node = co_await projectNodeService_.startProjectNode(
-            dto::command::ProjectNodeStatusActionInput{
-                .projectId = projectId,
-                .nodeId = nodeId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::ProjectNodeStatusActionInput{
+            .projectId = projectId,
+            .nodeId = nodeId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+        const auto node = co_await projectNodeService_.startProjectNode(input);
 
         co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
     }
@@ -671,14 +670,13 @@ namespace project_tracker::modules::project_node::controller {
                 error::ErrorCode::InvalidParameter,
                 "请求体必须是 JSON 对象");
         }
-
-        const auto node = co_await projectNodeService_.completeProjectNode(
-            dto::command::ProjectNodeStatusActionInput{
-                .projectId = projectId,
-                .nodeId = nodeId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::ProjectNodeStatusActionInput{
+            .projectId = projectId,
+            .nodeId = nodeId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+        const auto node = co_await projectNodeService_.completeProjectNode(input);
 
         co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
     }
@@ -719,14 +717,13 @@ namespace project_tracker::modules::project_node::controller {
                 error::ErrorCode::InvalidParameter,
                 "请求体必须是 JSON 对象");
         }
-
-        const auto node = co_await projectNodeService_.reopenProjectNode(
-            dto::command::ProjectNodeStatusActionInput{
-                .projectId = projectId,
-                .nodeId = nodeId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::ProjectNodeStatusActionInput{
+            .projectId = projectId,
+            .nodeId = nodeId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+        const auto node = co_await projectNodeService_.reopenProjectNode(input);
 
         co_return api::ok(buildUpdatedProjectNodeStatusJson(node));
 
@@ -760,14 +757,13 @@ namespace project_tracker::modules::project_node::controller {
                 error::ErrorCode::InvalidParameter,
                 "node_id 必须是大于 0 的整数");
         }
-
-        const auto deletedNodeId = co_await projectNodeService_.deleteProjectNode(
-            dto::command::DeleteProjectNodeInput{
-                .projectId = projectId,
-                .nodeId = nodeId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::DeleteProjectNodeInput{
+            .projectId = projectId,
+            .nodeId = nodeId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+        const auto deletedNodeId = co_await projectNodeService_.deleteProjectNode(input);
 
         Json::Value data(Json::objectValue);
         data["id"] = deletedNodeId;

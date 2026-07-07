@@ -190,13 +190,13 @@ namespace project_tracker::modules::project_member::controller {
                 "member_user_id 必须是大于 0 的整数");
         }
 
-        const auto member = co_await projectMemberService_.removeProjectMember(
-            dto::command::RemoveProjectMemberInput{
-                .projectId = projectId,
-                .memberUserId = memberUserId,
-                .operatorUserId = *userId,
-                .operatorUserRole = *systemRole
-            });
+        auto input = dto::command::RemoveProjectMemberInput{
+            .projectId = projectId,
+            .memberUserId = memberUserId,
+            .operatorUserId = *userId,
+            .operatorUserRole = *systemRole
+        };
+        const auto member = co_await projectMemberService_.removeProjectMember(input);
         co_return api::ok(buildRemovedProjectMemberJson(member));
     }
 
