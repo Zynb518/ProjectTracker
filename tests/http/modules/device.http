@@ -1,14 +1,43 @@
 @baseUrl = http://127.0.0.1
 @adminUsername = admin
+@managerUsername = li_ming
 @employeeUsername = chen_xu
 @password = 123456
+@missingDeviceId = 999999999999
 
-### ==========================================
-### 1. 管理员登录
-### ==========================================
+### 1. 清理登录态
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("清理登录态成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 2. 未登录访问设备列表被拦截
+GET {{baseUrl}}/api/devices
+
+> {%
+client.test("未登录访问设备列表返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 3. 管理员登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.16." + o3 + "." + o4);
+%}
 # @name adminLogin
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{adminUsername}}",
@@ -17,34 +46,36 @@ Content-Type: application/json
 
 > {%
 client.test("管理员登录成功", function() {
-    client.assert(response.status === 200, "状态码应为 200");
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.system_role === 1, "预期管理员角色");
 });
 %}
 
-### ==========================================
-### 2. 创建设备
-### ==========================================
+### 4. 管理员创建设备
 < {%
-  var rand = Math.floor(Math.random() * 1000000);
-  request.variables.set("deviceName", "device_" + rand);
+  var rand = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+  request.variables.set("adminDeviceName", "admin_device_" + rand);
 %}
 POST {{baseUrl}}/api/devices
 Content-Type: application/json
 
 {
-  "name": "{{deviceName}}",
-  "description": "模块化重构设备测试"
+  "name": "{{adminDeviceName}}",
+  "description": "设备模块管理员创建测试"
 }
 
 > {%
-client.test("设备创建成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
-    client.global.set("tempDeviceId", response.body.data.id);
+client.test("管理员创建设备成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id > 0, "预期返回设备 ID");
+    client.global.set("adminDeviceId", response.body.data.id);
 });
 %}
 
-### 异常：缺少名称，预期 400
+### 5. 创建设备参数校验
+### 缺少 name，预期 400
 POST {{baseUrl}}/api/devices
 Content-Type: application/json
 
@@ -53,27 +84,101 @@ Content-Type: application/json
 }
 
 > {%
-client.test("缺少名称报错 400", function() {
-    client.assert(response.status === 400);
+client.test("缺少 name 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 3. 获取设备列表
-### ==========================================
-GET {{baseUrl}}/api/devices?page=1&page_size=10
+### name 为空字符串，预期 400
+POST {{baseUrl}}/api/devices
+Content-Type: application/json
+
+{
+  "name": "",
+  "description": "空名称测试"
+}
 
 > {%
-client.test("获取设备列表成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("空 name 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 4. 提交设备使用记录
-### ==========================================
-POST {{baseUrl}}/api/devices/{{tempDeviceId}}/logs
+### description 类型错误，预期 400
+POST {{baseUrl}}/api/devices
+Content-Type: application/json
+
+{
+  "name": "invalid_description_device",
+  "description": 123
+}
+
+> {%
+client.test("description 非字符串返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/devices
+Content-Type: application/json
+
+[
+  {
+    "name": "invalid_body_device"
+  }
+]
+
+> {%
+client.test("非对象 JSON 请求体返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 6. 查询设备列表
+GET {{baseUrl}}/api/devices?page=1&page_size=200
+
+> {%
+client.test("获取设备列表成功并限制 page_size 上限", function() {
+    var adminDeviceId = parseInt(client.global.get("adminDeviceId"));
+    var exists = response.body.data.list.some(function(item) {
+        return item.id === adminDeviceId;
+    });
+
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.page === 1, "预期 page 为 1");
+    client.assert(response.body.data.page_size === 100, "page_size 超过 100 时应被限制为 100");
+    client.assert(exists, "设备列表应包含刚创建的管理员设备");
+});
+%}
+
+### page 非正整数，预期 400
+GET {{baseUrl}}/api/devices?page=0&page_size=10
+
+> {%
+client.test("page 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### page_size 非整数，预期 400
+GET {{baseUrl}}/api/devices?page=1&page_size=abc
+
+> {%
+client.test("page_size 非整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 7. 管理员提交设备使用记录
+POST {{baseUrl}}/api/devices/{{adminDeviceId}}/logs
 Content-Type: application/json
 
 {
@@ -81,47 +186,238 @@ Content-Type: application/json
 }
 
 > {%
-client.test("管理员提交设备记录成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("管理员提交设备使用记录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id > 0, "预期返回使用记录 ID");
+    client.global.set("adminLogId", response.body.data.id);
 });
 %}
 
-### ==========================================
-### 5. 获取设备使用记录列表 (仅管理员有权)
-### ==========================================
-GET {{baseUrl}}/api/devices/{{tempDeviceId}}/logs
+### 使用记录缺少 purpose，预期 400
+POST {{baseUrl}}/api/devices/{{adminDeviceId}}/logs
+Content-Type: application/json
+
+{}
 
 > {%
-client.test("管理员获取设备使用记录成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.list.length === 1);
+client.test("缺少 purpose 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 6. 管理员登出与普通员工登录
-### ==========================================
-### 管理员登出
+### 使用记录请求体不是 JSON 对象，预期 400
+POST {{baseUrl}}/api/devices/{{adminDeviceId}}/logs
+Content-Type: application/json
+
+[
+  {
+    "purpose": "invalid_body"
+  }
+]
+
+> {%
+client.test("使用记录非对象 JSON 请求体返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 给不存在设备提交使用记录，预期 404
+POST {{baseUrl}}/api/devices/{{missingDeviceId}}/logs
+Content-Type: application/json
+
+{
+  "purpose": "不存在设备使用记录测试"
+}
+
+> {%
+client.test("给不存在设备提交使用记录返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40407, "预期业务码 40407");
+});
+%}
+
+### 8. 管理员查看设备使用记录
+GET {{baseUrl}}/api/devices/{{adminDeviceId}}/logs?page=1&page_size=10
+
+> {%
+client.test("管理员查看设备使用记录成功", function() {
+    var adminLogId = parseInt(client.global.get("adminLogId"));
+    var exists = response.body.data.list.some(function(item) {
+        return item.id === adminLogId && item.device_id === parseInt(client.global.get("adminDeviceId"));
+    });
+
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.total >= 1, "预期至少 1 条使用记录");
+    client.assert(exists, "使用记录列表应包含管理员刚提交的记录");
+});
+%}
+
+### 使用记录列表 page 非正整数，预期 400
+GET {{baseUrl}}/api/devices/{{adminDeviceId}}/logs?page=0&page_size=10
+
+> {%
+client.test("使用记录列表 page 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 查看不存在设备使用记录，预期 404
+GET {{baseUrl}}/api/devices/{{missingDeviceId}}/logs
+
+> {%
+client.test("查看不存在设备使用记录返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40407, "预期业务码 40407");
+});
+%}
+
+### 9. 管理员登出
 POST {{baseUrl}}/api/auth/logout
 Content-Type: application/json
 
 {}
 
-### 普通员工登录
+> {%
+client.test("管理员登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 10. 项目经理登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.17." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{managerUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("项目经理登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.system_role === 2, "预期项目经理角色");
+});
+%}
+
+### 11. 项目经理权限校验
+< {%
+  var rand = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+  request.variables.set("managerDeviceName", "manager_device_" + rand);
+%}
+POST {{baseUrl}}/api/devices
+Content-Type: application/json
+
+{
+  "name": "{{managerDeviceName}}",
+  "description": "设备模块项目经理创建测试"
+}
+
+> {%
+client.test("项目经理创建设备成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id > 0, "预期返回设备 ID");
+    client.global.set("managerDeviceId", response.body.data.id);
+});
+%}
+
+### 项目经理查看设备使用记录，预期成功
+GET {{baseUrl}}/api/devices/{{adminDeviceId}}/logs
+
+> {%
+client.test("项目经理查看设备使用记录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 项目经理删除设备被拒绝，预期 403
+DELETE {{baseUrl}}/api/devices/{{managerDeviceId}}
+
+> {%
+client.test("项目经理删除设备被拒绝", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 12. 项目经理登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目经理登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 13. 普通员工登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.18." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{employeeUsername}}",
   "password": "{{password}}"
 }
 
-### ==========================================
-### 7. 普通员工操作校验
-### ==========================================
+> {%
+client.test("普通员工登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.system_role === 3, "预期普通员工角色");
+});
+%}
+
+### 14. 普通员工权限校验
+POST {{baseUrl}}/api/devices
+Content-Type: application/json
+
+{
+  "name": "employee_forbidden_device",
+  "description": "普通员工创建设备权限测试"
+}
+
+> {%
+client.test("普通员工创建设备被拒绝", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通员工允许查看设备列表
+GET {{baseUrl}}/api/devices?page=1&page_size=10
+
+> {%
+client.test("普通员工查看设备列表成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
 ### 普通员工允许提交设备使用记录
-POST {{baseUrl}}/api/devices/{{tempDeviceId}}/logs
+POST {{baseUrl}}/api/devices/{{adminDeviceId}}/logs
 Content-Type: application/json
 
 {
@@ -129,43 +425,106 @@ Content-Type: application/json
 }
 
 > {%
-client.test("员工提交设备记录成功", function() {
-    client.assert(response.status === 200);
+client.test("普通员工提交设备使用记录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
 });
 %}
 
-### 越权尝试：普通员工获取使用记录列表，预期 403
-GET {{baseUrl}}/api/devices/{{tempDeviceId}}/logs
+### 普通员工查看使用记录列表被拒绝，预期 403
+GET {{baseUrl}}/api/devices/{{adminDeviceId}}/logs
 
 > {%
-client.test("员工获取记录列表被拦截", function() {
-    client.assert(response.status === 403);
+client.test("普通员工查看使用记录列表被拒绝", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
 });
 %}
 
-### 普通员工登出
+### 普通员工删除设备被拒绝，预期 403
+DELETE {{baseUrl}}/api/devices/{{adminDeviceId}}
+
+> {%
+client.test("普通员工删除设备被拒绝", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 15. 普通员工登出
 POST {{baseUrl}}/api/auth/logout
 Content-Type: application/json
 
 {}
 
-### ==========================================
-### 8. 数据闭环清理
-### ==========================================
-### 重新登录管理员
+> {%
+client.test("普通员工登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 16. 管理员重新登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.19." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{adminUsername}}",
   "password": "{{password}}"
 }
 
-### 删除创建的设备
-DELETE {{baseUrl}}/api/devices/{{tempDeviceId}}
+> {%
+client.test("管理员重新登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 17. 数据闭环清理
+DELETE {{baseUrl}}/api/devices/{{adminDeviceId}}
 
 > {%
-client.test("删除设备成功，环境清理完毕", function() {
-    client.assert(response.status === 200);
+client.test("删除管理员创建设备成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 删除项目经理创建设备
+DELETE {{baseUrl}}/api/devices/{{managerDeviceId}}
+
+> {%
+client.test("删除项目经理创建设备成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 重复删除设备返回 404
+DELETE {{baseUrl}}/api/devices/{{adminDeviceId}}
+
+> {%
+client.test("重复删除设备返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40407, "预期业务码 40407");
+});
+%}
+
+### 管理员最终登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员最终登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
 });
 %}
