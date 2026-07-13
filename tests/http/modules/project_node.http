@@ -1,14 +1,181 @@
 @baseUrl = http://127.0.0.1
 @adminUsername = admin
-@password = 123456
+@managerUsername = wang_jie
 @employeeUsername = chen_xu
+@password = 123456
+@missingProjectId = 999999999999
+@missingNodeId = 999999999999
 
-### ==========================================
-### 1. 管理员登录
-### ==========================================
-# @name adminLogin
+### 1. 清理登录态
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("清理登录态成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 2. 未登录访问阶段节点接口被拦截
+GET {{baseUrl}}/api/projects/1/nodes
+
+> {%
+client.test("未登录获取节点列表返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 未登录创建阶段节点
+POST {{baseUrl}}/api/projects/1/nodes
+Content-Type: application/json
+
+{
+  "name": "未登录节点",
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-02"
+}
+
+> {%
+client.test("未登录创建节点返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 未登录获取节点详情
+GET {{baseUrl}}/api/projects/1/nodes/1
+
+> {%
+client.test("未登录获取节点详情返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 3. 普通员工登录并创建个人项目
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.70." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("普通员工登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.system_role === 3, "预期普通员工角色");
+    client.global.set("employeeUserId", response.body.data.user.id);
+});
+%}
+
+### 普通员工创建个人项目
+< {%
+  var rand = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+  request.variables.set("personalProjectName", "project_node_personal_" + rand);
+%}
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{personalProjectName}}",
+  "description": "阶段节点模块个人项目权限测试",
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-31"
+}
+
+> {%
+client.test("普通员工创建个人项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("employeeUserId")), "个人项目负责人应为创建人");
+    client.global.set("personalProjectId", response.body.data.id);
+});
+%}
+
+### 4. 普通员工负责人管理个人项目节点
+POST {{baseUrl}}/api/projects/{{personalProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "个人项目阶段",
+  "description": "普通员工负责人创建的阶段节点",
+  "planned_start_date": "2026-12-02",
+  "planned_end_date": "2026-12-05"
+}
+
+> {%
+client.test("普通员工负责人创建节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.project_id === parseInt(client.global.get("personalProjectId")), "项目 ID 应匹配");
+    client.assert(response.body.data.sequence_no === 1, "第一个节点序号应为 1");
+    client.assert(response.body.data.status === 1, "新节点状态应为未开始");
+    client.global.set("personalNodeId", response.body.data.id);
+});
+%}
+
+### 普通员工负责人查看个人项目节点列表
+GET {{baseUrl}}/api/projects/{{personalProjectId}}/nodes
+
+> {%
+client.test("普通员工负责人查看个人项目节点列表成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 1, "个人项目应有一个节点");
+    client.assert(response.body.data.list[0].id === parseInt(client.global.get("personalNodeId")), "节点 ID 应匹配");
+});
+%}
+
+### 普通员工负责人修改个人项目节点
+PATCH {{baseUrl}}/api/projects/{{personalProjectId}}/nodes/{{personalNodeId}}
+Content-Type: application/json
+
+{
+  "description": "普通员工负责人更新后的描述"
+}
+
+> {%
+client.test("普通员工负责人修改个人项目节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.description === "普通员工负责人更新后的描述", "描述应更新");
+});
+%}
+
+### 5. 普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("普通员工登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 6. 管理员登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.71." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{adminUsername}}",
@@ -17,292 +184,1498 @@ Content-Type: application/json
 
 > {%
 client.test("管理员登录成功", function() {
-    client.assert(response.status === 200, "状态码应为 200");
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.system_role === 1, "预期管理员角色");
+    client.global.set("adminUserId", response.body.data.user.id);
 });
 %}
 
-### ==========================================
-### 2. 创建临时项目
-### ==========================================
-< {%
-  var rand = Math.floor(Math.random() * 1000000);
-  request.variables.set("projectName", "project_node_test_" + rand);
+### 查询项目经理 wang_jie 的用户 ID
+GET {{baseUrl}}/api/users?keyword={{managerUsername}}&system_role=2&status=1&page=1&page_size=10
+
+> {%
+client.test("管理员查询项目经理成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    var manager = response.body.data.list.find(function(item) {
+        return item.username === "wang_jie";
+    });
+    client.assert(manager !== undefined, "用户列表应包含 wang_jie");
+    client.assert(manager.system_role === 2, "wang_jie 应为项目经理");
+    client.global.set("managerUserId", manager.id);
+});
 %}
-POST {{baseUrl}}/api/projects
+
+### 7. 管理员对普通员工个人项目的限制
+GET {{baseUrl}}/api/projects/{{personalProjectId}}/nodes
+
+> {%
+client.test("管理员可以查看个人项目节点列表", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 1, "个人项目应有一个节点");
+});
+%}
+
+### 管理员不能向个人项目创建节点
+POST {{baseUrl}}/api/projects/{{personalProjectId}}/nodes
 Content-Type: application/json
 
 {
-  "name": "{{projectName}}",
-  "description": "项目阶段节点模块测试项目。",
-  "planned_start_date": "2026-04-01",
-  "planned_end_date": "2026-04-30"
+  "name": "管理员越权创建节点",
+  "planned_start_date": "2026-12-06",
+  "planned_end_date": "2026-12-08"
 }
 
 > {%
-client.global.set("tempProjectId", response.body.data.id);
+client.test("管理员向个人项目创建节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
 %}
 
-### ==========================================
-### 3. 创建阶段节点
-### ==========================================
-### 创建第一个阶段节点 (预期 sequence_no=1)
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/nodes
+### 管理员不能修改个人项目节点
+PATCH {{baseUrl}}/api/projects/{{personalProjectId}}/nodes/{{personalNodeId}}
 Content-Type: application/json
 
 {
-  "name": "需求梳理",
-  "description": "系统需求梳理阶段",
-  "planned_start_date": "2026-04-02",
-  "planned_end_date": "2026-04-05"
+  "name": "管理员越权修改"
 }
 
 > {%
-client.test("创建节点1成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.sequence_no === 1);
-    client.global.set("nodeId1", response.body.data.id);
+client.test("管理员修改个人项目节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
 });
 %}
 
-### 创建第二个阶段节点 (预期 sequence_no=2)
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/nodes
+### 管理员不能开始个人项目节点
+POST {{baseUrl}}/api/projects/{{personalProjectId}}/nodes/{{personalNodeId}}/start
 Content-Type: application/json
 
-{
-  "name": "架构设计",
-  "description": "系统架构设计阶段",
-  "planned_start_date": "2026-04-06",
-  "planned_end_date": "2026-04-10"
-}
+{}
 
 > {%
-client.test("创建节点2成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.sequence_no === 2);
-    client.global.set("nodeId2", response.body.data.id);
+client.test("管理员开始个人项目节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
 });
 %}
 
-### 创建第三个阶段节点 (预期 sequence_no=3)
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/nodes
-Content-Type: application/json
-
-{
-  "name": "代码实现",
-  "description": "系统编码实现阶段",
-  "planned_start_date": "2026-04-11",
-  "planned_end_date": "2026-04-20"
-}
-
-> {%
-client.test("创建节点3成功", function() {
-    client.assert(response.status === 200);
-    client.global.set("nodeId3", response.body.data.id);
-});
-%}
-
-### 异常：节点时间超出项目时间区间，预期 409
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/nodes
-Content-Type: application/json
-
-{
-  "name": "超出项目时间的节点",
-  "planned_start_date": "2026-04-25",
-  "planned_end_date": "2026-05-05"
-}
-
-> {%
-client.test("节点超出项目日期范围报错 409", function() {
-    client.assert(response.status === 409);
-});
-%}
-
-### ==========================================
-### 4. 获取阶段节点详情与列表
-### ==========================================
-### 获取详情
-GET {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/{{nodeId1}}
-
-> {%
-client.test("获取阶段节点详情成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.id === parseInt(client.global.get("nodeId1")));
-});
-%}
-
-### 获取阶段节点列表
-GET {{baseUrl}}/api/projects/{{tempProjectId}}/nodes
-
-> {%
-client.test("获取节点列表成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.length === 3);
-});
-%}
-
-### ==========================================
-### 5. 修改阶段节点信息
-### ==========================================
-### 正常修改
-PATCH {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/{{nodeId1}}
-Content-Type: application/json
-
-{
-  "name": "需求梳理-联调更新",
-  "description": "更新后的需求梳理描述",
-  "planned_start_date": "2026-04-03",
-  "planned_end_date": "2026-04-05"
-}
-
-> {%
-client.test("更新节点基础信息成功", function() {
-    client.assert(response.status === 200);
-});
-%}
-
-### ==========================================
-### 6. 调整阶段节点顺序 (Reorder)
-### ==========================================
-### 将顺序调整为: 节点 2 (第 1 位), 节点 1 (第 2 位), 节点 3 (第 3 位)
-PUT {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/reorder
+### 管理员不能调整个人项目节点顺序
+PUT {{baseUrl}}/api/projects/{{personalProjectId}}/nodes/reorder
 Content-Type: application/json
 
 {
   "nodes": [
     {
-      "node_id": {{nodeId2}},
+      "node_id": {{personalNodeId}},
       "sequence_no": 1
-    },
-    {
-      "node_id": {{nodeId1}},
-      "sequence_no": 2
-    },
-    {
-      "node_id": {{nodeId3}},
-      "sequence_no": 3
     }
   ]
 }
 
 > {%
-client.test("调整阶段节点顺序成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("管理员调整个人项目节点顺序返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
 });
 %}
 
-### ==========================================
-### 7. 阶段节点状态控制 (开始、完成、撤销)
-### ==========================================
-### 开始节点 2 (因为被排到了第一位，允许手动开始)
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/{{nodeId2}}/start
+### 管理员不能删除个人项目节点
+DELETE {{baseUrl}}/api/projects/{{personalProjectId}}/nodes/{{personalNodeId}}
+
+> {%
+client.test("管理员删除个人项目节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 8. 管理员创建主测试项目
+< {%
+  var rand = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+  request.variables.set("managedProjectName", "project_node_managed_" + rand);
+%}
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{managedProjectName}}",
+  "description": "阶段节点模块完整流程测试",
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-31"
+}
+
+> {%
+client.test("管理员创建主测试项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("adminUserId")), "初始负责人应为管理员");
+    client.global.set("managedProjectId", response.body.data.id);
+});
+%}
+
+### 9. 创建节点参数与资源校验
+POST {{baseUrl}}/api/projects/0/nodes
+Content-Type: application/json
+
+{
+  "name": "非法项目 ID 节点",
+  "planned_start_date": "2026-12-02",
+  "planned_end_date": "2026-12-03"
+}
+
+> {%
+client.test("创建节点 project_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 创建节点请求体不是 JSON 对象
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+[]
+
+> {%
+client.test("创建节点请求体非对象返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 创建节点缺少 name
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-12-02",
+  "planned_end_date": "2026-12-03"
+}
+
+> {%
+client.test("创建节点缺少 name 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### description 类型错误
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "description 类型错误",
+  "description": 123,
+  "planned_start_date": "2026-12-02",
+  "planned_end_date": "2026-12-03"
+}
+
+> {%
+client.test("创建节点 description 类型错误返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### planned_start_date 格式错误
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "日期格式错误",
+  "planned_start_date": "2026/12/02",
+  "planned_end_date": "2026-12-03"
+}
+
+> {%
+client.test("创建节点日期格式错误返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 节点开始时间晚于结束时间
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "节点日期区间错误",
+  "planned_start_date": "2026-12-10",
+  "planned_end_date": "2026-12-05"
+}
+
+> {%
+client.test("创建节点日期区间错误返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40909, "预期业务码 40909");
+});
+%}
+
+### 节点日期超出项目范围
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "超出项目日期范围",
+  "planned_start_date": "2026-12-25",
+  "planned_end_date": "2027-01-05"
+}
+
+> {%
+client.test("创建节点超出项目日期返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40909, "预期业务码 40909");
+});
+%}
+
+### 向不存在项目创建节点
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "不存在项目节点",
+  "planned_start_date": "2026-12-02",
+  "planned_end_date": "2026-12-03"
+}
+
+> {%
+client.test("向不存在项目创建节点返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 10. 管理员创建三个阶段节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "需求分析",
+  "description": "需求分析阶段",
+  "planned_start_date": "2026-12-02",
+  "planned_end_date": "2026-12-06"
+}
+
+> {%
+client.test("创建第一个阶段节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.sequence_no === 1, "第一个节点序号应为 1");
+    client.assert(response.body.data.status === 1, "新节点状态应为未开始");
+    client.global.set("nodeId1", response.body.data.id);
+});
+%}
+
+### 创建第二个阶段节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "架构设计",
+  "description": "架构设计阶段",
+  "planned_start_date": "2026-12-07",
+  "planned_end_date": "2026-12-12"
+}
+
+> {%
+client.test("创建第二个阶段节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.sequence_no === 2, "第二个节点序号应为 2");
+    client.global.set("nodeId2", response.body.data.id);
+});
+%}
+
+### 创建第三个阶段节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "开发测试",
+  "description": "开发与测试阶段",
+  "planned_start_date": "2026-12-13",
+  "planned_end_date": "2026-12-25"
+}
+
+> {%
+client.test("创建第三个阶段节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.sequence_no === 3, "第三个节点序号应为 3");
+    client.global.set("nodeId3", response.body.data.id);
+});
+%}
+
+### 11. 节点列表、详情和甘特图查询
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+
+> {%
+client.test("管理员获取节点列表成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 3, "节点列表应包含三个节点");
+    client.assert(response.body.data.list[0].id === parseInt(client.global.get("nodeId1")), "第一个节点 ID 应匹配");
+    client.assert(response.body.data.list[0].sequence_no === 1, "第一个节点序号应为 1");
+    client.assert(response.body.data.list[1].sequence_no === 2, "第二个节点序号应为 2");
+    client.assert(response.body.data.list[2].sequence_no === 3, "第三个节点序号应为 3");
+    for (var i = 0; i < response.body.data.list.length; i++) {
+        client.assert(response.body.data.list[i].sub_task_count === 0, "初始节点子任务数量应为 0");
+        client.assert(response.body.data.list[i].completed_sub_task_count === 0, "初始节点已完成子任务数量应为 0");
+    }
+});
+%}
+
+### 获取节点详情
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+
+> {%
+client.test("管理员获取节点详情成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("nodeId1")), "节点 ID 应匹配");
+    client.assert(response.body.data.project_id === parseInt(client.global.get("managedProjectId")), "项目 ID 应匹配");
+    client.assert(response.body.data.name === "需求分析", "节点名称应匹配");
+    client.assert(response.body.data.status === 1, "节点状态应为未开始");
+    client.assert(response.body.data.completed_at === null, "未完成节点 completed_at 应为空");
+});
+%}
+
+### 获取节点甘特图
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}/gantt
+
+> {%
+client.test("管理员获取节点甘特图成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.project.id === parseInt(client.global.get("managedProjectId")), "甘特图项目 ID 应匹配");
+    client.assert(response.body.data.node.id === parseInt(client.global.get("nodeId1")), "甘特图节点 ID 应匹配");
+    client.assert(Array.isArray(response.body.data.subtasks), "subtasks 应为数组");
+    client.assert(response.body.data.subtasks.length === 0, "当前节点应无子任务");
+});
+%}
+
+### 节点列表 project_id 非正整数
+GET {{baseUrl}}/api/projects/0/nodes
+
+> {%
+client.test("节点列表 project_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 查询不存在项目的节点列表
+GET {{baseUrl}}/api/projects/{{missingProjectId}}/nodes
+
+> {%
+client.test("不存在项目节点列表返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 节点详情 node_id 非正整数
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/0
+
+> {%
+client.test("节点详情 node_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 查询不存在节点详情
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{missingNodeId}}
+
+> {%
+client.test("不存在节点详情返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40405, "预期业务码 40405");
+});
+%}
+
+### 使用其他项目节点 ID 查询详情
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{personalNodeId}}
+
+> {%
+client.test("跨项目节点详情返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40405, "预期业务码 40405");
+});
+%}
+
+### 查询不存在节点甘特图
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{missingNodeId}}/gantt
+
+> {%
+client.test("不存在节点甘特图返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40405, "预期业务码 40405");
+});
+%}
+
+### 12. 修改节点基础信息与参数校验
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "name": "需求分析与确认",
+  "description": "更新后的需求分析阶段",
+  "planned_start_date": "2026-12-02",
+  "planned_end_date": "2026-12-06"
+}
+
+> {%
+client.test("管理员修改节点基础信息成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("nodeId1")), "节点 ID 应匹配");
+    client.assert(response.body.data.name === "需求分析与确认", "节点名称应更新");
+    client.assert(response.body.data.description === "更新后的需求分析阶段", "节点描述应更新");
+});
+%}
+
+### 修改节点请求体不是 JSON 对象
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+[]
+
+> {%
+client.test("修改节点请求体非对象返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 修改节点未提供字段
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
 Content-Type: application/json
 
 {}
 
 > {%
-client.test("手动开始节点成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.status === 2, "状态变更为 2 (进行中)");
+client.test("修改节点未提供字段返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### 完成节点 2
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/{{nodeId2}}/complete
+### 修改节点 name 为空
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "name": ""
+}
+
+> {%
+client.test("修改节点 name 为空返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 修改节点 description 类型错误
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "description": 123
+}
+
+> {%
+client.test("修改节点 description 类型错误返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 修改节点日期格式错误
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "planned_end_date": "2026/12/06"
+}
+
+> {%
+client.test("修改节点日期格式错误返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 修改节点日期区间错误
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "planned_start_date": "2026-12-10",
+  "planned_end_date": "2026-12-05"
+}
+
+> {%
+client.test("修改节点日期区间错误返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40909, "预期业务码 40909");
+});
+%}
+
+### 修改节点日期超出项目范围
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "planned_end_date": "2027-01-05"
+}
+
+> {%
+client.test("修改节点超出项目日期返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40909, "预期业务码 40909");
+});
+%}
+
+### 修改不存在项目的节点
+PATCH {{baseUrl}}/api/projects/{{missingProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "name": "不存在项目"
+}
+
+> {%
+client.test("修改不存在项目节点返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 修改不存在节点
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{missingNodeId}}
+Content-Type: application/json
+
+{
+  "name": "不存在节点"
+}
+
+> {%
+client.test("修改不存在节点返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40405, "预期业务码 40405");
+});
+%}
+
+### 13. 节点重排参数与业务校验
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+[]
+
+> {%
+client.test("重排请求体非对象返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 重排缺少 nodes
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
 Content-Type: application/json
 
 {}
 
 > {%
-client.test("手动完成节点成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.status === 3, "状态变更为 3 (已完成)");
+client.test("重排缺少 nodes 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### 撤销完成节点 2
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/{{nodeId2}}/reopen
+### nodes 为空数组
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
 Content-Type: application/json
 
-{}
+{
+  "nodes": []
+}
 
 > {%
-client.test("撤销完成节点成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.data.status === 2, "状态重新回到 2 (进行中)");
+client.test("重排 nodes 为空返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 8. 获取节点子任务甘特图数据
-### ==========================================
-GET {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/{{nodeId1}}/gantt
+### nodes 元素不是对象
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [1, 2, 3]
+}
 
 > {%
-client.test("获取阶段子任务甘特图成功", function() {
-    client.assert(response.status === 200);
+client.test("重排 nodes 元素非对象返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 9. 删除阶段节点与边界越权测试
-### ==========================================
+### 重复 node_id
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId1}}, "sequence_no": 1},
+    {"node_id": {{nodeId1}}, "sequence_no": 2},
+    {"node_id": {{nodeId3}}, "sequence_no": 3}
+  ]
+}
+
+> {%
+client.test("重排重复 node_id 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### sequence_no 不连续
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId1}}, "sequence_no": 1},
+    {"node_id": {{nodeId2}}, "sequence_no": 1},
+    {"node_id": {{nodeId3}}, "sequence_no": 3}
+  ]
+}
+
+> {%
+client.test("重排 sequence_no 重复返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 提交节点集合不完整
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId1}}, "sequence_no": 1},
+    {"node_id": {{nodeId2}}, "sequence_no": 2}
+  ]
+}
+
+> {%
+client.test("重排节点集合不完整返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40911, "预期业务码 40911");
+});
+%}
+
+### 重排包含不存在节点
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId1}}, "sequence_no": 1},
+    {"node_id": {{nodeId2}}, "sequence_no": 2},
+    {"node_id": {{missingNodeId}}, "sequence_no": 3}
+  ]
+}
+
+> {%
+client.test("重排包含不存在节点返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40405, "预期业务码 40405");
+});
+%}
+
+### 正常调整节点顺序为 2、1、3
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId2}}, "sequence_no": 1},
+    {"node_id": {{nodeId1}}, "sequence_no": 2},
+    {"node_id": {{nodeId3}}, "sequence_no": 3}
+  ]
+}
+
+> {%
+client.test("管理员调整节点顺序成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.project_id === parseInt(client.global.get("managedProjectId")), "项目 ID 应匹配");
+    client.assert(response.body.data.nodes.length === 3, "应返回三个节点顺序");
+    client.assert(response.body.data.nodes[0].node_id === parseInt(client.global.get("nodeId2")), "node2 应排在第一位");
+    client.assert(response.body.data.nodes[0].sequence_no === 1, "node2 序号应为 1");
+    client.assert(response.body.data.nodes[1].node_id === parseInt(client.global.get("nodeId1")), "node1 应排在第二位");
+});
+%}
+
+### 14. 将普通员工加入主测试项目
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{employeeUserId}}
+}
+
+> {%
+client.test("管理员添加普通员工为项目成员成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user_id === parseInt(client.global.get("employeeUserId")), "新增成员 ID 应匹配");
+});
+%}
+
 ### 管理员登出
 POST {{baseUrl}}/api/auth/logout
 Content-Type: application/json
 
 {}
 
-### 普通员工登录
+> {%
+client.test("管理员登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 15. 普通项目成员读写权限
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.72." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{employeeUsername}}",
   "password": "{{password}}"
 }
 
-### 越权尝试：普通员工删除非本人负责项目的阶段节点，预期 403
-DELETE {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/{{nodeId3}}
-
 > {%
-client.test("员工越权删除节点被拦截", function() {
-    client.assert(response.status === 403);
+client.test("普通项目成员登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.user.id === parseInt(client.global.get("employeeUserId")), "登录用户 ID 应匹配");
 });
 %}
 
-### 普通员工登出
+### 普通项目成员可以查看节点列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+
+> {%
+client.test("普通项目成员查看节点列表成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 3, "应看到三个节点");
+});
+%}
+
+### 普通项目成员可以查看节点详情
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+
+> {%
+client.test("普通项目成员查看节点详情成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 普通项目成员可以查看节点甘特图
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}/gantt
+
+> {%
+client.test("普通项目成员查看节点甘特图成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 普通项目成员不能创建节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "普通成员越权创建",
+  "planned_start_date": "2026-12-26",
+  "planned_end_date": "2026-12-27"
+}
+
+> {%
+client.test("普通项目成员创建节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通项目成员不能修改节点
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "name": "普通成员越权修改"
+}
+
+> {%
+client.test("普通项目成员修改节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通项目成员不能开始节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("普通项目成员开始节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通项目成员不能重排节点
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId2}}, "sequence_no": 1},
+    {"node_id": {{nodeId1}}, "sequence_no": 2},
+    {"node_id": {{nodeId3}}, "sequence_no": 3}
+  ]
+}
+
+> {%
+client.test("普通项目成员重排节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通项目成员不能删除节点
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId3}}
+
+> {%
+client.test("普通项目成员删除节点返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通项目成员登出
 POST {{baseUrl}}/api/auth/logout
 Content-Type: application/json
 
 {}
 
-### 重新登录管理员
+> {%
+client.test("普通项目成员登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 16. 非项目成员的项目经理读取权限
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.73." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{managerUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("非项目成员项目经理登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.user.id === parseInt(client.global.get("managerUserId")), "项目经理 ID 应匹配");
+});
+%}
+
+### 非项目成员不能查看节点列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+
+> {%
+client.test("非项目成员查看节点列表返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 非项目成员不能查看节点详情
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+
+> {%
+client.test("非项目成员查看节点详情返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 非项目成员项目经理登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("非项目成员项目经理登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 17. 管理员转交项目负责人
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.74." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{adminUsername}}",
   "password": "{{password}}"
 }
 
-### 删除第三个阶段节点
-DELETE {{baseUrl}}/api/projects/{{tempProjectId}}/nodes/{{nodeId3}}
-
 > {%
-client.test("正常删除阶段节点成功", function() {
-    client.assert(response.status === 200);
+client.test("管理员重新登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
 });
 %}
 
-### ==========================================
-### 10. 数据闭环清理
-### ==========================================
-### 删除创建的新项目，级联清理所有数据
-DELETE {{baseUrl}}/api/projects/{{tempProjectId}}
+### 将负责人转交给 wang_jie
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{managerUserId}}
+}
 
 > {%
-client.test("删除项目成功，环境清理完毕", function() {
-    client.assert(response.status === 200);
+client.test("管理员转交项目负责人成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("managerUserId")), "负责人应变为 wang_jie");
+    client.assert(response.body.data.auto_added_as_member === true, "非成员项目经理应自动加入项目");
+});
+%}
+
+### 管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员转交负责人后登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 18. 项目经理负责人管理节点
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.75." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{managerUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("项目经理负责人登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.user.id === parseInt(client.global.get("managerUserId")), "登录用户应为 wang_jie");
+});
+%}
+
+### 项目经理负责人创建第四个节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "上线准备",
+  "description": "上线准备阶段",
+  "planned_start_date": "2026-12-26",
+  "planned_end_date": "2026-12-30"
+}
+
+> {%
+client.test("项目经理负责人创建节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.sequence_no === 4, "第四个节点序号应为 4");
+    client.global.set("nodeId4", response.body.data.id);
+});
+%}
+
+### 项目经理负责人修改第二个节点
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}
+Content-Type: application/json
+
+{
+  "description": "项目经理负责人更新后的架构设计阶段"
+}
+
+> {%
+client.test("项目经理负责人修改节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.description === "项目经理负责人更新后的架构设计阶段", "描述应更新");
+});
+%}
+
+### 项目经理负责人重排四个节点
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId2}}, "sequence_no": 1},
+    {"node_id": {{nodeId1}}, "sequence_no": 2},
+    {"node_id": {{nodeId3}}, "sequence_no": 3},
+    {"node_id": {{nodeId4}}, "sequence_no": 4}
+  ]
+}
+
+> {%
+client.test("项目经理负责人重排节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.nodes.length === 4, "应返回四个节点");
+});
+%}
+
+### 删除第四个节点
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId4}}
+
+> {%
+client.test("项目经理负责人删除节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("nodeId4")), "删除节点 ID 应匹配");
+});
+%}
+
+### 重复删除第四个节点
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId4}}
+
+> {%
+client.test("重复删除节点返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40405, "预期业务码 40405");
+});
+%}
+
+### 19. 阶段节点状态流转
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目经理负责人开始节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("nodeId2")), "节点 ID 应匹配");
+    client.assert(response.body.data.status === 2, "节点状态应变为进行中");
+    client.assert(response.body.data.completed_at === null, "进行中节点 completed_at 应为空");
+});
+%}
+
+### 重复开始节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("重复开始节点返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40916, "预期业务码 40916");
+});
+%}
+
+### 未完成节点不能撤销完成
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("未完成节点撤销完成返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40917, "预期业务码 40917");
+});
+%}
+
+### 完成节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目经理负责人完成节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.status === 3, "节点状态应变为已完成");
+    client.assert(response.body.data.completed_at !== null, "已完成节点 completed_at 不能为空");
+});
+%}
+
+### 重复完成节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("重复完成节点返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40905, "预期业务码 40905");
+});
+%}
+
+### 已完成节点禁止修改基础信息
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}
+Content-Type: application/json
+
+{
+  "name": "已完成节点修改"
+}
+
+> {%
+client.test("已完成节点修改返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40905, "预期业务码 40905");
+});
+%}
+
+### 已完成节点禁止删除
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}
+
+> {%
+client.test("已完成节点删除返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40905, "预期业务码 40905");
+});
+%}
+
+### 存在已完成节点时禁止重排
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId1}}, "sequence_no": 1},
+    {"node_id": {{nodeId2}}, "sequence_no": 2},
+    {"node_id": {{nodeId3}}, "sequence_no": 3}
+  ]
+}
+
+> {%
+client.test("包含已完成节点重排返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40912, "预期业务码 40912");
+});
+%}
+
+### 撤销节点完成
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("撤销节点完成成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.status === 2, "节点状态应回到进行中");
+    client.assert(response.body.data.completed_at === null, "completed_at 应清空");
+});
+%}
+
+### 重复撤销节点完成
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("重复撤销节点完成返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40917, "预期业务码 40917");
+});
+%}
+
+### 状态动作请求体不是 JSON 对象
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}/start
+Content-Type: application/json
+
+[]
+
+> {%
+client.test("节点状态动作请求体非对象返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 20. 项目完成后节点只读
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("完成第一个节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.status === 3, "第一个节点应已完成");
+});
+%}
+
+### 再次完成第二个节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId2}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("再次完成第二个节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.status === 3, "第二个节点应已完成");
+});
+%}
+
+### 完成第三个节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId3}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("完成第三个节点成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.status === 3, "第三个节点应已完成");
+});
+%}
+
+### 完成项目
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("全部节点完成后完成项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.status === 3, "项目状态应变为已完成");
+});
+%}
+
+### 已完成项目禁止创建节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes
+Content-Type: application/json
+
+{
+  "name": "已完成项目新节点",
+  "planned_start_date": "2026-12-26",
+  "planned_end_date": "2026-12-28"
+}
+
+> {%
+client.test("已完成项目创建节点返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 已完成项目禁止修改节点
+PATCH {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+Content-Type: application/json
+
+{
+  "name": "已完成项目修改节点"
+}
+
+> {%
+client.test("已完成项目修改节点返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 已完成项目禁止开始节点
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("已完成项目开始节点返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 已完成项目禁止撤销节点完成
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("已完成项目撤销节点完成返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 已完成项目禁止重排节点
+PUT {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/reorder
+Content-Type: application/json
+
+{
+  "nodes": [
+    {"node_id": {{nodeId1}}, "sequence_no": 1},
+    {"node_id": {{nodeId2}}, "sequence_no": 2},
+    {"node_id": {{nodeId3}}, "sequence_no": 3}
+  ]
+}
+
+> {%
+client.test("已完成项目重排节点返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 已完成项目禁止删除节点
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/nodes/{{nodeId1}}
+
+> {%
+client.test("已完成项目删除节点返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 撤销项目完成状态
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("撤销项目完成成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.status === 2, "项目状态应回到进行中");
+});
+%}
+
+### 21. 项目经理负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目经理负责人登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 22. 管理员最终登录与数据清理
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.76." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("管理员最终登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 删除主测试项目
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}
+
+> {%
+client.test("删除主测试项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("managedProjectId")), "删除项目 ID 应匹配");
+});
+%}
+
+### 删除普通员工个人项目
+DELETE {{baseUrl}}/api/projects/{{personalProjectId}}
+
+> {%
+client.test("删除普通员工个人项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 管理员最终登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员最终登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
 });
 %}

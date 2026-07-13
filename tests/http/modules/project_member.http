@@ -1,14 +1,175 @@
 @baseUrl = http://127.0.0.1
 @adminUsername = admin
-@password = 123456
+@managerUsername = wang_jie
+@otherManagerUsername = li_ming
 @employeeUsername = chen_xu
+@disabledUsername = zhao_yue
+@password = 123456
+@missingProjectId = 999999999999
+@missingUserId = 999999999999
 
-### ==========================================
-### 1. 管理员登录
-### ==========================================
-# @name adminLogin
+### 1. 清理登录态
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("清理登录态成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 2. 未登录访问项目成员接口被拦截
+GET {{baseUrl}}/api/projects/1/members
+
+> {%
+client.test("未登录获取成员列表返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 未登录获取成员候选列表
+GET {{baseUrl}}/api/projects/1/members/candidates
+
+> {%
+client.test("未登录获取成员候选列表返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 未登录添加成员
+POST {{baseUrl}}/api/projects/1/members
+Content-Type: application/json
+
+{
+  "user_id": 1
+}
+
+> {%
+client.test("未登录添加成员返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 未登录移除成员
+DELETE {{baseUrl}}/api/projects/1/members/1
+
+> {%
+client.test("未登录移除成员返回 401", function() {
+    client.assert(response.status === 401, "预期状态码 401");
+    client.assert(response.body.code === 40003, "预期业务码 40003");
+});
+%}
+
+### 3. 普通员工登录并创建个人项目
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.50." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{employeeUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("普通员工登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.system_role === 3, "预期普通员工角色");
+    client.global.set("employeeUserId", response.body.data.user.id);
+});
+%}
+
+### 普通员工创建个人项目
+< {%
+  var rand = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+  request.variables.set("personalProjectName", "project_member_personal_" + rand);
+%}
+POST {{baseUrl}}/api/projects
+Content-Type: application/json
+
+{
+  "name": "{{personalProjectName}}",
+  "description": "项目成员模块个人项目限制测试",
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-31"
+}
+
+> {%
+client.test("普通员工创建个人项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("employeeUserId")), "个人项目负责人应为创建人");
+    client.global.set("personalProjectId", response.body.data.id);
+});
+%}
+
+### 4. 普通员工个人项目成员权限
+GET {{baseUrl}}/api/projects/{{personalProjectId}}/members
+
+> {%
+client.test("普通员工可以查看自己个人项目的成员列表", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 1, "个人项目应只有创建人一个成员");
+    var owner = response.body.data.list[0];
+    client.assert(owner.user_id === parseInt(client.global.get("employeeUserId")), "成员应为当前普通员工");
+    client.assert(owner.is_owner === true, "当前普通员工应为项目负责人");
+});
+%}
+
+### 普通员工负责人不能获取成员候选列表
+GET {{baseUrl}}/api/projects/{{personalProjectId}}/members/candidates
+
+> {%
+client.test("普通员工负责人获取候选列表返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通员工负责人不能移除自己
+DELETE {{baseUrl}}/api/projects/{{personalProjectId}}/members/{{employeeUserId}}
+
+> {%
+client.test("普通员工负责人移除成员返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 5. 普通员工登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("普通员工登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 6. 管理员登录
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.51." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{adminUsername}}",
@@ -17,183 +178,1009 @@ Content-Type: application/json
 
 > {%
 client.test("管理员登录成功", function() {
-    client.assert(response.status === 200, "状态码应为 200");
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user.system_role === 1, "预期管理员角色");
+    client.global.set("adminUserId", response.body.data.user.id);
 });
 %}
 
-### ==========================================
-### 2. 创建临时项目
-### ==========================================
+### 7. 管理员访问普通员工个人项目的成员管理限制
+GET {{baseUrl}}/api/projects/{{personalProjectId}}/members
+
+> {%
+client.test("管理员可以查看个人项目成员列表", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 1, "个人项目应只有一个成员");
+});
+%}
+
+### 管理员不能获取个人项目成员候选列表
+GET {{baseUrl}}/api/projects/{{personalProjectId}}/members/candidates
+
+> {%
+client.test("管理员获取个人项目候选列表返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40913, "预期业务码 40913");
+});
+%}
+
+### 管理员不能向个人项目添加成员
+POST {{baseUrl}}/api/projects/{{personalProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{adminUserId}}
+}
+
+> {%
+client.test("管理员向个人项目添加成员返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40913, "预期业务码 40913");
+});
+%}
+
+### 管理员不能从个人项目移除成员
+DELETE {{baseUrl}}/api/projects/{{personalProjectId}}/members/{{employeeUserId}}
+
+> {%
+client.test("管理员从个人项目移除成员返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40913, "预期业务码 40913");
+});
+%}
+
+### 8. 管理员创建成员管理测试项目
 < {%
-  var rand = Math.floor(Math.random() * 1000000);
-  request.variables.set("projectName", "project_member_test_" + rand);
+  var rand = Date.now() + "_" + Math.floor(Math.random() * 1000000);
+  request.variables.set("managedProjectName", "project_member_managed_" + rand);
 %}
 POST {{baseUrl}}/api/projects
 Content-Type: application/json
 
 {
-  "name": "{{projectName}}",
-  "description": "项目成员模块测试项目。",
-  "planned_start_date": "2026-04-01",
-  "planned_end_date": "2026-04-30"
+  "name": "{{managedProjectName}}",
+  "description": "项目成员模块完整流程测试",
+  "planned_start_date": "2026-12-01",
+  "planned_end_date": "2026-12-31"
 }
 
 > {%
-client.global.set("tempProjectId", response.body.data.id);
-%}
-
-### ==========================================
-### 3. 获取候选人列表
-### ==========================================
-### 获取可添加为该项目成员的候选列表
-GET {{baseUrl}}/api/projects/{{tempProjectId}}/members/candidates?page=1&page_size=10
-
-> {%
-client.test("获取项目成员候选列表成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("管理员创建测试项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("adminUserId")), "初始负责人应为管理员");
+    client.global.set("managedProjectId", response.body.data.id);
 });
 %}
 
-### 带关键字筛选候选人
-GET {{baseUrl}}/api/projects/{{tempProjectId}}/members/candidates?keyword=wang
+### 9. 初始成员列表与候选人列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members
 
 > {%
-client.test("带关键字获取候选人成功", function() {
-    client.assert(response.status === 200);
+client.test("新项目初始成员列表只有管理员", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 1, "新项目应只有一个初始成员");
+    var owner = response.body.data.list[0];
+    client.assert(owner.user_id === parseInt(client.global.get("adminUserId")), "初始成员应为管理员");
+    client.assert(owner.username === "admin", "初始成员用户名应为 admin");
+    client.assert(owner.is_owner === true, "管理员应为项目负责人");
+    client.assert(typeof owner.joined_at === "string" && owner.joined_at.length > 0, "joined_at 应为非空字符串");
 });
 %}
 
-### ==========================================
-### 4. 添加项目成员
-### ==========================================
-### 正常添加成员 (添加用户 wang_jie, id=3)
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/members
+### 获取默认候选列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?page=1&page_size=10
+
+> {%
+client.test("管理员获取成员候选列表成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(Array.isArray(response.body.data.list), "list 应为数组");
+    client.assert(response.body.data.total >= response.body.data.list.length, "total 不应小于当前页数量");
+    client.assert(response.body.data.page === 1, "page 应为 1");
+    client.assert(response.body.data.page_size === 10, "page_size 应为 10");
+    for (var i = 0; i < response.body.data.list.length; i++) {
+        var item = response.body.data.list[i];
+        client.assert(item.id !== parseInt(client.global.get("adminUserId")), "候选列表不应包含现有管理员成员");
+        client.assert(item.status === 1, "候选用户必须为启用状态");
+    }
+});
+%}
+
+### 按用户名查询项目经理 wang_jie
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?keyword=wang_jie&page=1&page_size=10
+
+> {%
+client.test("候选列表包含 wang_jie", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    var candidate = null;
+    for (var i = 0; i < response.body.data.list.length; i++) {
+        if (response.body.data.list[i].username === "wang_jie") {
+            candidate = response.body.data.list[i];
+            break;
+        }
+    }
+    client.assert(candidate !== null, "候选列表应包含 wang_jie");
+    client.assert(candidate.system_role === 2, "wang_jie 应为项目经理");
+    client.global.set("managerUserId", candidate.id);
+});
+%}
+
+### 按用户名查询普通员工 chen_xu
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?keyword=chen_xu&page=1&page_size=10
+
+> {%
+client.test("候选列表包含 chen_xu", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    var candidate = response.body.data.list.find(function(item) {
+        return item.username === "chen_xu";
+    });
+    client.assert(candidate !== undefined, "候选列表应包含 chen_xu");
+    client.assert(candidate.id === parseInt(client.global.get("employeeUserId")), "chen_xu ID 应与登录用户一致");
+    client.assert(candidate.system_role === 3, "chen_xu 应为普通员工");
+});
+%}
+
+### 按用户名查询另一位项目经理 li_ming
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?keyword=li_ming&page=1&page_size=10
+
+> {%
+client.test("候选列表包含 li_ming", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    var candidate = response.body.data.list.find(function(item) {
+        return item.username === "li_ming";
+    });
+    client.assert(candidate !== undefined, "候选列表应包含 li_ming");
+    client.assert(candidate.system_role === 2, "li_ming 应为项目经理");
+    client.global.set("otherManagerUserId", candidate.id);
+});
+%}
+
+### 查询禁用用户 ID
+GET {{baseUrl}}/api/users?keyword={{disabledUsername}}&status=2&page=1&page_size=10
+
+> {%
+client.test("管理员查询禁用用户成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    var disabledUser = response.body.data.list.find(function(item) {
+        return item.username === "zhao_yue";
+    });
+    client.assert(disabledUser !== undefined, "用户列表应包含禁用用户 zhao_yue");
+    client.assert(disabledUser.status === 2, "zhao_yue 应为禁用状态");
+    client.global.set("disabledUserId", disabledUser.id);
+});
+%}
+
+### 禁用用户不会出现在候选列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?keyword={{disabledUsername}}&page=1&page_size=10
+
+> {%
+client.test("禁用用户被候选列表排除", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.total === 0, "禁用用户筛选结果 total 应为 0");
+    client.assert(response.body.data.list.length === 0, "禁用用户筛选结果应为空");
+});
+%}
+
+### 候选列表分页
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?page=1&page_size=1
+
+> {%
+client.test("候选列表分页参数生效", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.page === 1, "page 应为 1");
+    client.assert(response.body.data.page_size === 1, "page_size 应为 1");
+    client.assert(response.body.data.list.length <= 1, "当前页最多返回一个候选人");
+});
+%}
+
+### 10. 成员候选列表参数与资源校验
+GET {{baseUrl}}/api/projects/0/members/candidates
+
+> {%
+client.test("候选列表 project_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 查询不存在项目的候选列表
+GET {{baseUrl}}/api/projects/{{missingProjectId}}/members/candidates
+
+> {%
+client.test("不存在项目候选列表返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### page 非正整数
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?page=0&page_size=10
+
+> {%
+client.test("候选列表 page 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### page_size 非整数
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?page=1&page_size=abc
+
+> {%
+client.test("候选列表 page_size 非整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 11. 添加成员参数与业务校验
+POST {{baseUrl}}/api/projects/0/members
 Content-Type: application/json
 
 {
-  "user_id": 3
+  "user_id": {{managerUserId}}
 }
 
 > {%
-client.test("正常添加项目成员成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("添加成员 project_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### 异常：重复添加该成员，预期 409 (40903)
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/members
+### 请求体不是 JSON 对象
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+[]
+
+> {%
+client.test("添加成员请求体非对象返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 缺少 user_id
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("添加成员缺少 user_id 返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### user_id 类型错误
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
 Content-Type: application/json
 
 {
-  "user_id": 3
+  "user_id": "{{managerUserId}}"
 }
 
 > {%
-client.test("重复添加报错 409", function() {
-    client.assert(response.status === 409);
-    client.assert(response.body.code === 40903, "预期重复成员业务码 40903");
+client.test("添加成员 user_id 类型错误返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### 异常：添加不存在的用户，预期 404
-POST {{baseUrl}}/api/projects/{{tempProjectId}}/members
+### user_id 非正整数
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
 Content-Type: application/json
 
 {
-  "user_id": 999999
+  "user_id": 0
 }
 
 > {%
-client.test("添加不存在用户报错 404", function() {
-    client.assert(response.status === 404);
+client.test("添加成员 user_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
 });
 %}
 
-### ==========================================
-### 5. 获取项目当前成员列表
-### ==========================================
-### 获取临时项目的现有成员列表
-GET {{baseUrl}}/api/projects/{{tempProjectId}}/members
+### 向不存在项目添加成员
+POST {{baseUrl}}/api/projects/{{missingProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{managerUserId}}
+}
 
 > {%
-client.test("获取项目现有成员列表成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("向不存在项目添加成员返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
 });
 %}
 
-### ==========================================
-### 6. 移除项目成员与权限校验
-### ==========================================
-### 管理员登出
+### 添加不存在用户
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{missingUserId}}
+}
+
+> {%
+client.test("添加不存在用户返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40401, "预期业务码 40401");
+});
+%}
+
+### 添加禁用用户
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{disabledUserId}}
+}
+
+> {%
+client.test("添加禁用用户返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40902, "预期业务码 40902");
+});
+%}
+
+### 重复添加初始负责人
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{adminUserId}}
+}
+
+> {%
+client.test("重复添加初始负责人返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40903, "预期业务码 40903");
+});
+%}
+
+### 12. 管理员正常添加项目经理和普通员工
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{managerUserId}}
+}
+
+> {%
+client.test("管理员添加项目经理成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.project_id === parseInt(client.global.get("managedProjectId")), "项目 ID 应匹配");
+    client.assert(response.body.data.user_id === parseInt(client.global.get("managerUserId")), "成员用户 ID 应匹配");
+    client.assert(typeof response.body.data.joined_at === "string" && response.body.data.joined_at.length > 0, "joined_at 应为非空字符串");
+});
+%}
+
+### 重复添加项目经理
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{managerUserId}}
+}
+
+> {%
+client.test("重复添加项目经理返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40903, "预期业务码 40903");
+});
+%}
+
+### 添加普通员工
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{employeeUserId}}
+}
+
+> {%
+client.test("管理员添加普通员工成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user_id === parseInt(client.global.get("employeeUserId")), "普通员工 ID 应匹配");
+});
+%}
+
+### 13. 管理员查看添加后的成员与候选列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members
+
+> {%
+client.test("成员列表包含管理员、项目经理和普通员工", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 3, "成员列表应包含三个成员");
+    var admin = response.body.data.list.find(function(item) { return item.user_id === parseInt(client.global.get("adminUserId")); });
+    var manager = response.body.data.list.find(function(item) { return item.user_id === parseInt(client.global.get("managerUserId")); });
+    var employee = response.body.data.list.find(function(item) { return item.user_id === parseInt(client.global.get("employeeUserId")); });
+    client.assert(admin !== undefined && admin.is_owner === true, "管理员应为当前负责人");
+    client.assert(manager !== undefined && manager.system_role === 2, "列表应包含项目经理");
+    client.assert(employee !== undefined && employee.system_role === 3, "列表应包含普通员工");
+});
+%}
+
+### 已添加成员不再出现在候选列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?keyword=wang_jie&page=1&page_size=10
+
+> {%
+client.test("已添加项目经理从候选列表排除", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.total === 0, "已添加成员筛选 total 应为 0");
+    client.assert(response.body.data.list.length === 0, "已添加成员不应出现在候选列表");
+});
+%}
+
+### 14. 管理员登出
 POST {{baseUrl}}/api/auth/logout
 Content-Type: application/json
 
 {}
 
-### 普通员工登录
+> {%
+client.test("管理员登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 15. 非项目成员的项目经理权限校验
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.52." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{otherManagerUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("非项目成员的项目经理登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.user.system_role === 2, "预期项目经理角色");
+    client.assert(response.body.data.user.id === parseInt(client.global.get("otherManagerUserId")), "li_ming ID 应匹配候选列表");
+});
+%}
+
+### 非项目成员不能查看成员列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members
+
+> {%
+client.test("非项目成员查看成员列表返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 非负责人项目经理不能查看候选列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates
+
+> {%
+client.test("非负责人项目经理查看候选列表返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 非负责人项目经理不能添加成员
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{otherManagerUserId}}
+}
+
+> {%
+client.test("非负责人项目经理添加成员返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 非负责人项目经理不能移除成员
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{employeeUserId}}
+
+> {%
+client.test("非负责人项目经理移除成员返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 非项目成员项目经理登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("非项目成员项目经理登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 16. 普通项目成员权限校验
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.53." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{employeeUsername}}",
   "password": "{{password}}"
 }
 
-### 越权尝试：普通员工移除非本人负责项目的成员，预期 403
-DELETE {{baseUrl}}/api/projects/{{tempProjectId}}/members/3
-
 > {%
-client.test("越权移除成员被拦截", function() {
-    client.assert(response.status === 403);
+client.test("普通项目成员登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.user.id === parseInt(client.global.get("employeeUserId")), "普通员工 ID 应匹配");
 });
 %}
 
-### 普通员工登出
+### 普通项目成员可以查看成员列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members
+
+> {%
+client.test("普通项目成员查看成员列表成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.list.length === 3, "普通成员应能看到完整成员列表");
+});
+%}
+
+### 普通项目成员不能查看候选列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates
+
+> {%
+client.test("普通项目成员查看候选列表返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通项目成员不能添加成员
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{otherManagerUserId}}
+}
+
+> {%
+client.test("普通项目成员添加成员返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通项目成员不能移除其他成员
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{managerUserId}}
+
+> {%
+client.test("普通项目成员移除成员返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 普通项目成员登出
 POST {{baseUrl}}/api/auth/logout
 Content-Type: application/json
 
 {}
 
-### 重新登录管理员
+> {%
+client.test("普通项目成员登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 17. 管理员将负责人转交给项目经理
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.54." + o3 + "." + o4);
+%}
 POST {{baseUrl}}/api/auth/login
 Content-Type: application/json
+x-forwarded-for: {{loginIp}}
 
 {
   "username": "{{adminUsername}}",
   "password": "{{password}}"
 }
 
-### 正常移除成员
-DELETE {{baseUrl}}/api/projects/{{tempProjectId}}/members/3
-
 > {%
-client.test("管理员正常移除成员成功", function() {
-    client.assert(response.status === 200);
-    client.assert(response.body.code === 0);
+client.test("管理员重新登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
 });
 %}
 
-### 异常：重复移除，预期 404 (40404)
-DELETE {{baseUrl}}/api/projects/{{tempProjectId}}/members/3
+### 转交负责人给 wang_jie
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/owner/transfer
+Content-Type: application/json
+
+{
+  "target_user_id": {{managerUserId}}
+}
 
 > {%
-client.test("重复移除非项目成员报错 404", function() {
-    client.assert(response.status === 404);
-    client.assert(response.body.code === 40404);
+client.test("管理员转交负责人给项目经理成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.owner_user_id === parseInt(client.global.get("managerUserId")), "负责人应变为 wang_jie");
 });
 %}
 
-### ==========================================
-### 7. 数据闭环清理
-### ==========================================
-### 删除新建项目，保证环境干净
-DELETE {{baseUrl}}/api/projects/{{tempProjectId}}
+### 管理员登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
 
 > {%
-client.test("项目删除成功，完成清理", function() {
-    client.assert(response.status === 200);
+client.test("管理员转交负责人后登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 18. 项目经理负责人管理成员
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.55." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{managerUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("项目经理负责人登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.user.id === parseInt(client.global.get("managerUserId")), "登录用户应为 wang_jie");
+    client.assert(response.body.data.user.system_role === 2, "预期项目经理角色");
+});
+%}
+
+### 项目经理负责人查看成员列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members
+
+> {%
+client.test("项目经理负责人查看成员列表成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    var manager = response.body.data.list.find(function(item) {
+        return item.user_id === parseInt(client.global.get("managerUserId"));
+    });
+    var admin = response.body.data.list.find(function(item) {
+        return item.user_id === parseInt(client.global.get("adminUserId"));
+    });
+    client.assert(manager !== undefined && manager.is_owner === true, "wang_jie 应为当前负责人");
+    client.assert(admin !== undefined && admin.is_owner === false, "管理员不再是负责人但仍是项目成员");
+});
+%}
+
+### 项目经理负责人可以查看候选列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?keyword=li_ming&page=1&page_size=10
+
+> {%
+client.test("项目经理负责人获取候选列表成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    var candidate = response.body.data.list.find(function(item) {
+        return item.id === parseInt(client.global.get("otherManagerUserId"));
+    });
+    client.assert(candidate !== undefined, "候选列表应包含 li_ming");
+});
+%}
+
+### 项目经理负责人添加 li_ming
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{otherManagerUserId}}
+}
+
+> {%
+client.test("项目经理负责人添加成员成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user_id === parseInt(client.global.get("otherManagerUserId")), "新增成员应为 li_ming");
+});
+%}
+
+### 项目经理负责人移除 li_ming
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{otherManagerUserId}}
+
+> {%
+client.test("项目经理负责人移除成员成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.user_id === parseInt(client.global.get("otherManagerUserId")), "移除成员应为 li_ming");
+});
+%}
+
+### 项目经理负责人不能直接移除自己
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{managerUserId}}
+
+> {%
+client.test("项目负责人移除自己返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 项目经理负责人移除普通员工
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{employeeUserId}}
+
+> {%
+client.test("项目经理负责人移除普通员工成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 被移除员工重新出现在候选列表
+GET {{baseUrl}}/api/projects/{{managedProjectId}}/members/candidates?keyword=chen_xu&page=1&page_size=10
+
+> {%
+client.test("被移除员工重新成为候选人", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    var candidate = response.body.data.list.find(function(item) {
+        return item.id === parseInt(client.global.get("employeeUserId"));
+    });
+    client.assert(candidate !== undefined, "chen_xu 应重新出现在候选列表");
+});
+%}
+
+### 项目经理负责人重新添加普通员工
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{employeeUserId}}
+}
+
+> {%
+client.test("项目经理负责人重新添加普通员工成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 19. 已完成项目成员管理只读
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/start
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目经理负责人开始项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.status === 2, "项目状态应变为进行中");
+});
+%}
+
+### 完成项目
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/complete
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目经理负责人完成项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.status === 3, "项目状态应变为已完成");
+});
+%}
+
+### 已完成项目禁止添加成员
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/members
+Content-Type: application/json
+
+{
+  "user_id": {{otherManagerUserId}}
+}
+
+> {%
+client.test("已完成项目添加成员返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 已完成项目禁止移除成员
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{employeeUserId}}
+
+> {%
+client.test("已完成项目移除成员返回 409", function() {
+    client.assert(response.status === 409, "预期状态码 409");
+    client.assert(response.body.code === 40904, "预期业务码 40904");
+});
+%}
+
+### 撤销项目完成状态
+POST {{baseUrl}}/api/projects/{{managedProjectId}}/reopen
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目经理负责人撤销完成成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.data.status === 2, "项目状态应回到进行中");
+});
+%}
+
+### 撤销完成后移除普通员工
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{employeeUserId}}
+
+> {%
+client.test("撤销完成后可以移除成员", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 重复移除普通员工
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{employeeUserId}}
+
+> {%
+client.test("重复移除成员返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40404, "预期业务码 40404");
+});
+%}
+
+### 20. 项目经理负责人登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("项目经理负责人登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 21. 管理员最终资源与移除参数校验
+< {%
+  var o3 = Math.floor(Math.random() * 200) + 1;
+  var o4 = Math.floor(Math.random() * 250) + 1;
+  request.variables.set("loginIp", "172.56." + o3 + "." + o4);
+%}
+POST {{baseUrl}}/api/auth/login
+Content-Type: application/json
+x-forwarded-for: {{loginIp}}
+
+{
+  "username": "{{adminUsername}}",
+  "password": "{{password}}"
+}
+
+> {%
+client.test("管理员最终登录成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 成员列表 project_id 非正整数
+GET {{baseUrl}}/api/projects/0/members
+
+> {%
+client.test("成员列表 project_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 查询不存在项目的成员列表
+GET {{baseUrl}}/api/projects/{{missingProjectId}}/members
+
+> {%
+client.test("不存在项目成员列表返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 移除成员 member_user_id 非正整数
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/0
+
+> {%
+client.test("移除成员 member_user_id 非正整数返回 400", function() {
+    client.assert(response.status === 400, "预期状态码 400");
+    client.assert(response.body.code === 40001, "预期业务码 40001");
+});
+%}
+
+### 从不存在项目移除成员
+DELETE {{baseUrl}}/api/projects/{{missingProjectId}}/members/{{adminUserId}}
+
+> {%
+client.test("从不存在项目移除成员返回 404", function() {
+    client.assert(response.status === 404, "预期状态码 404");
+    client.assert(response.body.code === 40403, "预期业务码 40403");
+});
+%}
+
+### 管理员不能直接移除当前项目负责人
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}/members/{{managerUserId}}
+
+> {%
+client.test("管理员移除当前项目负责人返回 403", function() {
+    client.assert(response.status === 403, "预期状态码 403");
+    client.assert(response.body.code === 40004, "预期业务码 40004");
+});
+%}
+
+### 22. 数据闭环清理
+DELETE {{baseUrl}}/api/projects/{{managedProjectId}}
+
+> {%
+client.test("删除成员管理测试项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+    client.assert(response.body.data.id === parseInt(client.global.get("managedProjectId")), "删除项目 ID 应匹配");
+});
+%}
+
+### 删除普通员工个人项目
+DELETE {{baseUrl}}/api/projects/{{personalProjectId}}
+
+> {%
+client.test("删除普通员工个人项目成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
+});
+%}
+
+### 管理员最终登出
+POST {{baseUrl}}/api/auth/logout
+Content-Type: application/json
+
+{}
+
+> {%
+client.test("管理员最终登出成功", function() {
+    client.assert(response.status === 200, "预期状态码 200");
+    client.assert(response.body.code === 0, "预期业务码 0");
 });
 %}
